@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MindX LMS Pro - Overview Dashboard</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        /* Skeleton Animation */
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .skeleton {
+            background-image: linear-gradient(90deg, #f3f4f5 25%, #e7e8e9 50%, #f3f4f5 75%);
+            background-size: 400% 100%;
+            animation: shimmer 2s infinite ease-in-out;
+        }
+        
+        /* Soft Shadow utility not in tailwind config explicitly but requested in guidelines */
+        .shadow-soft {
+            box-shadow: 0px 4px 20px rgba(0,0,0,0.04);
+        }
+        .shadow-elevated {
+            box-shadow: 0px 10px 30px rgba(0,0,0,0.08);
+        }
+    </style>
+<!-- Tailwind Config -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary": "#605e5e",
+                        "on-error-container": "#93000a",
+                        "on-tertiary": "#ffffff",
+                        "background": "#f8f9fa",
+                        "surface-container-high": "#e7e8e9",
+                        "on-secondary-container": "#646262",
+                        "on-surface-variant": "#5d3f3c",
+                        "secondary-container": "#e3dfde",
+                        "surface": "#f8f9fa",
+                        "on-secondary-fixed-variant": "#484646",
+                        "secondary-fixed": "#e6e2e1",
+                        "surface-bright": "#f8f9fa",
+                        "primary-fixed": "#ffdad6",
+                        "on-primary-fixed": "#410003",
+                        "on-secondary-fixed": "#1c1b1b",
+                        "on-tertiary-fixed": "#24191a",
+                        "on-error": "#ffffff",
+                        "surface-glass": "rgba(255, 255, 255, 0.7)",
+                        "surface-variant": "#e1e3e4",
+                        "surface-container-highest": "#e1e3e4",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-container": "#fffafa",
+                        "surface-container-low": "#f3f4f5",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed": "#f2dedf",
+                        "on-tertiary-fixed-variant": "#514345",
+                        "outline-variant": "#e7bdb8",
+                        "pending": "#F59E0B",
+                        "surface-dim": "#d9dadb",
+                        "tertiary-container": "#807071",
+                        "surface-tint": "#c00016",
+                        "on-surface": "#191c1d",
+                        "primary-container": "#e31f26",
+                        "on-primary-container": "#fffaff",
+                        "on-primary": "#ffffff",
+                        "info": "#3B82F6",
+                        "inverse-surface": "#2e3132",
+                        "secondary-fixed-dim": "#c9c6c5",
+                        "primary-fixed-dim": "#ffb4ac",
+                        "success": "#22C55E",
+                        "inverse-on-surface": "#f0f1f2",
+                        "inverse-primary": "#ffb4ac",
+                        "on-background": "#191c1d",
+                        "surface-container": "#edeeef",
+                        "on-primary-fixed-variant": "#93000e",
+                        "primary": "#bb0015",
+                        "tertiary-fixed-dim": "#d5c2c3",
+                        "tertiary": "#665859",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "outline": "#926f6b"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "margin-desktop": "32px",
+                        "max-width": "1440px",
+                        "unit": "4px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "title-lg": ["Be Vietnam Pro"],
+                        "body-md": ["Be Vietnam Pro"],
+                        "headline-lg-mobile": ["Be Vietnam Pro"],
+                        "headline-md": ["Be Vietnam Pro"],
+                        "body-lg": ["Be Vietnam Pro"],
+                        "display-lg": ["Be Vietnam Pro"],
+                        "label-md": ["Be Vietnam Pro"],
+                        "label-sm": ["Be Vietnam Pro"],
+                        "headline-lg": ["Be Vietnam Pro"]
+                    },
+                    "fontSize": {
+                        "title-lg": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "label-sm": ["11px", { "lineHeight": "14px", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md min-h-screen flex selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- SideNavBar (from JSON) -->
+<aside class="bg-surface border-r border-surface-container-high w-[280px] h-screen fixed left-0 top-0 shadow-sm flex flex-col p-6 gap-unit z-50">
+<!-- Header -->
+<div class="flex items-center gap-4 mb-8 pl-2">
+<div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-on-primary font-bold text-xl shadow-md">
+                M
+            </div>
+<div>
+<h1 class="font-title-lg text-title-lg font-black text-primary">MindX Pro</h1>
+<p class="font-label-sm text-label-sm text-secondary">LMS Dashboard</p>
+</div>
+</div>
+<!-- Navigation -->
+<nav class="flex-1 space-y-1">
+<!-- Active Tab: Dashboard -->
+<a class="flex items-center gap-3 px-4 py-3 text-primary bg-primary-fixed font-bold rounded-lg transition-transform duration-150 scale-[0.98] group" href="#">
+<span class="material-symbols-outlined icon-fill">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary hover:text-primary hover:bg-surface-container-low transition-colors duration-200 rounded-lg group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">school</span>
+                Class Management
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary hover:text-primary hover:bg-surface-container-low transition-colors duration-200 rounded-lg group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">calendar_today</span>
+                Schedule
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary hover:text-primary hover:bg-surface-container-low transition-colors duration-200 rounded-lg group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">analytics</span>
+                Reports
+            </a>
+</nav>
+<!-- Bottom Actions -->
+<div class="mt-auto space-y-4">
+<a class="flex items-center gap-3 px-4 py-3 text-secondary hover:text-primary hover:bg-surface-container-low transition-colors duration-200 rounded-lg group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">settings</span>
+                Settings
+            </a>
+<button class="w-full bg-gradient-to-r from-primary to-[#8A000F] text-on-primary font-label-md text-label-md py-3 rounded-lg shadow-md hover:shadow-elevated transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Session
+            </button>
+</div>
+</aside>
+<!-- Main Wrapper -->
+<div class="flex-1 flex flex-col ml-[280px] w-[calc(100%-280px)] min-h-screen">
+<!-- TopAppBar (from JSON) -->
+<header class="bg-surface-glass docked full-width top-0 sticky z-40 backdrop-blur-md border-b border-surface-container-high flex justify-between items-center h-20 px-gutter">
+<!-- Left: Search -->
+<div class="flex-1 max-w-md">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary group-focus-within:text-primary transition-colors">search</span>
+<input class="w-full bg-surface-container-low border border-surface-variant text-on-surface rounded-full py-2 pl-10 pr-4 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary-fixed/50 transition-all font-body-md text-body-md" placeholder="Search classes, students..." type="text"/>
+</div>
+</div>
+<!-- Right: Actions -->
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:text-primary hover:bg-surface-container-low cursor-pointer transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border-2 border-surface"></span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:text-primary hover:bg-surface-container-low cursor-pointer transition-colors">
+<span class="material-symbols-outlined">help</span>
+</button>
+</div>
+<div class="h-8 w-px bg-surface-container-high mx-2"></div>
+<div class="flex items-center gap-3 cursor-pointer group">
+<div class="text-right hidden lg:block">
+<p class="font-label-md text-label-md text-on-surface font-bold group-hover:text-primary transition-colors">Sarah Jenkins</p>
+<p class="font-label-sm text-label-sm text-secondary">Sign Out</p>
+</div>
+<img alt="Teacher Avatar" class="w-10 h-10 rounded-full border border-surface-container-high object-cover shadow-sm group-hover:border-primary transition-colors" data-alt="A professional headshot of a confident female teacher with warm lighting, set against a clean, modern, slightly blurred classroom background in a light-mode aesthetic. She is wearing professional yet approachable attire, fitting for a sophisticated EdTech platform. The color palette features neutral tones with subtle warm highlights." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBz6hnNsCPVPZER5qdESIuK18D0LBDhw6dVaUxAUc-CzmoPL6RxTGeht2-QIgOXGXUmyfxa2HBPBFy5RhBohdF7gT9HsZgNYJQfqlq16THKlICK7y2OTonfU7A-mC5vip_VM8kKH_U5P8DRL7qvX2cXdbcmLCA5JwfkVM5OhQRj4GczU07rB5HfBtCHvOkoxg_Z2Hn1y0DZiQpWkdvk80lUBgIwQfylNwANz1EwgVL9VPTKegifWXjXVE4pHsLLlS8KWWdMeB8Q_SVt"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="p-margin-desktop flex-1 max-w-max-width mx-auto w-full flex flex-col gap-8">
+<!-- Page Header -->
+<div class="flex justify-between items-end">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Overview</h2>
+<p class="font-body-lg text-body-lg text-secondary mt-1">Welcome back, here's what's happening today.</p>
+</div>
+<div class="text-right">
+<p class="font-label-md text-label-md text-primary font-bold tracking-wider uppercase">Today</p>
+<p class="font-title-lg text-title-lg text-on-surface">Oct 24, 2023</p>
+</div>
+</div>
+<!-- Bento Grid Stats -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Stat Card 1 -->
+<div class="bg-surface rounded-xl border border-surface-container-high p-6 shadow-soft hover:shadow-elevated transition-shadow relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary-fixed opacity-20 rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-110"></div>
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 rounded-lg bg-surface-container-low flex items-center justify-center text-on-surface border border-surface-variant">
+<span class="material-symbols-outlined text-[24px]">school</span>
+</div>
+<span class="bg-success/10 text-success font-label-sm text-label-sm px-2 py-1 rounded-full flex items-center gap-1 border border-success/20">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> 12%
+                        </span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-secondary uppercase tracking-wider mb-1">Total Classes</p>
+<h3 class="font-display-lg text-display-lg text-on-surface">14</h3>
+</div>
+</div>
+<!-- Stat Card 2 -->
+<div class="bg-surface rounded-xl border border-surface-container-high p-6 shadow-soft hover:shadow-elevated transition-shadow relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-32 h-32 bg-info/10 opacity-50 rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-110"></div>
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 rounded-lg bg-surface-container-low flex items-center justify-center text-on-surface border border-surface-variant">
+<span class="material-symbols-outlined text-[24px]">calendar_month</span>
+</div>
+<span class="bg-surface-container-highest text-secondary font-label-sm text-label-sm px-2 py-1 rounded-full border border-surface-variant">
+                            This Week
+                        </span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-secondary uppercase tracking-wider mb-1">Total Sessions</p>
+<h3 class="font-display-lg text-display-lg text-on-surface">32</h3>
+</div>
+</div>
+<!-- Stat Card 3 (Highlighted) -->
+<div class="bg-surface rounded-xl border border-error p-6 shadow-soft hover:shadow-elevated transition-shadow relative overflow-hidden group">
+<div class="absolute inset-0 bg-error/5 pointer-events-none"></div>
+<div class="absolute top-0 right-0 w-32 h-32 bg-error/10 opacity-50 rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-110"></div>
+<div class="flex justify-between items-start mb-4 relative z-10">
+<div class="w-12 h-12 rounded-lg bg-error text-on-error flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-[24px]">comment</span>
+</div>
+<span class="bg-error text-on-error font-label-sm text-label-sm px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                            Requires Action
+                        </span>
+</div>
+<div class="relative z-10">
+<p class="font-label-md text-label-md text-error uppercase tracking-wider mb-1 font-bold">Missing Comments</p>
+<div class="flex items-end gap-3">
+<h3 class="font-display-lg text-display-lg text-error">8</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-2">students pending</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Middle Section: Chart & Upcoming -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Chart Section (Skeleton Placeholder) -->
+<div class="lg:col-span-2 bg-surface rounded-xl border border-surface-container-high shadow-soft p-6 flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<div>
+<h3 class="font-title-lg text-title-lg text-on-surface">Teaching Progress</h3>
+<p class="font-body-md text-body-md text-secondary">Hours logged vs. planned (Weekly)</p>
+</div>
+<div class="flex gap-2 bg-surface-container-low p-1 rounded-lg border border-surface-variant">
+<button class="px-3 py-1 bg-surface shadow-sm rounded text-primary font-label-sm text-label-sm border border-surface-container-high">Week</button>
+<button class="px-3 py-1 rounded text-secondary hover:text-on-surface font-label-sm text-label-sm transition-colors">Month</button>
+</div>
+</div>
+<!-- Chart Skeleton -->
+<div class="flex-1 w-full min-h-[300px] flex items-end gap-4 pt-8 border-b border-l border-surface-container-high pb-2 pl-2 relative">
+<!-- Y-axis lines -->
+<div class="absolute inset-0 flex flex-col justify-between pt-8 pb-2 pl-2 pointer-events-none">
+<div class="w-full h-px bg-surface-container-high"></div>
+<div class="w-full h-px bg-surface-container-high"></div>
+<div class="w-full h-px bg-surface-container-high"></div>
+<div class="w-full h-px bg-surface-container-high"></div>
+</div>
+<!-- Bars -->
+<div class="w-full h-[60%] skeleton rounded-t-sm"></div>
+<div class="w-full h-[80%] skeleton rounded-t-sm"></div>
+<div class="w-full h-[40%] skeleton rounded-t-sm"></div>
+<div class="w-full h-[90%] bg-primary rounded-t-sm relative group cursor-pointer">
+<div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface px-2 py-1 rounded font-label-sm text-label-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">4.5 hrs</div>
+</div>
+<div class="w-full h-[50%] skeleton rounded-t-sm"></div>
+<div class="w-full h-[70%] skeleton rounded-t-sm"></div>
+<div class="w-full h-[30%] skeleton rounded-t-sm"></div>
+</div>
+<div class="flex justify-between mt-2 pl-2 font-label-sm text-label-sm text-secondary">
+<span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+</div>
+</div>
+<!-- Upcoming Sessions (Glass/List) -->
+<div class="bg-surface rounded-xl border border-surface-container-high shadow-soft flex flex-col">
+<div class="p-6 border-b border-surface-container-high flex justify-between items-center">
+<h3 class="font-title-lg text-title-lg text-on-surface">Upcoming Sessions</h3>
+<button class="text-primary hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-[20px]">more_horiz</span>
+</button>
+</div>
+<div class="flex-1 p-4 space-y-3 overflow-y-auto max-h-[350px]">
+<!-- List Item 1 -->
+<div class="group p-3 rounded-lg border border-transparent hover:border-surface-variant hover:bg-surface-container-low transition-all cursor-pointer flex gap-4">
+<div class="w-12 h-12 rounded bg-primary-fixed/30 flex flex-col items-center justify-center text-primary border border-primary-fixed">
+<span class="font-label-md text-label-md font-bold">10:00</span>
+<span class="font-label-sm text-label-sm text-primary/70">AM</span>
+</div>
+<div class="flex-1">
+<h4 class="font-label-md text-label-md text-on-surface font-bold group-hover:text-primary transition-colors">Advanced Python</h4>
+<p class="font-body-md text-body-md text-secondary line-clamp-1">Room 302 • 24 Students</p>
+</div>
+<div class="self-center">
+<span class="bg-pending/10 text-pending border border-pending/20 px-2 py-1 rounded-full font-label-sm text-label-sm whitespace-nowrap">Starting Soon</span>
+</div>
+</div>
+<!-- List Item 2 -->
+<div class="group p-3 rounded-lg border border-transparent hover:border-surface-variant hover:bg-surface-container-low transition-all cursor-pointer flex gap-4">
+<div class="w-12 h-12 rounded bg-surface-container-high flex flex-col items-center justify-center text-secondary border border-surface-variant">
+<span class="font-label-md text-label-md font-bold">13:30</span>
+<span class="font-label-sm text-label-sm text-secondary/70">PM</span>
+</div>
+<div class="flex-1">
+<h4 class="font-label-md text-label-md text-on-surface font-bold group-hover:text-primary transition-colors">Data Structures</h4>
+<p class="font-body-md text-body-md text-secondary line-clamp-1">Online Lab • 18 Students</p>
+</div>
+</div>
+<!-- List Item 3 -->
+<div class="group p-3 rounded-lg border border-transparent hover:border-surface-variant hover:bg-surface-container-low transition-all cursor-pointer flex gap-4">
+<div class="w-12 h-12 rounded bg-surface-container-high flex flex-col items-center justify-center text-secondary border border-surface-variant">
+<span class="font-label-md text-label-md font-bold">15:00</span>
+<span class="font-label-sm text-label-sm text-secondary/70">PM</span>
+</div>
+<div class="flex-1">
+<h4 class="font-label-md text-label-md text-on-surface font-bold group-hover:text-primary transition-colors">1:1 Mentoring</h4>
+<p class="font-body-md text-body-md text-secondary line-clamp-1">Alex Johnson</p>
+</div>
+</div>
+<!-- List Item 4 (Skeleton Placeholder for more) -->
+<div class="p-3 rounded-lg flex gap-4 opacity-50">
+<div class="w-12 h-12 rounded skeleton"></div>
+<div class="flex-1 space-y-2 py-1">
+<div class="h-4 skeleton w-3/4 rounded"></div>
+<div class="h-3 skeleton w-1/2 rounded"></div>
+</div>
+</div>
+</div>
+<div class="p-4 border-t border-surface-container-high text-center">
+<button class="text-primary font-label-md text-label-md hover:underline">View Full Schedule</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>
