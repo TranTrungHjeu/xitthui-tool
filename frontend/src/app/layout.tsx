@@ -3,6 +3,8 @@ import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
+// Build fix timestamp: 2026-06-09 18:45
+
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
