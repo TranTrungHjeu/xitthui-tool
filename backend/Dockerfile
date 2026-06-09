@@ -9,8 +9,8 @@ WORKDIR /app
 RUN mkdir -p data && chown node:node data
 
 COPY package*.json ./
-# Install only production dependencies
-RUN npm ci --only=production
+# Install only production dependencies (using install instead of ci to avoid ENOLOCK error if package-lock is missing)
+RUN npm install --omit=dev
 
 COPY --chown=node:node . .
 
