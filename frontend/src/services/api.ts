@@ -2,7 +2,7 @@ import axios from "axios";
 import { useAuthStore } from "../store/useAuthStore";
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: process.env.NEXT_PUBLIC_SERVER_API_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -101,7 +101,7 @@ api.interceptors.response.use(
 
       try {
         const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/refresh-token`,
+          `${process.env.NEXT_PUBLIC_SERVER_API_URL}/refresh-token`,
           { refreshToken },
         );
 
@@ -144,4 +144,3 @@ api.interceptors.response.use(
 );
 
 export default api;
-

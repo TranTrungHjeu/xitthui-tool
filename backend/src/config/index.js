@@ -13,20 +13,17 @@ if (fs.existsSync(localEnvPath)) {
 }
 
 module.exports = {
-  telegram: {
-    token: process.env.TELEGRAM_BOT_TOKEN,
-  },
   firebase: {
-    apiKey: process.env.FIREBASE_API_KEY,
+    apiKey: process.env.MINDX_FIREBASE_API_KEY,
   },
   lms: {
-    baseGraphql: process.env.LMS_BASE_GRAPHQL,
-    gatewayGraphql: process.env.LMS_GATEWAY_GRAPHQL,
-    origin: process.env.LMS_ORIGIN,
-    referer: process.env.LMS_REFERER,
+    baseGraphql: process.env.MINDX_LMS_BASE_API,
+    gatewayGraphql: process.env.MINDX_LMS_GATEWAY_API,
+    origin: process.env.MINDX_LMS_ORIGIN,
+    referer: process.env.MINDX_LMS_REFERER,
   },
   reminder: {
-    checkInterval: parseInt(process.env.REMINDER_CHECK_INTERVAL, 10),
+    checkInterval: 5,
     reminderHours: 24,
   },
 };

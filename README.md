@@ -1,6 +1,6 @@
-# MindX LMS Bot & Teacher Dashboard
+# MindX LMS Teacher Dashboard
 
-Công cụ hỗ trợ giáo viên MindX: Đồng bộ trạng thái buổi học, xem danh sách học sinh cần nhận xét, copy nhận xét nhanh và đồng bộ nhận xét lên MindX LMS Gateway.
+Công cụ hỗ trợ giáo viên MindX: Đồng bộ trạng thái buổi học, xem danh sách học sinh cần nhận xét, tạo nhận xét nhanh và đồng bộ nhận xét lên MindX LMS Gateway.
 
 ---
 
@@ -16,9 +16,6 @@ Công cụ hỗ trợ giáo viên MindX: Đồng bộ trạng thái buổi học
 Trước khi chạy ứng dụng, hãy đảm bảo bạn đã tạo file `.env` ở thư mục gốc của dự án với các cấu hình sau:
 
 ```env
-# Cấu hình bot Telegram
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-
 # Cấu hình Firebase & MindX LMS API
 FIREBASE_API_KEY=your_firebase_api_key
 LMS_BASE_GRAPHQL=https://gateway.mindx.edu.vn/graphql
@@ -32,16 +29,12 @@ LMS_BASE_GRAPHQL=https://gateway.mindx.edu.vn/graphql
    npm install
    ```
 
-2. **Khởi chạy ứng dụng (cả Bot Telegram & Web Dashboard):**
+2. **Khởi chạy ứng dụng:**
 
    ```bash
    npm start
    ```
 
-3. **Hoặc chỉ chạy riêng Web Dashboard (cho mục đích test/phát triển giao diện):**
-   ```bash
-   npm run web
-   ```
    _Dashboard sẽ chạy tại địa chỉ: `http://localhost:3000`_
 
 ---
@@ -57,7 +50,7 @@ Hệ thống quản lý phiên làm việc một cách chặt chẽ giữa React
 3. Backend gọi REST API của Firebase (`accounts:signInWithPassword`) để xác thực thông tin tài khoản và nhận về `firebaseIdToken` (ID Token) và `firebaseUid`.
 4. Backend sử dụng `firebaseIdToken` để truy vấn thông tin user MindX qua cổng Gateway (`User_getByFirebaseId`) nhằm lấy `lmsUserId`.
 5. Tiếp theo, backend thực hiện lấy `customToken` từ Gateway và đổi nó lấy **LMS ID Token** và **Refresh Token** thông qua Firebase (`accounts:signInWithCustomToken`).
-6. Khi đăng nhập thành công, Backend lưu lại session vào file `data/sessions.json` để đồng bộ với Bot Telegram, đồng thời trả về toàn bộ thông tin token cho Frontend.
+6. Khi đăng nhập thành công, Backend trả về toàn bộ thông tin token cho Frontend.
 7. Frontend lưu trữ thông tin session (gồm `lmsToken` và `lmsRefreshToken`) vào **`localStorage`** dưới khóa `mindx_lms_user`.
 
 ### B. Giữ Session khi Tải lại Trang (Session Persistence)

@@ -38,16 +38,28 @@ function LoginPageContent() {
 
     try {
       const res = await authService.login({ email, password });
+      console.log("[Login] Response from server:", res);
 
-      if (res.success) {
-        const {
-          mindxUser,
-          teacher,
-          profile,
-          lmsToken,
-          lmsRefreshToken,
-          teacherId,
-        } = res.data;
+      if (res.success || res.lmsToken || res.data?.lmsToken) {
+        // Normalize the response data
+        const data =
+          res.data && typeof res.data === "object" && !res.mindxUser
+            ? res.data
+            : res;
+
+        const mindxUser = data.mindxUser || data.user;
+        const lmsToken = data.lmsToken || data.token;
+        const lmsRefreshToken = data.lmsRefreshToken || data.refreshToken;
+        const teacher = data.teacher;
+        const profile = data.profile;
+        const teacherId = data.teacherId;
+
+        if (!mindxUser || !mindxUser.id) {
+          console.error("Login response missing user info:", res);
+          throw new Error(
+            "Đăng nhập thành công nhưng không lấy được thông tin người dùng.",
+          );
+        }
 
         // Use teacher full name from gateway as the canonical display name
         login(
@@ -70,7 +82,7 @@ function LoginPageContent() {
 
         router.push("/dashboard");
       } else {
-        setError(res.error || "Login failed");
+        setError(res.error || res.message || "Login failed");
       }
     } catch (err: any) {
       setError(err.message || "Connection error");
@@ -142,4 +154,3 @@ const LoginPage = dynamic(() => Promise.resolve(LoginPageContent), {
 });
 
 export default LoginPage;
-

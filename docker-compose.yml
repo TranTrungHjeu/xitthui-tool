@@ -1,8 +1,6 @@
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: registry.gitlab.com/trantrunghiu/xitthui-tool/backend:latest
     ports:
       - "4444:4444"
     volumes:
@@ -15,9 +13,7 @@ services:
     restart: always
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: registry.gitlab.com/trantrunghiu/xitthui-tool/frontend:latest
     ports:
       - "3333:3333"
     env_file:

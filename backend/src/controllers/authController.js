@@ -1,6 +1,5 @@
 const lmsAuth = require("../services/lmsAuth");
 const LMSClient = require("../services/lmsClient");
-const UserSessionManager = require("../storage/userSession");
 
 exports.login = async (req, res) => {
   const { email, password } = req.body;
@@ -20,13 +19,11 @@ exports.login = async (req, res) => {
         teacherId = teacher?.id || null;
         profile = await client.getProfile(result.mindxUser.id);
       } catch (e) {
-        // Suppress warning
+        console.error(
+          "[Auth] Error fetching additional teacher info:",
+          e.message,
+        );
       }
-      UserSessionManager.saveUserSession(
-        "web_test_user",
-        teacherId,
-        result.lmsToken,
-      );
     }
 
     res.json({
