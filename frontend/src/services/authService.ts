@@ -1,0 +1,16 @@
+import api from "./api";
+
+export const authService = {
+  login: async (credentials: any) => {
+    const response = await api.post("/login", credentials);
+    return response.data;
+  },
+  refreshToken: async (refreshToken: string) => {
+    const response = await api.post("/refresh-token", { refreshToken });
+    return response.data;
+  },
+  testToken: async (token: string, userId: string) => {
+    const response = await api.post("/test-token", { token, userId });
+    return response.data;
+  },
+};
