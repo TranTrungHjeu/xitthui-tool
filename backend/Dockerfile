@@ -1,7 +1,7 @@
 FROM node:20-slim
 
 # Set to production
-ENV NODE_ENV production
+ENV NODE_ENV=production
 
 WORKDIR /app
 
