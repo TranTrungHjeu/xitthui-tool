@@ -8,7 +8,7 @@ yarn.lock
 
 # User data
 data/
-*.json
+# *.json - Removed to allow config files like tsconfig.json
 
 # Logs
 logs/
