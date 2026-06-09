@@ -41,11 +41,12 @@ deploy:
   before_script:
     - chmod 600 "$SSH_PRIVATE_KEY" # Set correct permissions for the key
   script:
-    - ssh -o StrictHostKeyChecking=no -i "$SSH_PRIVATE_KEY" "$VPS_USER"@"$VPS_HOST" "
-      cd $VPS_DEPLOY_PATH &&
-      docker login -u \\"$CI_REGISTRY_USER\\" -p \\"$CI_REGISTRY_PASSWORD\\" \\"$CI_REGISTRY\\" &&
-      docker-compose -f docker-compose.prod.yml pull --ignore-pull-failures && # ignore pull failures if image doesn't exist locally yet
-      docker-compose -f docker-compose.prod.yml up -d --remove-orphans
+    - | # Use literal block scalar for multi-line string
+      ssh -o StrictHostKeyChecking=no -i "$SSH_PRIVATE_KEY" "$VPS_USER"@"$VPS_HOST" "
+        cd $VPS_DEPLOY_PATH &&
+        docker login -u \"$CI_REGISTRY_USER\" -p \"$CI_REGISTRY_PASSWORD\" \"$CI_REGISTRY\" &&
+        docker compose -f docker-compose.prod.yml pull --ignore-pull-failures && # ignore pull failures if image doesn't exist locally yet
+        docker compose -f docker-compose.prod.yml up -d --remove-orphans
       "
   environment:
     name: production
