@@ -22,7 +22,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
 # Limit RAM usage to prevent Exit handler never called (OOM)
 ENV NODE_OPTIONS="--max-old-space-size=1536"
-RUN yarn build --no-turbo
+RUN yarn build
 
 # Step 4: Runner
 FROM base AS runner
