@@ -1,16 +1,17 @@
 # Step 1: Base image
 FROM node:20-slim AS base
 
+# Corepack needs to be enabled for modern yarn/pnpm usage, but npm install -g yarn is safer for slim
+RUN npm install -g yarn --force
+
 # Step 2: Dependencies
 FROM base AS deps
 WORKDIR /app
-COPY package*.json ./
+COPY package.json package-lock.json ./
 
-# Limit RAM and network sockets during dependency installation to avoid OOM crash on Gitlab Runners
+# Use yarn instead of npm to prevent OOM (Out Of Memory) crashes on Gitlab Runners free tier
 ENV NODE_OPTIONS="--max-old-space-size=1536"
-RUN npm config set maxsockets 1 && \
-    npm config set progress false && \
-    npm ci --no-audit --no-fund --prefer-offline --loglevel=error
+RUN yarn install --network-timeout 1000000
 
 # Next.js development requires this in the intermediate target if we use it in compose
 EXPOSE 3333
@@ -29,7 +30,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NODE_OPTIONS="--max-old-space-size=1536"
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN npm run build
+RUN yarn build
 
 # Step 4: Runner
 FROM base AS runner
