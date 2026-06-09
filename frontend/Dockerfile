@@ -5,8 +5,11 @@ FROM node:20-alpine AS base
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
+# Copy package.json and package-lock.json if available
 COPY package*.json ./
-RUN npm install
+# Install Yarn globally and use it to avoid OOM issues in CI/CD runners
+RUN npm install -g yarn force
+RUN yarn install --frozen-lockfile || yarn install
 # Next.js development requires this in the intermediate target if we use it in compose
 EXPOSE 3333
 
@@ -17,7 +20,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Disable telemetry during build
 ENV NEXT_TELEMETRY_DISABLED 1
-RUN npm run build
+# Limit RAM usage to prevent Exit handler never called (OOM)
+ENV NODE_OPTIONS="--max-old-space-size=1536"
+RUN yarn build
 
 # Step 4: Runner
 FROM base AS runner
