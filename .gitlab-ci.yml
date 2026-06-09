@@ -63,7 +63,7 @@ deploy:
     - ssh-keyscan "$VPS_HOST" >> ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
   script:
-    - ssh -o StrictHostKeyChecking=no "$VPS_USER"@"$VPS_HOST" "
+    - ssh -vvv -o StrictHostKeyChecking=no "$VPS_USER"@"$VPS_HOST" "
       cd $VPS_DEPLOY_PATH &&
       docker login -u \"$CI_REGISTRY_USER\" -p \"$CI_REGISTRY_PASSWORD\" \"$CI_REGISTRY\" &&
       docker compose pull &&
