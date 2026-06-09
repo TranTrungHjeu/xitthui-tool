@@ -8,7 +8,7 @@ WORKDIR /app
 # Copy package.json and package-lock.json if available
 COPY package*.json ./
 # Install Yarn globally and use it to avoid OOM issues in CI/CD runners
-RUN npm install -g yarn force
+RUN npm install -g yarn --force
 RUN yarn install --frozen-lockfile || yarn install
 # Next.js development requires this in the intermediate target if we use it in compose
 EXPOSE 3333
