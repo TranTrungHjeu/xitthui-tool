@@ -1,0 +1,28 @@
+{
+  "name": "mindx-lms-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for MindX LMS reminders",
+  "main": "src/index.js",
+  "nodemonConfig": {
+    "ignore": [
+      "data/*"
+    ]
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "@google-cloud/vertexai": "^1.12.0",
+    "@google/genai": "^2.8.0",
+    "axios": "^1.6.0",
+    "cors": "^2.8.6",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "node-cron": "^3.0.3",
+    "telegraf": "^4.14.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
