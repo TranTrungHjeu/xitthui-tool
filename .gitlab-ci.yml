@@ -1,0 +1,53 @@
+image: docker:latest
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_HOST: tcp://docker:2375 # Required for dind (docker-in-docker)
+  CI_REGISTRY: registry.gitlab.com
+  CI_REGISTRY_IMAGE: $CI_REGISTRY/$CI_PROJECT_PATH # e.g. registry.gitlab.com/your-username/your-project
+
+services:
+  - docker:dind
+
+stages:
+  - build_images
+  - deploy
+
+.before_script_template: &before_script_definition
+  - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+
+build_images:
+  stage: build_images
+  before_script:
+    - *before_script_definition
+  script:
+    # Build Backend Image
+    - docker build -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/backend:latest -f ./backend/Dockerfile ./backend
+    - docker push $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA
+    - docker push $CI_REGISTRY_IMAGE/backend:latest
+
+    # Build Frontend Image
+    # Pass NEXT_PUBLIC_API_URL as a build-arg to bake it into the frontend build
+    - docker build --build-arg NEXT_PUBLIC_API_URL="$CI_FRONTEND_API_URL" -t $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/frontend:latest -f ./frontend/Dockerfile ./frontend
+    - docker push $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHORT_SHA
+    - docker push $CI_REGISTRY_IMAGE/frontend:latest
+  only:
+    - main # Only run on main branch
+
+deploy:
+  stage: deploy
+  image: alpine/ssh-client:latest # Use a lightweight image with SSH client
+  before_script:
+    - chmod 600 "$SSH_PRIVATE_KEY" # Set correct permissions for the key
+  script:
+    - ssh -o StrictHostKeyChecking=no -i "$SSH_PRIVATE_KEY" "$VPS_USER"@"$VPS_HOST" "
+      cd $VPS_DEPLOY_PATH &&
+      docker login -u \\"$CI_REGISTRY_USER\\" -p \\"$CI_REGISTRY_PASSWORD\\" \\"$CI_REGISTRY\\" &&
+      docker-compose -f docker-compose.prod.yml pull &&
+      docker-compose -f docker-compose.prod.yml up -d --remove-orphans
+      "
+  environment:
+    name: production
+    url: https://$VPS_HOST # Adjust if your frontend is on a different domain
+  only:
+    - main # Only deploy from main branch

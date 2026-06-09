@@ -1,0 +1,30 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "4444:4444"
+    volumes:
+      - xitthuitool_backend_data:/app/data
+    env_file:
+      - ./backend/.env
+    environment:
+      - NODE_ENV=production
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3333:3333"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:4444/api}
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  xitthuitool_backend_data:
