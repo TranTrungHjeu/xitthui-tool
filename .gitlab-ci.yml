@@ -1,55 +1,73 @@
-image: docker:latest
+image: docker:24.0.5
 
 variables:
   DOCKER_DRIVER: overlay2
-  DOCKER_HOST: tcp://docker:2375 # Required for dind (docker-in-docker)
-  CI_REGISTRY: registry.gitlab.com
-  CI_REGISTRY_IMAGE: $CI_REGISTRY/$CI_PROJECT_PATH # e.g. registry.gitlab.com/your-username/your-project
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+  # Docker images naming
+  BACKEND_IMAGE: $CI_REGISTRY_IMAGE/backend
+  FRONTEND_IMAGE: $CI_REGISTRY_IMAGE/frontend
 
 services:
-  - docker:dind
+  - docker:24.0.5-dind
 
 stages:
-  - build_images
+  - build
   - deploy
 
-.before_script_template: &before_script_definition
-  - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
-  - export CI_REGISTRY_IMAGE_LOWER=$(echo "$CI_REGISTRY_IMAGE" | tr '[:upper:]' '[:lower:]')
-
-build_images:
-  stage: build_images
+# Template for Docker login and lowercase image names
+.docker_setup:
   before_script:
-    - *before_script_definition
-  script:
-    # Build Backend Image
-    - docker build -t $CI_REGISTRY_IMAGE_LOWER/backend:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE_LOWER/backend:latest -f ./backend/Dockerfile ./backend
-    - docker push $CI_REGISTRY_IMAGE_LOWER/backend:$CI_COMMIT_SHORT_SHA
-    - docker push $CI_REGISTRY_IMAGE_LOWER/backend:latest
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - export BACKEND_IMAGE_LOWER=$(echo "$BACKEND_IMAGE" | tr '[:upper:]' '[:lower:]')
+    - export FRONTEND_IMAGE_LOWER=$(echo "$FRONTEND_IMAGE" | tr '[:upper:]' '[:lower:]')
 
-    # Build Frontend Image
-    # Pass NEXT_PUBLIC_API_URL as a build-arg to bake it into the frontend build
-    - docker build --build-arg NEXT_PUBLIC_API_URL="$CI_FRONTEND_API_URL" -t $CI_REGISTRY_IMAGE_LOWER/frontend:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE_LOWER/frontend:latest -f ./frontend/Dockerfile ./frontend
-    - docker push $CI_REGISTRY_IMAGE_LOWER/frontend:$CI_COMMIT_SHORT_SHA
-    - docker push $CI_REGISTRY_IMAGE_LOWER/frontend:latest
-  only:
-    - main # Only run on main branch
+build:
+  stage: build
+  extends: .docker_setup
+  script:
+    # Build & Push Backend
+    - docker build
+      --pull
+      --cache-from $BACKEND_IMAGE_LOWER:latest
+      --tag $BACKEND_IMAGE_LOWER:$CI_COMMIT_SHORT_SHA
+      --tag $BACKEND_IMAGE_LOWER:latest
+      -f ./backend/Dockerfile ./backend
+    - docker push $BACKEND_IMAGE_LOWER:$CI_COMMIT_SHORT_SHA
+    - docker push $BACKEND_IMAGE_LOWER:latest
+
+    # Build & Push Frontend
+    - docker build
+      --pull
+      --cache-from $FRONTEND_IMAGE_LOWER:latest
+      --build-arg NEXT_PUBLIC_API_URL="$CI_FRONTEND_API_URL"
+      --tag $FRONTEND_IMAGE_LOWER:$CI_COMMIT_SHORT_SHA
+      --tag $FRONTEND_IMAGE_LOWER:latest
+      -f ./frontend/Dockerfile ./frontend
+    - docker push $FRONTEND_IMAGE_LOWER:$CI_COMMIT_SHORT_SHA
+    - docker push $FRONTEND_IMAGE_LOWER:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 deploy:
   stage: deploy
-  image: alpine/ssh-client:latest # Use a lightweight image with SSH client
+  image: alpine:latest
   before_script:
-    - chmod 600 "$SSH_PRIVATE_KEY" # Set correct permissions for the key
+    - apk add --no-cache openssh-client
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
   script:
-    - | # Use literal block scalar for multi-line string
-      ssh -o StrictHostKeyChecking=no -i "$SSH_PRIVATE_KEY" "$VPS_USER"@"$VPS_HOST" "
-        cd $VPS_DEPLOY_PATH &&
-        docker login -u \"$CI_REGISTRY_USER\" -p \"$CI_REGISTRY_PASSWORD\" \"$CI_REGISTRY\" &&
-        docker compose pull --ignore-pull-failures && # ignore pull failures if image doesn't exist locally yet
-        docker compose up -d --remove-orphans
+    - ssh -o StrictHostKeyChecking=no "$VPS_USER"@"$VPS_HOST" "
+      cd $VPS_DEPLOY_PATH &&
+      docker login -u \"$CI_REGISTRY_USER\" -p \"$CI_REGISTRY_PASSWORD\" \"$CI_REGISTRY\" &&
+      docker compose pull &&
+      docker compose up -d --remove-orphans &&
+      docker image prune -f
       "
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   environment:
     name: production
-    url: https://$VPS_HOST # Adjust if your frontend is on a different domain
-  only:
-    - main # Only deploy from main branch
+    url: http://$VPS_HOST
