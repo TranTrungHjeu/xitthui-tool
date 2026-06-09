@@ -5,6 +5,7 @@ variables:
   DOCKER_HOST: tcp://docker:2375 # Required for dind (docker-in-docker)
   CI_REGISTRY: registry.gitlab.com
   CI_REGISTRY_IMAGE: $CI_REGISTRY/$CI_PROJECT_PATH # e.g. registry.gitlab.com/your-username/your-project
+  CI_REGISTRY_IMAGE_LOWER: ${CI_REGISTRY_IMAGE,,} # Convert to lowercase for Docker registry compatibility
 
 services:
   - docker:dind
@@ -22,15 +23,15 @@ build_images:
     - *before_script_definition
   script:
     # Build Backend Image
-    - docker build -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/backend:latest -f ./backend/Dockerfile ./backend
-    - docker push $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA
-    - docker push $CI_REGISTRY_IMAGE/backend:latest
+    - docker build -t $CI_REGISTRY_IMAGE_LOWER/backend:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE_LOWER/backend:latest -f ./backend/Dockerfile ./backend
+    - docker push $CI_REGISTRY_IMAGE_LOWER/backend:$CI_COMMIT_SHORT_SHA
+    - docker push $CI_REGISTRY_IMAGE_LOWER/backend:latest
 
     # Build Frontend Image
     # Pass NEXT_PUBLIC_API_URL as a build-arg to bake it into the frontend build
-    - docker build --build-arg NEXT_PUBLIC_API_URL="$CI_FRONTEND_API_URL" -t $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/frontend:latest -f ./frontend/Dockerfile ./frontend
-    - docker push $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHORT_SHA
-    - docker push $CI_REGISTRY_IMAGE/frontend:latest
+    - docker build --build-arg NEXT_PUBLIC_API_URL="$CI_FRONTEND_API_URL" -t $CI_REGISTRY_IMAGE_LOWER/frontend:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE_LOWER/frontend:latest -f ./frontend/Dockerfile ./frontend
+    - docker push $CI_REGISTRY_IMAGE_LOWER/frontend:$CI_COMMIT_SHORT_SHA
+    - docker push $CI_REGISTRY_IMAGE_LOWER/frontend:latest
   only:
     - main # Only run on main branch
 
@@ -43,7 +44,7 @@ deploy:
     - ssh -o StrictHostKeyChecking=no -i "$SSH_PRIVATE_KEY" "$VPS_USER"@"$VPS_HOST" "
       cd $VPS_DEPLOY_PATH &&
       docker login -u \\"$CI_REGISTRY_USER\\" -p \\"$CI_REGISTRY_PASSWORD\\" \\"$CI_REGISTRY\\" &&
-      docker-compose -f docker-compose.prod.yml pull &&
+      docker-compose -f docker-compose.prod.yml pull --ignore-pull-failures && # ignore pull failures if image doesn't exist locally yet
       docker-compose -f docker-compose.prod.yml up -d --remove-orphans
       "
   environment:
