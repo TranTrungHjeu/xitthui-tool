@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useAuthStore } from "@/store/useAuthStore";
-import { classService } from "@/services/classService";
+import { useAuthStore } from "../store/useAuthStore";
+import { classService } from "../services/classService";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
   CardDescription,
-} from "@/components/ui/card";
+} from "../components/ui/card";
 import { Users, AlertCircle, Loader2, CalendarDays } from "lucide-react";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { formatVietnameseDate } from "@/lib/date";
-import { ClassData, Slot, Attendance } from "@/types";
+import { StatusBadge } from "../components/ui/status-badge";
+import { formatVietnameseDate } from "../lib/date";
+import { ClassData, Slot, Attendance } from "../../types";
 
 export default function DashboardOverview() {
   const {

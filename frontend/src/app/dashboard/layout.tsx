@@ -3,9 +3,9 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { useAuthStore } from "@/store/useAuthStore";
-import { classService } from "@/services/classService";
-import { Button } from "@/components/ui/button";
+import { useAuthStore } from "../../store/useAuthStore";
+import { classService } from "../../services/classService";
+import { Button } from "../../components/ui/button";
 import {
   LayoutDashboard,
   Calendar,

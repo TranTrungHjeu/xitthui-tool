@@ -4,18 +4,18 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/store/useAuthStore";
-import { authService } from "@/services/authService";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useAuthStore } from "../../store/useAuthStore";
+import { authService } from "../../services/authService";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
 import {
   Card,
   CardHeader,
   CardDescription,
   CardContent,
   CardFooter,
-} from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
+} from "../../components/ui/card";
+import { Label } from "../../components/ui/label";
 import { Loader2 } from "lucide-react";
 
 // The true radical solution: export a component that is only rendered on the client.

@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-} from "@/components/ui/card";
+} from "../../../../components/ui/card";
 import {
   BarChart,
   Bar,
@@ -24,14 +24,19 @@ import {
   Cell,
   LabelList,
 } from "recharts";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../../../../components/ui/tabs";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "../../../../components/ui/select";
 import {
   User,
   Users,
@@ -48,15 +53,15 @@ import {
   Play,
   RotateCcw,
 } from "lucide-react";
-import { classService } from "@/services/classService";
-import { useAuthStore } from "@/store/useAuthStore";
-import { Button } from "@/components/ui/button";
+import { classService } from "../../../../services/classService";
+import { useAuthStore } from "../../../../store/useAuthStore";
+import { Button } from "../../../../components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "../../../../components/ui/dialog";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
