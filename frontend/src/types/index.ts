@@ -73,3 +73,4 @@ export interface ClassData {
   teachers: ClassTeacher[];
   slots: Slot[];
 }
+

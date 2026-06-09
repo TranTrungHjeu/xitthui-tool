@@ -56,3 +56,4 @@ export const classService = {
     return response.data;
   },
 };
+

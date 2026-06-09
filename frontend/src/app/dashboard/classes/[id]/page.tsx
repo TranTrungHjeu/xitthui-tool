@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState, useMemo, use } from "react";
-import { useAuthStore } from "../../../../store/useAuthStore";
-import { classService } from "../../../../services/classService";
+import { useAuthStore } from "@/store/useAuthStore";
+import { classService } from "@/services/classService";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
   CardDescription,
-} from "../../../../components/ui/card";
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -17,29 +17,24 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "../../../../components/ui/table";
-import { StatusBadge } from "../../../../components/ui/status-badge";
-import { Button } from "../../../../components/ui/button";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "../../../../components/ui/tabs";
+} from "@/components/ui/table";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "../../../../components/ui/dialog";
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../../../components/ui/select";
+} from "@/components/ui/select";
 import {
   Loader2,
   ChevronLeft,
@@ -51,11 +46,11 @@ import {
   BarChart3,
   Users,
 } from "lucide-react";
-import EvaluationDialog from "../../../../components/EvaluationDialog";
+import EvaluationDialog from "@/components/EvaluationDialog";
 import StatisticsTab from "./StatisticsTab";
 import { useRouter } from "next/navigation";
-import { formatDate, formatTime } from "../../../../lib/date";
-import { shouldShowGrading } from "../../../../lib/class";
+import { formatDate, formatTime } from "@/lib/date";
+import { shouldShowGrading } from "@/lib/class";
 
 export default function ClassDetailsPage({
   params,
