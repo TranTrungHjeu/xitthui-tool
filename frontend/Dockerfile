@@ -6,9 +6,11 @@ FROM base AS deps
 WORKDIR /app
 COPY package*.json ./
 
-# Limit RAM during dependency installation to avoid OOM crash on Gitlab Runners
+# Limit RAM and network sockets during dependency installation to avoid OOM crash on Gitlab Runners
 ENV NODE_OPTIONS="--max-old-space-size=1536"
-RUN npm ci --no-audit --no-fund --loglevel=error
+RUN npm config set maxsockets 1 && \
+    npm config set progress false && \
+    npm ci --no-audit --no-fund --prefer-offline --loglevel=error
 
 # Next.js development requires this in the intermediate target if we use it in compose
 EXPOSE 3333
