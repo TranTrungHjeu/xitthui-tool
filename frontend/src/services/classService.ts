@@ -1,5 +1,5 @@
 import api from "./api";
-import { ClassData } from "@/types";
+import { ClassData } from "../types";
 
 export const classService = {
   getClasses: async (
