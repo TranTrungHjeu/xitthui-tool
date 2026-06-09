@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useAuthStore } from "../../store/useAuthStore";
-import { ClassData } from "../../../types";
-import { classService } from "../../services/classService";
-import { Card, CardContent } from "../../components/ui/card";
+import { useAuthStore } from "@/store/useAuthStore";
+import { ClassData } from "@/types";
+import { classService } from "@/services/classService";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -12,20 +12,20 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "../../components/ui/table";
-import { StatusBadge } from "../../components/ui/status-badge";
-import { Input } from "../../components/ui/input";
+} from "@/components/ui/table";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { Input } from "@/components/ui/input";
 import { Search, CalendarPlus, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { formatDate, formatTime } from "../../lib/date";
+import { formatDate, formatTime } from "@/lib/date";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../components/ui/select";
-import { Button } from "../../components/ui/button";
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
 function getTeacherByRole(cls: any, roleShortName: string) {
   const frequencyMap = new Map<string, { name: string; count: number }>();
