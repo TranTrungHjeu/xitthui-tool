@@ -1,12 +1,15 @@
 # Step 1: Base image
-FROM node:20-alpine AS base
+FROM node:20-slim AS base
 
 # Step 2: Dependencies
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+
+# Limit RAM during dependency installation to avoid OOM crash on Gitlab Runners
+ENV NODE_OPTIONS="--max-old-space-size=1536"
+RUN npm ci --no-audit --no-fund --loglevel=error
+
 # Next.js development requires this in the intermediate target if we use it in compose
 EXPOSE 3333
 
@@ -15,19 +18,26 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Disable telemetry during build
-ENV NEXT_TELEMETRY_DISABLED 1
+
+# Set dynamic API URL from build arguments
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
+# Limit RAM during build to avoid OOM crash
+ENV NODE_OPTIONS="--max-old-space-size=1536"
+ENV NEXT_TELEMETRY_DISABLED=1
+
 RUN npm run build
 
 # Step 4: Runner
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN groupadd --system --gid 1001 nodejs
+RUN useradd --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 
@@ -43,7 +53,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 USER nextjs
 
 EXPOSE 3333
-ENV PORT 3333
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3333
+ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]
