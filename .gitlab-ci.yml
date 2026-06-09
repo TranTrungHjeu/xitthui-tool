@@ -39,7 +39,7 @@ build:
     # Build & Push Frontend
     - docker build
       --pull
-      --cache-from $FRONTEND_IMAGE_LOWER:latest
+      --no-cache
       --build-arg NEXT_PUBLIC_API_URL="$CI_FRONTEND_API_URL"
       --tag $FRONTEND_IMAGE_LOWER:$CI_COMMIT_SHORT_SHA
       --tag $FRONTEND_IMAGE_LOWER:latest
