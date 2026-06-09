@@ -1,4 +1,16 @@
-require("dotenv").config();
+const path = require("path");
+const fs = require("fs");
+
+// Load env variables: first check local folder, then fall back to root folder
+const localEnvPath = path.join(__dirname, "../../.env");
+const rootEnvPath = path.join(__dirname, "../../../.env");
+if (fs.existsSync(localEnvPath)) {
+  require("dotenv").config({ path: localEnvPath });
+} else if (fs.existsSync(rootEnvPath)) {
+  require("dotenv").config({ path: rootEnvPath });
+} else {
+  require("dotenv").config(); // default fallback
+}
 
 module.exports = {
   telegram: {

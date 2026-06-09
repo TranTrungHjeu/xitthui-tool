@@ -10,9 +10,10 @@ services:
       - ./backend:/app
       - /app/node_modules
     env_file:
-      - ./backend/.env
+      - .env
     environment:
       - NODE_ENV=development
+      - PORT=${BACKEND_PORT:-4444}
 
   frontend:
     build:
@@ -26,11 +27,13 @@ services:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
-      - PORT=3333
+      - PORT=${FRONTEND_PORT:-3333}
       - HOSTNAME=0.0.0.0
-      - NEXT_PUBLIC_API_URL=http://localhost:4444/api
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:4444/api}
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
     depends_on:
