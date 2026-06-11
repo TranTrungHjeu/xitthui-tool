@@ -308,10 +308,13 @@ exports.getStudentAIReport = async (req, res) => {
           ]
         }
 
-        NGUYÊN TẮC NHẬN XÉT:
+        NGUYÊN TẮC NHẬN XÉT CHI TIẾT THEO YÊU CẦU:
         - KHÔNG nhận xét chung chung. KHÔNG tâng bốc cũng KHÔNG hạ thấp HV. Khen/chê rõ ràng, nếu chê phải luôn kèm theo đề xuất phương án.
         - Phải sử dụng ngôn từ lịch sự, mang tính xây dựng nhưng vẫn thể hiện đúng năng lực học viên.
-        - Đối với lớp Coding và Robotics, bạn PHẢI đảm bảo đầy đủ thông tin cho 4 tiêu chí L-L-T-Đ như cấu trúc trên.
+        - Phải đồng nhất giữa các nhận xét từ LMS đến với phía TE, CS/PH.
+        - Ở các buổi học thường, nhận xét những vấn đề nổi trội trong buổi học. VÍ DỤ: "Hôm nay con phối hợp với các bạn tốt và thực hiện lắp ráp mô hình nhanh. Tuy nhiên phần lập trình con chưa có sự tập trung dẫn đến chưa hoàn thành được các bài tập mà thầy đề ra. Con cần ôn tập thêm tại nhà theo nội dung thầy gửi và tập trung hơn trong buổi học sau."
+        - Đối với lớp Coding và Robotics, bạn PHẢI đảm bảo nhận xét đủ 4 tiêu chí L-L-T-Đ vào mục "Đánh giá chung" ("overall_progress").
+        - Đảm bảo "overall_progress" là MỘT đoạn văn liên tục nhưng chứa đủ các ý của L-L-T-Đ, hoặc được cấu trúc mạch lạc để người đọc dễ dàng nhận ra các ý này.
         - Phần "analysis" của từng tiêu chí phải khớp với dữ liệu điểm số và nhận xét thực tế.
       `;
 
