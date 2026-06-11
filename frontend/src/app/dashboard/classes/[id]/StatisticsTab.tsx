@@ -556,43 +556,56 @@ export default function StatisticsTab({
             </div>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            {selectedStudentId === "all" ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 gap-2 border-primary/20 hover:bg-primary/5 text-primary font-semibold"
-                onClick={handleEvaluateAll}
-              >
-                <Play className="w-4 h-4" />
-                Đánh giá toàn bộ lớp
-              </Button>
-            ) : (
-              <>
-                {evaluationResults[selectedStudentId] && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 gap-2 text-slate-600 border-slate-200"
-                    onClick={() => {
-                      setAiReport(evaluationResults[selectedStudentId]);
-                      setShowAiDialog(true);
-                    }}
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    Xem lại bản trước đó
-                  </Button>
-                )}
+            <div className="flex items-center gap-2">
+              {Object.keys(evaluationResults).length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-2 border-slate-200 text-slate-600"
+                  onClick={() => setShowBulkSummary(true)}
+                >
+                  <Brain className="w-4 h-4" />
+                  Kết quả AI toàn lớp
+                </Button>
+              )}
+              {selectedStudentId === "all" ? (
                 <Button
                   variant="outline"
                   size="sm"
                   className="h-9 gap-2 border-primary/20 hover:bg-primary/5 text-primary font-semibold"
-                  onClick={() => handleAIEvaluation()}
+                  onClick={handleEvaluateAll}
                 >
-                  <Brain className="w-4 h-4" />
-                  Đánh giá AI mới
+                  <Play className="w-4 h-4" />
+                  Đánh giá toàn bộ lớp
                 </Button>
-              </>
-            )}
+              ) : (
+                <>
+                  {evaluationResults[selectedStudentId] && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 gap-2 text-slate-600 border-slate-200"
+                      onClick={() => {
+                        setAiReport(evaluationResults[selectedStudentId]);
+                        setShowAiDialog(true);
+                      }}
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Xem lại bản trước đó
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 gap-2 border-primary/20 hover:bg-primary/5 text-primary font-semibold"
+                    onClick={() => handleAIEvaluation()}
+                  >
+                    <Brain className="w-4 h-4" />
+                    Đánh giá AI mới
+                  </Button>
+                </>
+              )}
+            </div>
             <Select
               value={selectedStudentId}
               onValueChange={setSelectedStudentId}
