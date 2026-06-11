@@ -1241,9 +1241,42 @@ export default function StatisticsTab({
                     >
                       II. Đánh giá chung
                     </h3>
-                    <p style={{ textAlign: "justify", lineHeight: "1.8" }}>
-                      {aiReport.overall_progress}
-                    </p>
+                    <div style={{ textAlign: "justify", lineHeight: "1.8" }}>
+                      {String(aiReport.overall_progress)
+                        .split(/(?=\[(?:L|T|Đ)\])/g)
+                        .map((segment: string, idx: number) => {
+                          const text = segment.trim();
+                          if (!text) return null;
+
+                          const match = text.match(/^\[(L|T|Đ)\]\s*(.*)$/s);
+                          const label = match?.[1];
+                          const content = match?.[2] || text;
+
+                          return (
+                            <p
+                              key={idx}
+                              style={{
+                                marginBottom:
+                                  idx <
+                                  String(aiReport.overall_progress)
+                                    .split(/(?=\[(?:L|T|Đ)\])/g)
+                                    .filter(Boolean).length -
+                                    1
+                                    ? "10px"
+                                    : 0,
+                              }}
+                            >
+                              {label ? (
+                                <>
+                                  <strong>[{label}]</strong> {content}
+                                </>
+                              ) : (
+                                content
+                              )}
+                            </p>
+                          );
+                        })}
+                    </div>
                   </div>
 
                   {/* III. Đề xuất / Phương án hỗ trợ */}
