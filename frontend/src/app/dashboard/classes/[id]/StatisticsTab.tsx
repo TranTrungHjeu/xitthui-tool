@@ -540,8 +540,8 @@ export default function StatisticsTab({
       pdf.addImage(imgData, "PNG", margin, position, contentWidth, imgHeight);
       heightLeft -= pageHeight - 2 * margin;
 
-      // Các trang sau (sử dụng độ sai số rất nhỏ để tránh xuất trang thừa nếu chiều cao vừa khít)
-      while (heightLeft >= 1) {
+      // Các trang sau
+      while (heightLeft > 0) {
         position = heightLeft - imgHeight + margin;
         pdf.addPage();
         pdf.addImage(imgData, "PNG", margin, position, contentWidth, imgHeight);
