@@ -487,33 +487,65 @@ export default function StatisticsTab({
 
     try {
       setIsExporting(true);
-      const canvas = await html2canvas(element, {
+
+      // Khắc phục lỗi "lab" color unsupported của html2canvas
+      // bằng cách clone DOM và lọc các class Tailwind chứa biến màu hệ lab() (như okLCH / lab)
+      // Các trình duyệt / CSS mới có hệ màu `oklch() / lab()` mà html2canvas chưa hỗ trợ parse
+      const clonedElement = element.cloneNode(true) as HTMLElement;
+
+      // Xóa các class bg-slate-50, shadow-sm, border, overflow-x-auto, v.v. (tác nhân gây color parse error)
+      clonedElement.style.border = "none";
+      clonedElement.style.boxShadow = "none";
+      clonedElement.style.backgroundColor = "#ffffff";
+      clonedElement.style.margin = "0";
+      clonedElement.style.width = "750px"; // Cố định chiều rộng lý tưởng cho A4
+
+      // Bọc vào container ngoài DOM thật để html2canvas chụp
+      const container = document.createElement("div");
+      container.style.position = "absolute";
+      container.style.left = "-9999px";
+      container.style.top = "0";
+      container.style.backgroundColor = "#ffffff";
+      container.appendChild(clonedElement);
+      document.body.appendChild(container);
+
+      const canvas = await html2canvas(clonedElement, {
         scale: 2,
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
+        allowTaint: true,
+        removeContainer: true,
       });
+
+      // Xóa DOM ảo
+      document.body.removeChild(container);
 
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
+
+      // Canh lề (margins)
+      const margin = 10;
+      const contentWidth = pdfWidth - 2 * margin;
+
       const imgProps = pdf.getImageProperties(imgData);
-      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
 
       let heightLeft = imgHeight;
-      let position = 0;
+      let position = margin;
 
-      // Add first page
-      pdf.addImage(imgData, "PNG", 0, position, pdfWidth, imgHeight);
-      heightLeft -= pageHeight;
+      // Trang đầu
+      pdf.addImage(imgData, "PNG", margin, position, contentWidth, imgHeight);
+      heightLeft -= pageHeight - 2 * margin;
 
-      // Add subsequent pages if content overflows
+      // Các trang sau
       while (heightLeft > 0) {
-        position -= pageHeight;
+        position = heightLeft - imgHeight + margin;
         pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, pdfWidth, imgHeight);
-        heightLeft -= pageHeight;
+        pdf.addImage(imgData, "PNG", margin, position, contentWidth, imgHeight);
+        heightLeft -= pageHeight - 2 * margin;
       }
 
       pdf.save(`Bao_cao_AI_${selectedStudent?.fullName || "Hoc_vien"}.pdf`);
