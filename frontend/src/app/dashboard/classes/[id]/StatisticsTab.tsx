@@ -1342,36 +1342,6 @@ export default function StatisticsTab({
                       ))}
                     </ol>
                   </div>
-
-                  {/* Footer */}
-                  <div
-                    style={{
-                      borderTop: "1px dashed #94a3b8",
-                      paddingTop: "16px",
-                      textAlign: "center",
-                    }}
-                  >
-                    <p
-                      style={{
-                        fontSize: "12px",
-                        fontStyle: "italic",
-                        color: "#64748b",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      Được tổng hợp bởi
-                    </p>
-                    <p
-                      style={{
-                        fontWeight: "bold",
-                        fontSize: "14px",
-                        textTransform: "uppercase",
-                        letterSpacing: "1px",
-                      }}
-                    >
-                      MindX LMS AI
-                    </p>
-                  </div>
                 </div>
               </div>
             ) : (
