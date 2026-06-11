@@ -992,15 +992,15 @@ export default function StatisticsTab({
                 </div>
               </div>
             ) : aiReport ? (
-              <div className="flex justify-center bg-slate-100 min-h-full py-8 px-4">
+              <div className="flex justify-center bg-slate-100 min-h-full py-8 px-4 overflow-x-auto">
                 <div
                   id="ai-report-content"
-                  className="bg-white w-full max-w-[750px]"
+                  className="bg-white w-full min-w-[820px] max-w-[820px] shadow-sm border border-slate-200"
                   style={{
                     fontFamily: "Times New Roman, Times, serif",
                     color: "#111827",
-                    padding: "56px 64px",
-                    lineHeight: "1.6",
+                    padding: "48px 56px",
+                    lineHeight: "1.65",
                     fontSize: "13px",
                   }}
                 >
@@ -1248,12 +1248,18 @@ export default function StatisticsTab({
                           const text = segment.trim();
                           if (!text) return null;
 
-                          const match = text.match(/^\[(L|T|Đ)\]\s*(.*)$/s);
+                          const match = text.match(/^\[(L|T|Đ)\]\s*([\s\S]*)$/);
                           const label = match?.[1];
-                          const content = match?.[2] || text;
+                          const content = (match?.[2] || text).trim();
+
+                          const titleMap: Record<string, string> = {
+                            L: "Lý do / Tư duy hoặc kiến thức nền",
+                            T: "Thao tác / Lập trình",
+                            Đ: "Đề xuất / Phương án hỗ trợ",
+                          };
 
                           return (
-                            <p
+                            <div
                               key={idx}
                               style={{
                                 marginBottom:
@@ -1262,18 +1268,21 @@ export default function StatisticsTab({
                                     .split(/(?=\[(?:L|T|Đ)\])/g)
                                     .filter(Boolean).length -
                                     1
-                                    ? "10px"
+                                    ? "12px"
                                     : 0,
                               }}
                             >
                               {label ? (
-                                <>
-                                  <strong>[{label}]</strong> {content}
-                                </>
+                                <p style={{ margin: 0 }}>
+                                  <strong style={{ fontSize: "13px" }}>
+                                    {titleMap[label] || `[${label}]`}:
+                                  </strong>{" "}
+                                  {content}
+                                </p>
                               ) : (
-                                content
+                                <p style={{ margin: 0 }}>{content}</p>
                               )}
-                            </p>
+                            </div>
                           );
                         })}
                     </div>
