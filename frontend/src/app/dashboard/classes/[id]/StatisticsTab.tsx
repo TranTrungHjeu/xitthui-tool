@@ -439,9 +439,6 @@ export default function StatisticsTab({
   const handleEvaluateAll = async () => {
     if (students.length === 0) return;
 
-    toast.info(
-      `Bắt đầu phân tích AI song song cho ${students.length} học viên...`,
-    );
     setIsEvaluating(true);
 
     try {
@@ -998,132 +995,308 @@ export default function StatisticsTab({
               <div className="flex justify-center bg-slate-100 min-h-full py-8 px-4">
                 <div
                   id="ai-report-content"
-                  className="bg-white p-8 md:p-14 w-full max-w-[850px] shadow-sm border border-slate-200"
+                  className="bg-white w-full max-w-[750px]"
                   style={{
-                    fontFamily: "'Times New Roman', Times, serif",
-                    color: "#1e293b",
+                    fontFamily: "Times New Roman, Times, serif",
+                    color: "#111827",
+                    padding: "56px 64px",
+                    lineHeight: "1.6",
+                    fontSize: "13px",
                   }}
                 >
-                  {/* Header Báo Cáo */}
-                  <div className="border-b-2 border-slate-800 pb-6 mb-8 text-center">
-                    <h2 className="text-2xl md:text-3xl font-extrabold uppercase tracking-tight text-slate-900 mb-4">
-                      Báo Cáo Đánh Giá Năng Lực Học Viên
+                  {/* Header */}
+                  <div
+                    style={{
+                      borderBottom: "2px solid #1e293b",
+                      paddingBottom: "16px",
+                      marginBottom: "20px",
+                      textAlign: "center",
+                    }}
+                  >
+                    <h2
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "bold",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        marginBottom: "12px",
+                      }}
+                    >
+                      KẾT QUẢ ĐÁNH GIÁ NĂNG LỰC HỌC VIÊN
                     </h2>
-                    <div className="flex flex-col items-center gap-1.5 text-sm text-slate-700">
-                      <p>
-                        <span className="font-bold">Học viên:</span>{" "}
-                        {selectedStudent?.fullName}
-                      </p>
-                      <p>
-                        <span className="font-bold">Lớp học:</span>{" "}
-                        {classData?.name} - {classData?.course?.name}
-                      </p>
-                      <p>
-                        <span className="font-bold">Ngày xuất báo cáo:</span>{" "}
-                        {new Date().toLocaleDateString("vi-VN")}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* 1. Điểm số tiêu chí */}
-                  <div className="mb-10">
-                    <h3 className="text-lg font-bold uppercase text-slate-800 border-b border-slate-300 pb-2 mb-6">
-                      I. Đánh giá chi tiết theo tiêu chí
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {(Array.isArray(aiReport.criteria)
-                        ? aiReport.criteria
-                        : Object.entries(aiReport.criteria || {}).map(
-                            ([k, v]: [string, any]) => ({
-                              ...v,
-                              label:
-                                v.label ||
-                                (k === "attitude"
-                                  ? "Thái độ học tập"
-                                  : k === "assembly"
-                                    ? "Kỹ năng lắp ráp / Thiết bị"
-                                    : k === "programming"
-                                      ? "Tư duy lập trình"
-                                      : k),
-                            }),
-                          )
-                      ).map((item: any, index: number) => (
-                        <div
-                          key={index}
-                          className="flex flex-col rounded-lg border border-slate-200 bg-slate-50 overflow-hidden"
-                        >
-                          <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
-                            <span className="font-bold text-[13px] text-slate-800 uppercase line-clamp-1">
-                              {item.label}
-                            </span>
-                            <span className="font-black text-lg text-primary">
-                              {item.score}/10
-                            </span>
-                          </div>
-                          <div className="p-4 flex flex-col gap-4 flex-1">
-                            <div className="flex items-center gap-2 text-[13px] text-slate-700">
-                              <span className="font-semibold">Xu hướng:</span>
-                              <span
-                                className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
-                                  item.trend === "Tiến bộ"
-                                    ? "bg-green-100 text-green-800 border border-green-200"
-                                    : item.trend === "Đi xuống"
-                                      ? "bg-red-100 text-red-800 border border-red-200"
-                                      : "bg-slate-200 text-slate-800 border border-slate-300"
-                                }`}
-                              >
-                                {item.trend}
-                              </span>
-                            </div>
-                            <p className="text-[13px] text-slate-700 leading-relaxed text-justify">
-                              {item.analysis}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 2. Đánh giá tổng quan */}
-                  <div className="mb-10">
-                    <h3 className="text-lg font-bold uppercase text-slate-800 border-b border-slate-300 pb-2 mb-5">
-                      II. Tổng quan quá trình phát triển
-                    </h3>
-                    <div className="text-[14px] leading-relaxed text-slate-800 text-justify bg-slate-50 p-6 rounded-lg border border-slate-200">
-                      {aiReport.overall_progress}
-                    </div>
-                  </div>
-
-                  {/* 3. Đề xuất cải thiện */}
-                  <div className="mb-10">
-                    <h3 className="text-lg font-bold uppercase text-slate-800 border-b border-slate-300 pb-2 mb-5">
-                      III. Lộ trình cải thiện đề xuất
-                    </h3>
-                    <div className="bg-white p-2">
-                      <ul className="space-y-4">
-                        {aiReport.suggestions.map((s: string, i: number) => (
-                          <li
-                            key={i}
-                            className="flex items-start gap-4 text-[14px] text-slate-800 leading-relaxed"
+                    <table
+                      style={{
+                        width: "100%",
+                        fontSize: "13px",
+                        borderCollapse: "collapse",
+                      }}
+                    >
+                      <tbody>
+                        <tr>
+                          <td
+                            style={{
+                              padding: "2px 8px",
+                              fontWeight: "bold",
+                              width: "160px",
+                              textAlign: "right",
+                            }}
                           >
-                            <div className="mt-2 h-1.5 w-1.5 rounded-full bg-slate-800 shrink-0" />
-                            <span className="text-justify">{s}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                            Học viên:
+                          </td>
+                          <td style={{ padding: "2px 8px" }}>
+                            {selectedStudent?.fullName}
+                          </td>
+                          <td
+                            style={{
+                              padding: "2px 8px",
+                              fontWeight: "bold",
+                              width: "160px",
+                              textAlign: "right",
+                            }}
+                          >
+                            Ngày xuất báo cáo:
+                          </td>
+                          <td style={{ padding: "2px 8px" }}>
+                            {new Date().toLocaleDateString("vi-VN")}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td
+                            style={{
+                              padding: "2px 8px",
+                              fontWeight: "bold",
+                              textAlign: "right",
+                            }}
+                          >
+                            Lớp:
+                          </td>
+                          <td style={{ padding: "2px 8px" }}>
+                            {classData?.name}
+                          </td>
+                          <td
+                            style={{
+                              padding: "2px 8px",
+                              fontWeight: "bold",
+                              textAlign: "right",
+                            }}
+                          >
+                            Khóa học:
+                          </td>
+                          <td style={{ padding: "2px 8px" }}>
+                            {classData?.course?.name}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
 
-                  {/* Footer Signature */}
-                  <div className="mt-16 pt-8 border-t border-dashed border-slate-300 flex justify-end">
-                    <div className="text-center px-8">
-                      <p className="text-sm text-slate-600 mb-1">
-                        Được tổng hợp bởi
-                      </p>
-                      <p className="font-bold text-slate-800 text-lg uppercase tracking-wide">
-                        MindX LMS AI
-                      </p>
-                    </div>
+                  {/* I. Tiêu chí đánh giá */}
+                  <div style={{ marginBottom: "20px" }}>
+                    <h3
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: "bold",
+                        textTransform: "uppercase",
+                        borderBottom: "1px solid #94a3b8",
+                        paddingBottom: "4px",
+                        marginBottom: "12px",
+                      }}
+                    >
+                      I. Tiêu chí đánh giá
+                    </h3>
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: "13px",
+                      }}
+                    >
+                      <thead>
+                        <tr style={{ backgroundColor: "#f1f5f9" }}>
+                          <th
+                            style={{
+                              border: "1px solid #cbd5e1",
+                              padding: "6px 10px",
+                              textAlign: "left",
+                              width: "22%",
+                            }}
+                          >
+                            Tiêu chí
+                          </th>
+                          <th
+                            style={{
+                              border: "1px solid #cbd5e1",
+                              padding: "6px 10px",
+                              textAlign: "center",
+                              width: "8%",
+                            }}
+                          >
+                            Điểm
+                          </th>
+                          <th
+                            style={{
+                              border: "1px solid #cbd5e1",
+                              padding: "6px 10px",
+                              textAlign: "center",
+                              width: "12%",
+                            }}
+                          >
+                            Xu hướng
+                          </th>
+                          <th
+                            style={{
+                              border: "1px solid #cbd5e1",
+                              padding: "6px 10px",
+                              textAlign: "left",
+                            }}
+                          >
+                            Nhận xét
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(Array.isArray(aiReport.criteria)
+                          ? aiReport.criteria
+                          : Object.entries(aiReport.criteria || {}).map(
+                              ([k, v]: [string, any]) => ({
+                                ...v,
+                                label:
+                                  v.label ||
+                                  (k === "attitude"
+                                    ? "Thái độ học tập"
+                                    : k === "assembly"
+                                      ? "Kỹ năng lắp ráp / Thiết bị"
+                                      : k === "programming"
+                                        ? "Tư duy lập trình"
+                                        : k),
+                              }),
+                            )
+                        ).map((item: any, index: number) => (
+                          <tr key={index}>
+                            <td
+                              style={{
+                                border: "1px solid #cbd5e1",
+                                padding: "6px 10px",
+                                fontWeight: "bold",
+                                verticalAlign: "top",
+                              }}
+                            >
+                              {item.label}
+                            </td>
+                            <td
+                              style={{
+                                border: "1px solid #cbd5e1",
+                                padding: "6px 10px",
+                                textAlign: "center",
+                                fontWeight: "bold",
+                                verticalAlign: "top",
+                              }}
+                            >
+                              {item.score}/10
+                            </td>
+                            <td
+                              style={{
+                                border: "1px solid #cbd5e1",
+                                padding: "6px 10px",
+                                textAlign: "center",
+                                verticalAlign: "top",
+                                color:
+                                  item.trend === "Tiến bộ"
+                                    ? "#16a34a"
+                                    : item.trend === "Đi xuống"
+                                      ? "#dc2626"
+                                      : "#64748b",
+                                fontWeight: "bold",
+                              }}
+                            >
+                              {item.trend}
+                            </td>
+                            <td
+                              style={{
+                                border: "1px solid #cbd5e1",
+                                padding: "6px 10px",
+                                verticalAlign: "top",
+                                textAlign: "justify",
+                              }}
+                            >
+                              {item.analysis}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* II. Đánh giá chung */}
+                  <div style={{ marginBottom: "20px" }}>
+                    <h3
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: "bold",
+                        textTransform: "uppercase",
+                        borderBottom: "1px solid #94a3b8",
+                        paddingBottom: "4px",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      II. Đánh giá chung
+                    </h3>
+                    <p style={{ textAlign: "justify", lineHeight: "1.8" }}>
+                      {aiReport.overall_progress}
+                    </p>
+                  </div>
+
+                  {/* III. Đề xuất / Phương án hỗ trợ */}
+                  <div style={{ marginBottom: "32px" }}>
+                    <h3
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: "bold",
+                        textTransform: "uppercase",
+                        borderBottom: "1px solid #94a3b8",
+                        paddingBottom: "4px",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      III. Đề xuất / Phương án hỗ trợ
+                    </h3>
+                    <ol style={{ paddingLeft: "20px", lineHeight: "1.8" }}>
+                      {aiReport.suggestions.map((s: string, i: number) => (
+                        <li key={i} style={{ marginBottom: "6px" }}>
+                          {s}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+
+                  {/* Footer */}
+                  <div
+                    style={{
+                      borderTop: "1px dashed #94a3b8",
+                      paddingTop: "16px",
+                      textAlign: "center",
+                    }}
+                  >
+                    <p
+                      style={{
+                        fontSize: "12px",
+                        fontStyle: "italic",
+                        color: "#64748b",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Được tổng hợp bởi
+                    </p>
+                    <p
+                      style={{
+                        fontWeight: "bold",
+                        fontSize: "14px",
+                        textTransform: "uppercase",
+                        letterSpacing: "1px",
+                      }}
+                    >
+                      MindX LMS AI
+                    </p>
                   </div>
                 </div>
               </div>

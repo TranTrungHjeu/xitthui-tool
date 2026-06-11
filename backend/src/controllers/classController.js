@@ -264,43 +264,55 @@ exports.getStudentAIReport = async (req, res) => {
 
         Cấu trúc JSON bắt buộc (Lưu ý mảng criteria chứa các object tiêu chí tùy thuộc vào loại lớp học):
 
-        Nếu dữ liệu cho thấy đây là LỚP CODING:
+        Căn cứ vào Môn Học (Tên khóa học: ${classData.course?.name || "Không rõ"}), bạn hãy chọn ĐÚNG bộ tiêu chí dưới đây để xuất JSON:
+
+        NẾU LÀ LỚP CODING (Lập trình phần mềm, Web, App...):
         {
           "criteria": [
-            { "label": "Tư duy Logic", "score": 1, "analysis": "Khả năng tư duy logic, giải thuật, cách phân tích vấn đề, viết giải pháp rõ ràng.", "trend": "Tiến bộ" },
-            { "label": "Thao tác máy tính, lập trình", "score": 1, "analysis": "Khả năng sử dụng cú pháp chính xác, áp dụng kiến thức lập trình vào giải quyết bài toán cụ thể.", "trend": "Tiến bộ" },
-            { "label": "Thái độ học tập", "score": 1, "analysis": "Mức độ chủ động, hỏi – đáp, hợp tác nhóm, sự nỗ lực vượt khó.", "trend": "Tiến bộ" }
+            { "label": "Tư duy Logic (L)", "score": 1, "analysis": "Đánh giá khả năng tư duy logic, giải thuật, cách phân tích vấn đề, viết giải pháp rõ ràng.", "trend": "Tiến bộ" },
+            { "label": "Thao tác máy tính, Lập trình (T)", "score": 1, "analysis": "Đánh giá khả năng sử dụng cú pháp chính xác, áp dụng kiến thức lập trình vào giải quyết bài toán cụ thể.", "trend": "Tiến bộ" },
+            { "label": "Thái độ học tập (T)", "score": 1, "analysis": "Đánh giá mức độ chủ động, hỏi – đáp, hợp tác nhóm, sự nỗ lực vượt khó.", "trend": "Tiến bộ" }
           ],
-          "overall_progress": "Đoạn văn tóm tắt theo chuẩn 4 tiêu chí L-L-T-Đ (Logic, Lập trình, Thái độ, Đề xuất). Đánh giá sự thay đổi hiệu suất qua thời gian.",
-          "suggestions": ["Cần hỗ trợ gì?", "Học sinh có tiến bộ không?", "Hướng học tiếp theo là gì (nâng cao/ôn tập)?"]
+          "overall_progress": "Nhận xét những vấn đề nổi trội nhất trong quá trình học. KHÔNG nói chung chung, phải chỉ đích danh vấn đề. Ví dụ: 'Con phối hợp tốt nhưng phần lập trình chưa tập trung...'",
+          "suggestions": [
+            "Đề xuất/Phương án hỗ trợ (Đ): Cần hỗ trợ gì?",
+            "Hướng học tiếp theo là gì (nâng cao/ôn tập)?",
+            "KẾT LUẬN: Lộ trình phù hợp cho học viên."
+          ]
         }
 
-        Nếu dữ liệu cho thấy đây là LỚP ROBOTICS:
+        NẾU LÀ LỚP ROBOTICS (Có liên quan lắp ráp, Arduino, robot):
         {
           "criteria": [
-            { "label": "Lắp ráp", "score": 1, "analysis": "Thao tác lắp ráp, khả năng nhận diện mảnh ghép, định hình trong không gian 3D, khả năng sáng tạo.", "trend": "Tiến bộ" },
-            { "label": "Lập trình", "score": 1, "analysis": "Khả năng nhận biết, ghi nhớ câu lệnh, vận dụng vào bài tập, tư duy xử lý vấn đề, thao tác với tablet/máy tính.", "trend": "Tiến bộ" },
-            { "label": "Thái độ học tập", "score": 1, "analysis": "Khả năng làm việc nhóm, mức độ tập trung, mức độ lắng nghe và phản hồi GV.", "trend": "Tiến bộ" }
+            { "label": "Lắp ráp (L)", "score": 1, "analysis": "Đánh giá thao tác lắp ráp, khả năng nhận diện mảnh ghép, định hình trong không gian 3D, khả năng sáng tạo.", "trend": "Tiến bộ" },
+            { "label": "Lập trình (L)", "score": 1, "analysis": "Đánh giá khả năng nhận biết, ghi nhớ câu lệnh, vận dụng vào bài tập, tư duy xử lý vấn đề, thao tác với tablet/máy tính.", "trend": "Tiến bộ" },
+            { "label": "Thái độ học tập (T)", "score": 1, "analysis": "Đánh giá khả năng làm việc nhóm, mức độ tập trung, mức độ lắng nghe và phản hồi GV.", "trend": "Tiến bộ" }
           ],
-          "overall_progress": "Đoạn văn tóm tắt theo chuẩn 4 tiêu chí L-L-T-Đ. GV đã thực hiện những gì để hỗ trợ bạn -> kết quả như thế nào, HV cần cải thiện thêm bằng những cách nào.",
-          "suggestions": ["Định hướng cho bạn như thế nào (học lại/level-up).", "Phía CS/PH cần hỗ trợ thêm những gì?"]
+          "overall_progress": "Nhận xét tổng hợp. GV đã thực hiện những gì để hỗ trợ bạn -> kết quả như thế nào. HV cần cải thiện thêm bằng những cách nào.",
+          "suggestions": [
+            "Đề xuất/Phương án hỗ trợ (Đ): Định hướng cho bạn như thế nào (học lại/level-up)?",
+            "Phía CS/PH cần hỗ trợ thêm những gì?"
+          ]
         }
 
-        Nếu dữ liệu cho thấy đây là LỚP ART (Mỹ thuật):
+        NẾU LÀ LỚP ART (Mỹ thuật, Vẽ, Thiết kế đồ hoạ):
         {
           "criteria": [
-            { "label": "Kiến thức", "score": 1, "analysis": "Khả năng tiếp thu, vận dụng, ghi nhớ (bố cục, màu sắc, hình khối).", "trend": "Tiến bộ" },
-            { "label": "Kỹ năng", "score": 1, "analysis": "Vẽ, sáng tạo, hoàn thiện tác phẩm, thao tác công cụ.", "trend": "Tiến bộ" },
-            { "label": "Thái độ", "score": 1, "analysis": "Tập trung, hợp tác, tương tác.", "trend": "Tiến bộ" }
+            { "label": "Kiến thức", "score": 1, "analysis": "VD: Hiểu bài nhanh, nhớ tốt kiến thức về bố cục, màu sắc, hình khối và áp dụng ngay vào bài.", "trend": "Tiến bộ" },
+            { "label": "Kỹ năng", "score": 1, "analysis": "VD: Vẽ đúng yêu cầu, sáng tạo, phối màu hài hòa, có chi tiết và độ hoàn thiện cao.", "trend": "Tiến bộ" },
+            { "label": "Thái độ", "score": 1, "analysis": "VD: Tập trung trong giờ, chủ động hỏi đáp, hợp tác nhóm tốt.", "trend": "Tiến bộ" }
           ],
-          "overall_progress": "Tóm tắt những điểm nổi bật trong suốt khoá học, ghi nhận cụ thể ưu điểm - hạn chế - hướng cải thiện.",
-          "suggestions": ["Dặn dò & Định hướng cải thiện cụ thể."]
+          "overall_progress": "Nhận xét tập trung vào những điểm nổi bật, ghi nhận cụ thể: ưu điểm - hạn chế - hướng cải thiện.",
+          "suggestions": [
+            "Dặn dò & Định hướng cải thiện cụ thể ở nhà hoặc trên lớp."
+          ]
         }
 
-        Lưu ý chung cho tất cả các lớp:
-        - KHÔNG nhận xét chung chung. KHÔNG tâng bốc cũng KHÔNG hạ thấp HV.
-        - Khen/chê rõ ràng, nếu chê phải luôn kèm theo đề xuất phương án.
-        - Luôn nhận xét đủ 4 tiêu chí tương ứng vào phần đánh giá chung.
+        NGUYÊN TẮC NHẬN XÉT:
+        - KHÔNG nhận xét chung chung. KHÔNG tâng bốc cũng KHÔNG hạ thấp HV. Khen/chê rõ ràng, nếu chê phải luôn kèm theo đề xuất phương án.
+        - Phải sử dụng ngôn từ lịch sự, mang tính xây dựng nhưng vẫn thể hiện đúng năng lực học viên.
+        - Đối với lớp Coding và Robotics, bạn PHẢI đảm bảo đầy đủ thông tin cho 4 tiêu chí L-L-T-Đ như cấu trúc trên.
+        - Phần "analysis" của từng tiêu chí phải khớp với dữ liệu điểm số và nhận xét thực tế.
       `;
 
     // Tích hợp Vertex AI API với model gemini-1.5-flash
