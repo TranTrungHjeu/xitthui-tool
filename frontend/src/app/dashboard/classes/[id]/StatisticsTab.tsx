@@ -439,23 +439,38 @@ export default function StatisticsTab({
   const handleEvaluateAll = async () => {
     if (students.length === 0) return;
 
-    const summary: { id: string; name: string; success: boolean }[] = [];
-    toast.info(`Bắt đầu phân tích AI cho ${students.length} học viên...`);
+    toast.info(
+      `Bắt đầu phân tích AI song song cho ${students.length} học viên...`,
+    );
     setIsEvaluating(true);
 
     try {
-      // Evaluate sequentially
-      for (const student of students) {
-        toast.loading(`Đang phân tích: ${student.fullName}...`, {
-          id: "bulk_eval",
-        });
+      toast.loading(`Đang phân tích... (0/${students.length})`, {
+        id: "bulk_eval",
+      });
+
+      let completedCount = 0;
+
+      // Xử lý song song (chạy đồng thời các request)
+      const promises = students.map(async (student: any) => {
         const success = await handleAIEvaluation(student.id, true, false);
-        summary.push({
+
+        completedCount++;
+        toast.loading(
+          `Đang phân tích... (${completedCount}/${students.length})`,
+          {
+            id: "bulk_eval",
+          },
+        );
+
+        return {
           id: student.id,
           name: student.fullName,
           success: success ?? false,
-        });
-      }
+        };
+      });
+
+      const summary = await Promise.all(promises);
 
       toast.success("Đã hoàn thành phân tích toàn bộ lớp học!", {
         id: "bulk_eval",
