@@ -514,14 +514,6 @@ export default function StatisticsTab({
     }
   };
 
-  const getTrendIcon = (trend: string) => {
-    if (trend === "Tiến bộ")
-      return <TrendingUp className="w-4 h-4 text-green-500" />;
-    if (trend === "Đi xuống")
-      return <TrendingDown className="w-4 h-4 text-red-500" />;
-    return <Minus className="w-4 h-4 text-slate-400" />;
-  };
-
   return (
     <div className="space-y-6">
       {/* Student Selector */}
@@ -925,40 +917,35 @@ export default function StatisticsTab({
       </Dialog>
 
       <Dialog open={showAiDialog} onOpenChange={setShowAiDialog}>
-        <DialogContent className="h-[92vh] w-[96vw] !max-w-[96vw] overflow-hidden rounded-2xl border-0 p-0 shadow-2xl">
-          <DialogHeader className="z-10 border-b bg-white px-6 py-5 flex flex-row items-center justify-between space-y-0">
-            <DialogTitle className="flex items-center gap-3 text-lg font-bold">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                <Brain className="h-4 w-4 text-primary animate-pulse" />
+        <DialogContent className="h-[92vh] w-[96vw] !max-w-[96vw] overflow-hidden rounded-xl border-0 p-0 shadow-2xl bg-slate-100">
+          <DialogHeader className="z-10 border-b bg-white px-6 py-4 flex flex-row items-center justify-between space-y-0 shadow-sm">
+            <DialogTitle className="flex items-center gap-3 text-lg font-bold text-slate-800">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100">
+                <Brain className="h-5 w-5 text-blue-700" />
               </div>
-              <div className="flex flex-col text-left">
-                <span className="text-base">Phân tích năng lực AI</span>
-                <span className="text-xs font-medium text-muted-foreground">
-                  Học viên: {selectedStudent?.fullName}
-                </span>
-              </div>
+              Bản báo cáo năng lực
             </DialogTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               {aiReport && (
                 <Button
-                  variant="outline"
+                  variant="default"
                   size="sm"
-                  className="h-8 gap-2 border-slate-200 text-slate-600"
+                  className="h-9 gap-2 shadow-sm font-semibold"
                   onClick={exportToPDF}
                   disabled={isExporting}
                 >
                   {isExporting ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <FileDown className="h-3 w-3" />
+                    <FileDown className="h-4 w-4" />
                   )}
-                  Xuất PDF
+                  Tải xuống PDF
                 </Button>
               )}
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full hover:bg-slate-100"
+                className="h-9 w-9 rounded-full hover:bg-slate-200"
                 onClick={() => setShowAiDialog(false)}
               >
                 <X className="h-4 w-4 text-slate-500" />
@@ -966,101 +953,148 @@ export default function StatisticsTab({
             </div>
           </DialogHeader>
 
-          <div className="h-[calc(92vh-85px)] overflow-y-auto">
+          <div className="h-[calc(92vh-73px)] overflow-y-auto">
             {isEvaluating ? (
               <div className="flex min-h-[350px] flex-col items-center justify-center gap-4 px-6 py-12 text-muted-foreground">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <div className="space-y-2 text-center">
                   <p className="text-base font-semibold text-foreground">
-                    AI đang xử lý dữ liệu...
+                    Hệ thống đang xử lý dữ liệu...
                   </p>
                   <p className="text-sm animate-pulse">
-                    Đang tổng hợp chuyên cần, điểm số và nhận xét
+                    Đang tổng hợp chuyên cần, điểm số và đưa ra nhận xét
                   </p>
                 </div>
               </div>
             ) : aiReport ? (
-              <div
-                id="ai-report-content"
-                className="space-y-6 px-6 py-6 bg-white"
-              >
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-                  {[
-                    { key: "attitude", label: "Thái độ", color: "blue" },
-                    {
-                      key: "assembly",
-                      label: "Thiết bị / Lắp ráp",
-                      color: "green",
-                    },
-                    {
-                      key: "programming",
-                      label: "Lập trình",
-                      color: "purple",
-                    },
-                  ].map((item) => (
-                    <Card
-                      key={item.key}
-                      className="overflow-hidden rounded-xl border bg-gradient-to-br from-white to-slate-50/50 shadow-sm"
-                    >
-                      <CardContent className="space-y-3 p-4">
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                            {item.label}
-                          </span>
-                          {getTrendIcon(aiReport.criteria[item.key].trend)}
-                        </div>
-                        <div className="flex items-end gap-1">
-                          <span className="text-3xl font-bold tracking-tight text-slate-900 leading-none">
-                            {aiReport.criteria[item.key].score}
-                          </span>
-                          <span className="text-xs font-medium text-muted-foreground">
-                            /10
-                          </span>
-                        </div>
-                        <div className="inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                          Xu hướng: {aiReport.criteria[item.key].trend}
-                        </div>
-                        <p className="text-[12px] leading-relaxed text-slate-600">
-                          {aiReport.criteria[item.key].analysis}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_1fr]">
-                  <div className="space-y-3">
-                    <h4 className="flex items-center gap-2 text-sm font-bold uppercase text-slate-500">
-                      <TrendingUp className="h-4 w-4 text-primary" />
-                      Quá trình phát triển
-                    </h4>
-                    <div className="rounded-xl border border-primary/10 bg-primary/5 p-5 text-[13px] leading-relaxed text-slate-700 shadow-sm italic">
-                      "{aiReport.overall_progress}"
+              <div className="flex justify-center bg-slate-100 min-h-full py-8 px-4">
+                <div
+                  id="ai-report-content"
+                  className="bg-white p-8 md:p-14 w-full max-w-[850px] shadow-sm border border-slate-200"
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    color: "#1e293b",
+                  }}
+                >
+                  {/* Header Báo Cáo */}
+                  <div className="border-b-2 border-slate-800 pb-6 mb-8 text-center">
+                    <h2 className="text-2xl md:text-3xl font-extrabold uppercase tracking-tight text-slate-900 mb-4">
+                      Báo Cáo Đánh Giá Năng Lực Học Viên
+                    </h2>
+                    <div className="flex flex-col items-center gap-1.5 text-sm text-slate-700">
+                      <p>
+                        <span className="font-bold">Học viên:</span>{" "}
+                        {selectedStudent?.fullName}
+                      </p>
+                      <p>
+                        <span className="font-bold">Lớp học:</span>{" "}
+                        {classData?.name} - {classData?.course?.name}
+                      </p>
+                      <p>
+                        <span className="font-bold">Ngày xuất báo cáo:</span>{" "}
+                        {new Date().toLocaleDateString("vi-VN")}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-bold uppercase text-slate-500">
-                      Lộ trình cải thiện
-                    </h4>
-                    <div className="space-y-3 rounded-xl border bg-slate-50/50 p-5 shadow-sm">
-                      {aiReport.suggestions.map((s: string, i: number) => (
+                  {/* 1. Điểm số tiêu chí */}
+                  <div className="mb-10">
+                    <h3 className="text-lg font-bold uppercase text-slate-800 border-b border-slate-300 pb-2 mb-6">
+                      I. Đánh giá chi tiết theo tiêu chí
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {[
+                        { key: "attitude", label: "Thái độ học tập" },
+                        {
+                          key: "assembly",
+                          label: "Kỹ năng lắp ráp / Thiết bị",
+                        },
+                        { key: "programming", label: "Tư duy lập trình" },
+                      ].map((item) => (
                         <div
-                          key={i}
-                          className="flex gap-3 text-[13px] leading-6"
+                          key={item.key}
+                          className="flex flex-col rounded-lg border border-slate-200 bg-slate-50 overflow-hidden"
                         >
-                          <div className="mt-2 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                          <p className="text-slate-700">{s}</p>
+                          <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
+                            <span className="font-bold text-[13px] text-slate-800 uppercase line-clamp-1">
+                              {item.label}
+                            </span>
+                            <span className="font-black text-lg text-primary">
+                              {aiReport.criteria[item.key].score}/10
+                            </span>
+                          </div>
+                          <div className="p-4 flex flex-col gap-4 flex-1">
+                            <div className="flex items-center gap-2 text-[13px] text-slate-700">
+                              <span className="font-semibold">Xu hướng:</span>
+                              <span
+                                className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
+                                  aiReport.criteria[item.key].trend ===
+                                  "Tiến bộ"
+                                    ? "bg-green-100 text-green-800 border border-green-200"
+                                    : aiReport.criteria[item.key].trend ===
+                                        "Đi xuống"
+                                      ? "bg-red-100 text-red-800 border border-red-200"
+                                      : "bg-slate-200 text-slate-800 border border-slate-300"
+                                }`}
+                              >
+                                {aiReport.criteria[item.key].trend}
+                              </span>
+                            </div>
+                            <p className="text-[13px] text-slate-700 leading-relaxed text-justify">
+                              {aiReport.criteria[item.key].analysis}
+                            </p>
+                          </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* 2. Đánh giá tổng quan */}
+                  <div className="mb-10">
+                    <h3 className="text-lg font-bold uppercase text-slate-800 border-b border-slate-300 pb-2 mb-5">
+                      II. Tổng quan quá trình phát triển
+                    </h3>
+                    <div className="text-[14px] leading-relaxed text-slate-800 text-justify bg-slate-50 p-6 rounded-lg border border-slate-200">
+                      {aiReport.overall_progress}
+                    </div>
+                  </div>
+
+                  {/* 3. Đề xuất cải thiện */}
+                  <div className="mb-10">
+                    <h3 className="text-lg font-bold uppercase text-slate-800 border-b border-slate-300 pb-2 mb-5">
+                      III. Lộ trình cải thiện đề xuất
+                    </h3>
+                    <div className="bg-white p-2">
+                      <ul className="space-y-4">
+                        {aiReport.suggestions.map((s: string, i: number) => (
+                          <li
+                            key={i}
+                            className="flex items-start gap-4 text-[14px] text-slate-800 leading-relaxed"
+                          >
+                            <div className="mt-2 h-1.5 w-1.5 rounded-full bg-slate-800 shrink-0" />
+                            <span className="text-justify">{s}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Footer Signature */}
+                  <div className="mt-16 pt-8 border-t border-dashed border-slate-300 flex justify-end">
+                    <div className="text-center px-8">
+                      <p className="text-sm text-slate-600 mb-1">
+                        Được tổng hợp bởi
+                      </p>
+                      <p className="font-bold text-slate-800 text-lg uppercase tracking-wide">
+                        MindX LMS AI
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
             ) : (
               <div className="px-6 py-12 text-center text-sm text-slate-500">
-                Không thể tải phân tích AI. Vui lòng kiểm tra cấu hình Vertex AI
-                hoặc dữ liệu trả về từ model.
+                Không thể tải báo cáo đánh giá. Vui lòng kiểm tra lại kết nối.
               </div>
             )}
           </div>
