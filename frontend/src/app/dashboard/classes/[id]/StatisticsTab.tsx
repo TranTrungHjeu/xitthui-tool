@@ -1003,16 +1003,25 @@ export default function StatisticsTab({
                       I. Đánh giá chi tiết theo tiêu chí
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {[
-                        { key: "attitude", label: "Thái độ học tập" },
-                        {
-                          key: "assembly",
-                          label: "Kỹ năng lắp ráp / Thiết bị",
-                        },
-                        { key: "programming", label: "Tư duy lập trình" },
-                      ].map((item) => (
+                      {(Array.isArray(aiReport.criteria)
+                        ? aiReport.criteria
+                        : Object.entries(aiReport.criteria || {}).map(
+                            ([k, v]: [string, any]) => ({
+                              ...v,
+                              label:
+                                v.label ||
+                                (k === "attitude"
+                                  ? "Thái độ học tập"
+                                  : k === "assembly"
+                                    ? "Kỹ năng lắp ráp / Thiết bị"
+                                    : k === "programming"
+                                      ? "Tư duy lập trình"
+                                      : k),
+                            }),
+                          )
+                      ).map((item: any, index: number) => (
                         <div
-                          key={item.key}
+                          key={index}
                           className="flex flex-col rounded-lg border border-slate-200 bg-slate-50 overflow-hidden"
                         >
                           <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
@@ -1020,7 +1029,7 @@ export default function StatisticsTab({
                               {item.label}
                             </span>
                             <span className="font-black text-lg text-primary">
-                              {aiReport.criteria[item.key].score}/10
+                              {item.score}/10
                             </span>
                           </div>
                           <div className="p-4 flex flex-col gap-4 flex-1">
@@ -1028,20 +1037,18 @@ export default function StatisticsTab({
                               <span className="font-semibold">Xu hướng:</span>
                               <span
                                 className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
-                                  aiReport.criteria[item.key].trend ===
-                                  "Tiến bộ"
+                                  item.trend === "Tiến bộ"
                                     ? "bg-green-100 text-green-800 border border-green-200"
-                                    : aiReport.criteria[item.key].trend ===
-                                        "Đi xuống"
+                                    : item.trend === "Đi xuống"
                                       ? "bg-red-100 text-red-800 border border-red-200"
                                       : "bg-slate-200 text-slate-800 border border-slate-300"
                                 }`}
                               >
-                                {aiReport.criteria[item.key].trend}
+                                {item.trend}
                               </span>
                             </div>
                             <p className="text-[13px] text-slate-700 leading-relaxed text-justify">
-                              {aiReport.criteria[item.key].analysis}
+                              {item.analysis}
                             </p>
                           </div>
                         </div>

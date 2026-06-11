@@ -242,33 +242,65 @@ exports.getStudentAIReport = async (req, res) => {
     });
 
     const prompt = `
-        Hãy đóng vai một chuyên gia giáo dục STEM. Hãy phân tích năng lực của học viên sau dựa trên dữ liệu:
+        Hãy đóng vai một chuyên gia giáo dục STEM chuyên nghiệp đang lập Báo Cáo Đánh Giá Năng Lực Học Viên định kỳ. Bạn phải phân tích năng lực của học viên sau một cách nghiêm túc, khách quan và khoa học dựa trên số liệu thực tế:
         - Tên học viên: ${studentInfo.fullName}
         - Thống kê chuyên cần: Tổng ${attendanceTotal} buổi. Đúng giờ: ${presentCount}, Muộn: ${lateCount}, Vắng: ${absentCount}.
         - Điểm số & Bài nộp: ${JSON.stringify(scores)}
         - Nhận xét của giáo viên qua các buổi: ${JSON.stringify(comments)}
 
-        Yêu cầu BẮT BUỘC:
-        - Chỉ trả về JSON hợp lệ.
-        - Không chào hỏi.
-        - Không giải thích ngoài JSON.
-        - Không bọc trong markdown code block.
-        - Không thêm bất kỳ chữ nào trước hoặc sau JSON.
-        - Các trường "score" phải là số từ 1 đến 10.
-        - Các trường "trend" chỉ được là một trong ba giá trị: "Tiến bộ", "Đi xuống", "Ổn định".
+        YÊU CẦU VĂN PHONG VÀ TRÌNH BÀY:
+        - Chỉ sử dụng văn phong học thuật, chuyên nghiệp, khách quan và mang tính xây dựng.
+        - TUYỆT ĐỐI KHÔNG SỬ DỤNG EMOJI (biểu tượng cảm xúc như 😊, 👍, 🌟, v.v.) trong bất kỳ phần nào của báo cáo.
+        - Tuyệt đối không dùng các từ ngữ quá bình dân, cảm thán hoặc mang tính trò chuyện.
+        - Mỗi nhận xét cần đi thẳng vào vấn đề, đánh giá mạnh/yếu dựa trên số liệu điểm số và nhận xét của giáo viên.
+        - Tránh lặp từ, sử dụng các từ ngữ mang tính sư phạm như: "Năng lực tiếp thu", "Khả năng ứng dụng", "Chỉ số chuyên cần", "Tính kỷ luật", "Kỹ năng tư duy logic".
 
-        Cấu trúc JSON bắt buộc:
+        YÊU CẦU ĐỊNH DẠNG ĐẦU RA BẮT BUỘC:
+        - Chỉ trả về duy nhất chuỗi JSON hợp lệ.
+        - Không chào hỏi, không giải thích ngoài JSON.
+        - Không bọc trong markdown code block. Không thêm bất kỳ ký tự nào trước hoặc sau khối JSON.
+        - "score": Phải là một số nguyên hoặc số thập phân từ 1 đến 10.
+        - "trend": Chỉ được chọn chính xác 1 trong 3 giá trị: "Tiến bộ", "Đi xuống", "Ổn định".
+
+        Cấu trúc JSON bắt buộc (Lưu ý mảng criteria chứa các object tiêu chí tùy thuộc vào loại lớp học):
+
+        Nếu dữ liệu cho thấy đây là LỚP CODING:
         {
-          "criteria": {
-            "attitude": { "score": 1, "analysis": "...", "trend": "Tiến bộ" },
-            "assembly": { "score": 1, "analysis": "...", "trend": "Tiến bộ" },
-            "programming": { "score": 1, "analysis": "...", "trend": "Tiến bộ" }
-          },
-          "overall_progress": "Phân tích tổng quát quá trình phát triển",
-          "suggestions": ["Đề xuất 1", "Đề xuất 2", "..."]
+          "criteria": [
+            { "label": "Tư duy Logic", "score": 1, "analysis": "Khả năng tư duy logic, giải thuật, cách phân tích vấn đề, viết giải pháp rõ ràng.", "trend": "Tiến bộ" },
+            { "label": "Thao tác máy tính, lập trình", "score": 1, "analysis": "Khả năng sử dụng cú pháp chính xác, áp dụng kiến thức lập trình vào giải quyết bài toán cụ thể.", "trend": "Tiến bộ" },
+            { "label": "Thái độ học tập", "score": 1, "analysis": "Mức độ chủ động, hỏi – đáp, hợp tác nhóm, sự nỗ lực vượt khó.", "trend": "Tiến bộ" }
+          ],
+          "overall_progress": "Đoạn văn tóm tắt theo chuẩn 4 tiêu chí L-L-T-Đ (Logic, Lập trình, Thái độ, Đề xuất). Đánh giá sự thay đổi hiệu suất qua thời gian.",
+          "suggestions": ["Cần hỗ trợ gì?", "Học sinh có tiến bộ không?", "Hướng học tiếp theo là gì (nâng cao/ôn tập)?"]
         }
 
-        Hãy viết bằng tiếng Việt, phân tích sâu sắc dựa trên sự thay đổi của điểm số và nhận xét theo thời gian.
+        Nếu dữ liệu cho thấy đây là LỚP ROBOTICS:
+        {
+          "criteria": [
+            { "label": "Lắp ráp", "score": 1, "analysis": "Thao tác lắp ráp, khả năng nhận diện mảnh ghép, định hình trong không gian 3D, khả năng sáng tạo.", "trend": "Tiến bộ" },
+            { "label": "Lập trình", "score": 1, "analysis": "Khả năng nhận biết, ghi nhớ câu lệnh, vận dụng vào bài tập, tư duy xử lý vấn đề, thao tác với tablet/máy tính.", "trend": "Tiến bộ" },
+            { "label": "Thái độ học tập", "score": 1, "analysis": "Khả năng làm việc nhóm, mức độ tập trung, mức độ lắng nghe và phản hồi GV.", "trend": "Tiến bộ" }
+          ],
+          "overall_progress": "Đoạn văn tóm tắt theo chuẩn 4 tiêu chí L-L-T-Đ. GV đã thực hiện những gì để hỗ trợ bạn -> kết quả như thế nào, HV cần cải thiện thêm bằng những cách nào.",
+          "suggestions": ["Định hướng cho bạn như thế nào (học lại/level-up).", "Phía CS/PH cần hỗ trợ thêm những gì?"]
+        }
+
+        Nếu dữ liệu cho thấy đây là LỚP ART (Mỹ thuật):
+        {
+          "criteria": [
+            { "label": "Kiến thức", "score": 1, "analysis": "Khả năng tiếp thu, vận dụng, ghi nhớ (bố cục, màu sắc, hình khối).", "trend": "Tiến bộ" },
+            { "label": "Kỹ năng", "score": 1, "analysis": "Vẽ, sáng tạo, hoàn thiện tác phẩm, thao tác công cụ.", "trend": "Tiến bộ" },
+            { "label": "Thái độ", "score": 1, "analysis": "Tập trung, hợp tác, tương tác.", "trend": "Tiến bộ" }
+          ],
+          "overall_progress": "Tóm tắt những điểm nổi bật trong suốt khoá học, ghi nhận cụ thể ưu điểm - hạn chế - hướng cải thiện.",
+          "suggestions": ["Dặn dò & Định hướng cải thiện cụ thể."]
+        }
+
+        Lưu ý chung cho tất cả các lớp:
+        - KHÔNG nhận xét chung chung. KHÔNG tâng bốc cũng KHÔNG hạ thấp HV.
+        - Khen/chê rõ ràng, nếu chê phải luôn kèm theo đề xuất phương án.
+        - Luôn nhận xét đủ 4 tiêu chí tương ứng vào phần đánh giá chung.
       `;
 
     // Tích hợp Vertex AI API với model gemini-1.5-flash
