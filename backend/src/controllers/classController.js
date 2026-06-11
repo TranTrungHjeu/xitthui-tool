@@ -314,8 +314,9 @@ exports.getStudentAIReport = async (req, res) => {
         - Phải đồng nhất giữa các nhận xét từ LMS đến với phía TE, CS/PH.
         - Ở các buổi học thường, nhận xét những vấn đề nổi trội trong buổi học. VÍ DỤ: "Hôm nay con phối hợp với các bạn tốt và thực hiện lắp ráp mô hình nhanh. Tuy nhiên phần lập trình con chưa có sự tập trung dẫn đến chưa hoàn thành được các bài tập mà thầy đề ra. Con cần ôn tập thêm tại nhà theo nội dung thầy gửi và tập trung hơn trong buổi học sau."
         - Đối với lớp Coding và Robotics, bạn PHẢI đảm bảo nhận xét đủ 4 tiêu chí L-L-T-Đ vào mục "Đánh giá chung" ("overall_progress").
-        - Đảm bảo "overall_progress" là MỘT đoạn văn liên tục nhưng PHẢI rõ ràng, dễ đọc, không dùng markdown như **bold**, *italic*, gạch đầu dòng, ký hiệu đặc biệt, hoặc cách trình bày kiểu AI response.
-        - Khi viết "overall_progress", hãy viết như một đoạn nhận xét hoàn chỉnh, tự nhiên, mạch lạc, có thể chia câu bằng dấu chấm hoặc dấu phẩy, nhưng không được xuống dòng theo từng ý hay chèn tiêu đề phụ.
+        - Đảm bảo "overall_progress" là MỘT đoạn văn liên tục, không chia dòng, không dùng markdown như **bold**, *italic*, gạch đầu dòng, ký hiệu đặc biệt, hoặc cách trình bày kiểu AI response.
+        - Nội dung trong đoạn văn phải đi theo đúng trình tự và tách ý rõ ràng bằng câu văn tự nhiên theo từng phần L - T - T - Đ, nhưng vẫn nằm chung trong một đoạn văn duy nhất.
+        - Khi viết "overall_progress", hãy lần lượt đề cập đủ các ý: Lý do/tiến bộ về tư duy hoặc kiến thức nền, tiếp theo là thao tác/lập trình, tiếp theo là thái độ học tập, cuối cùng là đề xuất/phương án hỗ trợ hoặc lộ trình học tiếp theo.
         - Phần "analysis" của từng tiêu chí phải khớp với dữ liệu điểm số và nhận xét thực tế.
       `;
 
