@@ -972,7 +972,7 @@ export default function StatisticsTab({
                   id="ai-report-content"
                   className="bg-white p-8 md:p-14 w-full max-w-[850px] shadow-sm border border-slate-200"
                   style={{
-                    fontFamily: "'Inter', sans-serif",
+                    fontFamily: "'Times New Roman', Times, serif",
                     color: "#1e293b",
                   }}
                 >
