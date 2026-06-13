@@ -158,13 +158,13 @@ export default function DashboardLayout({
       >
         <div className="relative pt-10 pb-6 flex items-center justify-center">
           <Image
-            src="/logo.png"
+            src={isSidebarCollapsed ? "/favicon.ico" : "/logo.png"}
             alt="Xitthui logo"
-            width={200}
-            height={200}
-            className={`transition-transform duration-300 ${
+            width={isSidebarCollapsed ? 40 : 200}
+            height={isSidebarCollapsed ? 40 : 200}
+            className={`transition-all duration-300 ${
               isSidebarCollapsed
-                ? "w-10 h-10 max-w-[40px]"
+                ? "w-10 h-10 object-contain"
                 : "hover:scale-105 w-full h-auto max-w-[180px]"
             }`}
             priority
@@ -172,16 +172,16 @@ export default function DashboardLayout({
           <Button
             variant="ghost"
             size="icon"
-            className="absolute top-3 right-3 rounded-full"
+            className="absolute -right-3 top-6 h-6 w-6 rounded-full border border-slate-200 bg-white shadow-sm hover:bg-slate-50 z-50 flex items-center justify-center"
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             title={
               isSidebarCollapsed ? "Mở rộng thanh bên" : "Thu nhỏ thanh bên"
             }
           >
             {isSidebarCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
             ) : (
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-3.5 w-3.5 text-slate-500" />
             )}
           </Button>
         </div>
@@ -208,7 +208,11 @@ export default function DashboardLayout({
                   }`}
                 >
                   {isActive && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
+                    <div
+                      className={`absolute top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full transition-all duration-300 ${
+                        isSidebarCollapsed ? "left-1" : "left-0"
+                      }`}
+                    />
                   )}
 
                   <Link
@@ -217,7 +221,7 @@ export default function DashboardLayout({
                     className={`flex-1 flex items-center ${
                       isSidebarCollapsed ? "justify-center px-0" : "px-4"
                     } py-2.5 text-sm font-medium transition-all duration-200 ${
-                      isActive ? "pl-5" : ""
+                      isActive && !isSidebarCollapsed ? "pl-5" : ""
                     }`}
                   >
                     <item.icon
@@ -227,9 +231,15 @@ export default function DashboardLayout({
                           : "text-slate-400 group-hover/item:text-slate-600"
                       }`}
                     />
-                    {!isSidebarCollapsed && (
-                      <span className="ml-3.5">{item.label}</span>
-                    )}
+                    <span
+                      className={`transition-all duration-300 whitespace-nowrap overflow-hidden ${
+                        isSidebarCollapsed
+                          ? "max-w-0 opacity-0 pointer-events-none overflow-hidden ml-0"
+                          : "max-w-xs opacity-100 ml-3.5"
+                      }`}
+                    >
+                      {item.label}
+                    </span>
                   </Link>
 
                   {!isSidebarCollapsed &&
@@ -302,34 +312,44 @@ export default function DashboardLayout({
           })}
         </nav>
 
-        <div className="p-4 mt-auto">
+        <div
+          className={`mt-auto transition-all duration-300 ${
+            isSidebarCollapsed ? "p-2" : "p-4"
+          }`}
+        >
           <div
             className={`bg-slate-50/80 rounded-2xl border border-slate-100 transition-all duration-300 ${
-              isSidebarCollapsed ? "p-3 flex flex-col items-center" : "p-4"
+              isSidebarCollapsed ? "p-2 flex flex-col items-center" : "p-4"
             }`}
           >
             <div
-              className={`flex items-center gap-3 mb-4 ${isSidebarCollapsed ? "justify-center" : ""}`}
+              className={`flex items-center transition-all duration-300 ${
+                isSidebarCollapsed ? "justify-center mb-2 gap-0" : "mb-4 gap-3"
+              }`}
             >
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold border border-primary/10 shadow-inner">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold border border-primary/10 shadow-inner shrink-0">
                 {displayName.charAt(0).toUpperCase()}
               </div>
-              {!isSidebarCollapsed && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-bold text-slate-900 truncate leading-tight">
-                    {displayName}
-                  </p>
-                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {user?.email}
-                  </p>
-                </div>
-              )}
+              <div
+                className={`transition-all duration-300 ease-in-out ${
+                  isSidebarCollapsed
+                    ? "max-w-0 opacity-0 pointer-events-none overflow-hidden"
+                    : "max-w-[180px] opacity-100"
+                }`}
+              >
+                <p className="text-[13px] font-bold text-slate-900 truncate leading-tight">
+                  {displayName}
+                </p>
+                <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                  {user?.email}
+                </p>
+              </div>
             </div>
             {isSidebarCollapsed ? (
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-slate-500 hover:text-red-600 hover:bg-red-50/50 rounded-full"
+                className="text-slate-500 hover:text-red-600 hover:bg-red-50/50 rounded-full h-9 w-9"
                 onClick={handleLogout}
                 title="Đăng xuất"
               >
