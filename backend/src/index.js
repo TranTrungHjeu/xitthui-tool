@@ -1,3 +1,4 @@
+// restart trigger 3
 const path = require("path");
 const fs = require("fs");
 
@@ -18,6 +19,7 @@ const config = require("./config");
 const authRoutes = require("./routes/authRoutes");
 const classRoutes = require("./routes/classRoutes");
 const sessionRoutes = require("./routes/sessionRoutes");
+const teacherRoutes = require("./routes/teacherRoutes");
 
 // ---- 1. Express API Server Setup ----
 const app = express();
@@ -49,6 +51,7 @@ app.use(express.json({ limit: "200kb" }));
 app.use("/api", authRoutes);
 app.use("/api", classRoutes);
 app.use("/api", sessionRoutes);
+app.use("/api", teacherRoutes);
 
 // Global Error Handler - Prevents server from crashing on unhandled errors
 app.use((err, req, res, next) => {

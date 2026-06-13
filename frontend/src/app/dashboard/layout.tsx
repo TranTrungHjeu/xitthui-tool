@@ -10,12 +10,16 @@ import {
   LayoutDashboard,
   Calendar,
   Users,
+  BriefcaseBusiness,
+  CalendarClock,
   Settings,
   LogOut,
   Menu,
   X,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
+  TableProperties,
 } from "lucide-react";
 import Link from "next/link";
 import { Toaster } from "sonner";
@@ -38,6 +42,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isClassesExpanded, setIsClassesExpanded] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
 
   const classes = storedClasses || [];
@@ -53,7 +58,8 @@ export default function DashboardLayout({
   // Wait for Zustand persist rehydration before accessing auth state
   useEffect(() => {
     if (useAuthStore.persist?.hasHydrated?.()) {
-      setHasHydrated(true);
+      const timer = setTimeout(() => setHasHydrated(true), 0);
+      return () => clearTimeout(timer);
     } else {
       const unsub = useAuthStore.persist?.onFinishHydration?.(() => {
         setHasHydrated(true);
@@ -93,12 +99,13 @@ export default function DashboardLayout({
         if (!isCancelled) {
           setStoredClasses(data || []);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Sidebar classes are non-critical. Do not use console.error here because
         // Next.js dev overlay surfaces caught Axios errors as runtime errors.
+        const errorMsg = err instanceof Error ? err.message : "Unknown error";
         console.warn(
           "Could not fetch sidebar classes:",
-          err.response?.data?.error || err.message,
+          errorMsg
         );
         if (!isCancelled) {
           // Keep old data if fetch fails
@@ -124,6 +131,9 @@ export default function DashboardLayout({
       hasSubmenu: true,
     },
     { label: "Học viên", href: "/dashboard/students", icon: Users },
+    { label: "Nhân sự", href: "/dashboard/personnel", icon: BriefcaseBusiness },
+    { label: "Lịch làm việc", href: "/dashboard/schedules", icon: CalendarClock },
+    { label: "Book Trial", href: "/dashboard/spreadsheet", icon: TableProperties },
     { label: "Cài đặt", href: "/dashboard/settings", icon: Settings },
   ];
 
@@ -136,16 +146,37 @@ export default function DashboardLayout({
     <div className="flex h-screen bg-[#f8fafc]">
       <Toaster position="top-right" expand={true} richColors />
       {/* Sidebar Desktop */}
-      <aside className="hidden md:flex flex-col w-72 bg-white border-r border-slate-200/60 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-30">
-        <div className="pt-10 pb-6 px-6 flex items-center justify-center">
+      <aside
+        className={`hidden md:flex relative flex-col transition-all duration-300 bg-white border-r border-slate-200/60 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-30 ${
+          isSidebarCollapsed ? "w-20" : "w-72"
+        }`}
+      >
+        <div className="relative pt-10 pb-6 flex items-center justify-center">
           <Image
             src="/logo.png"
             alt="Xitthui logo"
             width={200}
             height={200}
-            className="hover:scale-105 transition-transform duration-300 w-full h-auto max-w-[180px]"
+            className={`transition-transform duration-300 ${
+              isSidebarCollapsed
+                ? "w-10 h-10 max-w-[40px]"
+                : "hover:scale-105 w-full h-auto max-w-[180px]"
+            }`}
             priority
           />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-3 right-3 rounded-full"
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            title={isSidebarCollapsed ? "Mở rộng thanh bên" : "Thu nhỏ thanh bên"}
+          >
+            {isSidebarCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </Button>
         </div>
 
         <div className="px-4 mb-4">
@@ -173,47 +204,52 @@ export default function DashboardLayout({
                     <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
                   )}
 
-                  <Link
-                    href={item.href}
-                    className={`flex-1 flex items-center px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
-                      isActive ? "pl-5" : ""
-                    }`}
-                  >
-                    <item.icon
-                      className={`mr-3.5 h-5 w-5 transition-colors duration-300 ${
-                        isActive
-                          ? "text-primary"
-                          : "text-slate-400 group-hover/item:text-slate-600"
-                      }`}
-                    />
-                    {item.label}
-                  </Link>
+            <Link
+              href={item.href}
+              title={item.label}
+              className={`flex-1 flex items-center ${
+                isSidebarCollapsed ? "justify-center px-0" : "px-4"
+              } py-2.5 text-sm font-medium transition-all duration-200 ${
+                isActive ? "pl-5" : ""
+              }`}
+            >
+              <item.icon
+                className={`h-5 w-5 transition-colors duration-300 ${
+                  isActive
+                    ? "text-primary"
+                    : "text-slate-400 group-hover/item:text-slate-600"
+                }`}
+              />
+              {!isSidebarCollapsed && (
+                <span className="ml-3.5">{item.label}</span>
+              )}
+            </Link>
 
-                  {isClassesMenu && classes.length > 0 && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setIsClassesExpanded(!isClassesExpanded);
-                      }}
-                      className={`p-1.5 mr-2 rounded-lg transition-all duration-200 ${
-                        isClassesExpanded
-                          ? "bg-primary/10 text-primary"
-                          : "hover:bg-slate-100 text-slate-400"
-                      }`}
-                    >
-                      <ChevronDown
-                        className={`h-4 w-4 transition-transform duration-300 ${
-                          isClassesExpanded ? "rotate-0" : "-rotate-90"
-                        }`}
-                      />
-                    </button>
-                  )}
-                </div>
-
-                {/* Submenu with animation-like behavior */}
-                {isClassesMenu && isClassesExpanded && classes.length > 0 && (
-                  <div className="mt-1 ml-6 pl-4 space-y-1 border-l-2 border-slate-100/80 animate-in fade-in slide-in-from-left-2 duration-300">
+                   {!isSidebarCollapsed && isClassesMenu && classes.length > 0 && (
+                     <button
+                       onClick={(e) => {
+                         e.preventDefault();
+                         e.stopPropagation();
+                         setIsClassesExpanded(!isClassesExpanded);
+                       }}
+                       className={`p-1.5 mr-2 rounded-lg transition-all duration-200 ${
+                         isClassesExpanded
+                           ? "bg-primary/10 text-primary"
+                           : "hover:bg-slate-100 text-slate-400"
+                       }`}
+                     >
+                       <ChevronDown
+                         className={`h-4 w-4 transition-transform duration-300 ${
+                           isClassesExpanded ? "rotate-0" : "-rotate-90"
+                         }`}
+                       />
+                     </button>
+                   )}
+                 </div>
+ 
+                 {/* Submenu with animation-like behavior */}
+                 {!isSidebarCollapsed && isClassesMenu && isClassesExpanded && classes.length > 0 && (
+                   <div className="mt-1 ml-6 pl-4 space-y-1 border-l-2 border-slate-100/80 animate-in fade-in slide-in-from-left-2 duration-300">
                     {classes.slice(0, 8).map((cls) => {
                       const classHref = `/dashboard/classes/${cls.id}`;
                       const isClassActive = pathname === classHref;
@@ -254,33 +290,51 @@ export default function DashboardLayout({
           })}
         </nav>
 
-        <div className="p-4 mt-auto">
-          <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold border border-primary/10 shadow-inner">
-                {displayName.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-bold text-slate-900 truncate leading-tight">
-                  {displayName}
-                </p>
-                <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                  {user?.email}
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start text-slate-500 hover:text-red-600 hover:bg-red-50/50 rounded-xl h-9 text-xs font-semibold transition-all duration-200 border border-transparent hover:border-red-100"
-              onClick={handleLogout}
-            >
-              <LogOut className="mr-2.5 h-4 w-4" />
-              Đăng xuất
-            </Button>
-          </div>
-        </div>
-      </aside>
+         <div className="p-4 mt-auto">
+           <div
+             className={`bg-slate-50/80 rounded-2xl border border-slate-100 transition-all duration-300 ${
+               isSidebarCollapsed ? "p-3 flex flex-col items-center" : "p-4"
+             }`}
+           >
+             <div className={`flex items-center gap-3 mb-4 ${isSidebarCollapsed ? "justify-center" : ""}`}>
+               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold border border-primary/10 shadow-inner">
+                 {displayName.charAt(0).toUpperCase()}
+               </div>
+               {!isSidebarCollapsed && (
+                 <div className="flex-1 min-w-0">
+                   <p className="text-[13px] font-bold text-slate-900 truncate leading-tight">
+                     {displayName}
+                   </p>
+                   <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                     {user?.email}
+                   </p>
+                 </div>
+               )}
+             </div>
+             {isSidebarCollapsed ? (
+               <Button
+                 variant="ghost"
+                 size="icon"
+                 className="text-slate-500 hover:text-red-600 hover:bg-red-50/50 rounded-full"
+                 onClick={handleLogout}
+                 title="Đăng xuất"
+               >
+                 <LogOut className="h-4 w-4" />
+               </Button>
+             ) : (
+               <Button
+                 variant="ghost"
+                 size="sm"
+                 className="w-full justify-start text-slate-500 hover:text-red-600 hover:bg-red-50/50 rounded-xl h-9 text-xs font-semibold transition-all duration-200 border border-transparent hover:border-red-100"
+                 onClick={handleLogout}
+               >
+                 <LogOut className="mr-2.5 h-4 w-4" />
+                 Đăng xuất
+               </Button>
+             )}
+           </div>
+         </div>
+       </aside>
 
       {/* Mobile Menu */}
       <div className="md:hidden flex flex-col w-full relative">

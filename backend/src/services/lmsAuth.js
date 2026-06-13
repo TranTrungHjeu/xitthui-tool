@@ -32,46 +32,72 @@ async function firebaseSignIn(email, password) {
  * Step 2: Get user info from MindX base API by Firebase UID
  */
 async function getUserByFirebaseId(firebaseIdToken, firebaseUid) {
-  const res = await axios.post(
-    config.lms.baseGraphql,
-    {
-      operationName: "User_getByFirebaseId",
-      variables: { id: firebaseUid },
-      query: `query User_getByFirebaseId($id: String!) {
-        User_getByFirebaseId(firebaseId: $id) {
-          id
-          email
-          username
-          firstName
-          lastName
-          isActive
-          permissions
-          __typename
-        }
-      }`,
-    },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${firebaseIdToken}`,
-        Cookie: getCookies(),
+  try {
+    const res = await axios.post(
+      config.lms.baseGraphql,
+      {
+        operationName: "User_getByFirebaseId",
+        variables: { id: firebaseUid },
+        query: `query User_getByFirebaseId($id: String!) {
+          User_getByFirebaseId(firebaseId: $id) {
+            id
+            email
+            username
+            firstName
+            lastName
+            isActive
+            permissions
+            __typename
+          }
+        }`,
       },
-    },
-  );
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${firebaseIdToken}`,
+          Cookie: getCookies(),
+        },
+      },
+    );
 
-  // Store cookies from response
-  const setCookieHeaders = res.headers["set-cookie"];
-  if (setCookieHeaders) {
-    if (Array.isArray(setCookieHeaders)) {
-      setCookieHeaders.forEach((cookie) => {
-        const [nameVal] = cookie.split(";");
-        const [name, value] = nameVal.split("=");
-        if (name && value) setCookie(name, value);
-      });
+    // Store cookies from response
+    const setCookieHeaders = res.headers["set-cookie"];
+    if (setCookieHeaders) {
+      if (Array.isArray(setCookieHeaders)) {
+        setCookieHeaders.forEach((cookie) => {
+          const [nameVal] = cookie.split(";");
+          const [name, value] = nameVal.split("=");
+          if (name && value) setCookie(name, value);
+        });
+      }
     }
+
+    if (res.data?.data?.User_getByFirebaseId) {
+      return res.data.data.User_getByFirebaseId;
+    }
+  } catch (err) {
+    console.log("[Auth] GraphQL User_getByFirebaseId failed, falling back to decoding JWT...");
   }
 
-  return res.data?.data?.User_getByFirebaseId;
+  // Fallback: decode JWT to extract user info
+  try {
+    const payloadBase64 = firebaseIdToken.split('.')[1];
+    const payloadStr = Buffer.from(payloadBase64, 'base64').toString('utf8');
+    const payload = JSON.parse(payloadStr);
+
+    return {
+      id: payload.id || firebaseUid,
+      email: payload.email,
+      username: payload.username || "",
+      firstName: payload.name || "",
+      lastName: "",
+      isActive: true,
+      permissions: payload.roles || []
+    };
+  } catch (decodeErr) {
+    console.error("[Auth] Failed to decode JWT:", decodeErr);
+    throw new Error("Cannot get user info from API or JWT.");
+  }
 }
 
 /**
@@ -252,8 +278,83 @@ async function refreshLmsToken(refreshToken) {
   };
 }
 
+/**
+ * Full login flow via MindX username mutation
+ */
+async function loginWithUsernameFlow(username, password) {
+  try {
+    console.log(`[Auth] Step 1: Requesting customToken for username: ${username}...`);
+    const query = `mutation loginWithUsername($username: String!, $password: String!) {
+  users {
+    loginWithUsername(
+      loginWithUsernameInput: {username: $username, password: $password}
+    ) {
+      customToken
+      __typename
+    }
+    __typename
+  }
+}
+`;
+    const res = await axios.post(
+      "https://base-api.mindx.edu.vn/",
+      {
+        operationName: "loginWithUsername",
+        variables: { username, password },
+        query,
+      },
+      { 
+        headers: { 
+          "Content-Type": "application/json",
+          "origin": "https://base.mindx.edu.vn",
+          "referer": "https://base.mindx.edu.vn/"
+        } 
+      }
+    );
+
+    if (res.data.errors) {
+      throw new Error(res.data.errors[0].message);
+    }
+
+    const customToken = res.data?.data?.users?.loginWithUsername?.customToken;
+    if (!customToken) {
+      throw new Error("Tài khoản hoặc mật khẩu không chính xác");
+    }
+
+    console.log("[Auth] Step 2: Custom token obtained, exchanging for Firebase token...");
+    const lmsAuth = await signInWithCustomToken(customToken);
+    const lmsToken = lmsAuth.idToken;
+    const lmsRefreshToken = lmsAuth.refreshToken;
+    const firebaseUid = lmsAuth.localId;
+
+    console.log("[Auth] Step 3: Getting MindX user info...");
+    const mindxUser = await getUserByFirebaseId(lmsToken, firebaseUid);
+
+    if (!mindxUser) throw new Error("Không tìm thấy tài khoản MindX");
+    if (!mindxUser.isActive) throw new Error("Tài khoản đã bị vô hiệu hóa");
+    console.log("[Auth] MindX user found:", mindxUser.username);
+
+    console.log("[Auth] ✅ Login successful!");
+    return {
+      lmsToken,
+      lmsRefreshToken,
+      mindxUser,
+      firebaseUid,
+    };
+  } catch (err) {
+    console.error("[Auth] Username Login flow error:", err.message);
+    if (err.response && err.response.data) {
+      console.error("[Auth] Response data:", JSON.stringify(err.response.data, null, 2));
+      const message = err.response.data.errors?.[0]?.message || err.response.data.message || err.message;
+      throw new Error(`Username login failed: ${message}`);
+    }
+    throw err;
+  }
+}
+
 module.exports = {
   loginWithCredentials,
+  loginWithUsernameFlow,
   refreshLmsToken,
   firebaseSignIn,
   getCustomToken,
