@@ -45,9 +45,6 @@ import {
   Award,
   Brain,
   Loader2,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   X,
   FileDown,
   Play,
@@ -63,8 +60,6 @@ import {
   DialogTitle,
 } from "../../../../components/ui/dialog";
 import { toast } from "sonner";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 
 interface StatisticsTabProps {
   classData: any;
@@ -86,7 +81,6 @@ export default function StatisticsTab({
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [aiReport, setAiReport] = useState<any>(null);
   const [showAiDialog, setShowAiDialog] = useState(false);
-  const [evaluationQueue, setEvaluationQueue] = useState<string[]>([]);
   const [evaluationResults, setEvaluationResults] = useState<
     Record<string, any>
   >({});
@@ -482,77 +476,42 @@ export default function StatisticsTab({
   };
 
   const exportToPDF = async () => {
-    const element = document.getElementById("ai-report-content");
-    if (!element) return;
+    if (!aiReport || !selectedStudent) return;
 
     try {
       setIsExporting(true);
+      toast.loading("Đang tạo file PDF...", { id: "pdf_export" });
 
-      // Khắc phục lỗi "lab" color unsupported của html2canvas
-      // bằng cách clone DOM và lọc các class Tailwind chứa biến màu hệ lab() (như okLCH / lab)
-      // Các trình duyệt / CSS mới có hệ màu `oklch() / lab()` mà html2canvas chưa hỗ trợ parse
-      const clonedElement = element.cloneNode(true) as HTMLElement;
+      // Dynamic import to avoid Next.js build/SSR issues with @react-pdf/renderer
+      const { pdf } = await import("@react-pdf/renderer");
+      const { AIReportPDF } =
+        await import("../../../../components/AIReportPDF");
 
-      // Xóa các class bg-slate-50, shadow-sm, border, overflow-x-auto, v.v. (tác nhân gây color parse error)
-      clonedElement.style.border = "none";
-      clonedElement.style.boxShadow = "none";
-      clonedElement.style.backgroundColor = "#ffffff";
-      clonedElement.style.margin = "0";
-      clonedElement.style.width = "750px"; // Cố định chiều rộng lý tưởng cho A4
+      // Generate PDF blob using @react-pdf/renderer
+      const blob = await pdf(
+        <AIReportPDF
+          selectedStudent={selectedStudent}
+          classData={classData}
+          aiReport={aiReport}
+        />,
+      ).toBlob();
 
-      // Bọc vào container ngoài DOM thật để html2canvas chụp
-      const container = document.createElement("div");
-      container.style.position = "absolute";
-      container.style.left = "-9999px";
-      container.style.top = "0";
-      container.style.backgroundColor = "#ffffff";
-      container.appendChild(clonedElement);
-      document.body.appendChild(container);
+      // Create a download link and trigger click
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Bao_cao_AI_${selectedStudent.fullName}.pdf`;
+      document.body.appendChild(link);
+      link.click();
 
-      const canvas = await html2canvas(clonedElement, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        allowTaint: true,
-        removeContainer: true,
-      });
+      // Cleanup
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
-      // Xóa DOM ảo
-      document.body.removeChild(container);
-
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-
-      // Canh lề (margins)
-      const margin = 10;
-      const contentWidth = pdfWidth - 2 * margin;
-
-      const imgProps = pdf.getImageProperties(imgData);
-      const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
-
-      let heightLeft = imgHeight;
-      let position = margin;
-
-      // Trang đầu
-      pdf.addImage(imgData, "PNG", margin, position, contentWidth, imgHeight);
-      heightLeft -= pageHeight - 2 * margin;
-
-      // Các trang sau
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight + margin;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", margin, position, contentWidth, imgHeight);
-        heightLeft -= pageHeight - 2 * margin;
-      }
-
-      pdf.save(`Bao_cao_AI_${selectedStudent?.fullName || "Hoc_vien"}.pdf`);
-      toast.success("Đã xuất file PDF thành công!");
+      toast.success("Đã xuất file PDF thành công!", { id: "pdf_export" });
     } catch (err) {
       console.error("PDF Export failed", err);
-      toast.error("Lỗi khi xuất file PDF");
+      toast.error("Lỗi khi xuất file PDF", { id: "pdf_export" });
     } finally {
       setIsExporting(false);
     }
@@ -973,28 +932,29 @@ export default function StatisticsTab({
         </DialogContent>
       </Dialog>
 
+      {/* Modal Báo cáo AI */}
       <Dialog open={showAiDialog} onOpenChange={setShowAiDialog}>
-        <DialogContent className="h-[92vh] w-[96vw] !max-w-[96vw] overflow-hidden rounded-xl border-0 p-0 shadow-2xl bg-slate-100">
-          <DialogHeader className="z-10 border-b bg-white px-6 py-4 flex flex-row items-center justify-between space-y-0 shadow-sm">
+        <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-xl bg-slate-50">
+          <DialogHeader className="px-5 py-4 border-b bg-white shadow-sm flex flex-row items-center justify-between">
             <DialogTitle className="flex items-center gap-3 text-lg font-bold text-slate-800">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100">
-                <Brain className="h-5 w-5 text-blue-700" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
+                <Brain className="h-4 w-4 text-blue-700" />
               </div>
               Bản báo cáo năng lực
             </DialogTitle>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {aiReport && (
                 <Button
                   variant="default"
                   size="sm"
-                  className="h-9 gap-2 shadow-sm font-semibold"
+                  className="h-8 gap-2 shadow-sm font-semibold text-xs"
                   onClick={exportToPDF}
                   disabled={isExporting}
                 >
                   {isExporting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-3 w-3 animate-spin" />
                   ) : (
-                    <FileDown className="h-4 w-4" />
+                    <FileDown className="h-3 w-3" />
                   )}
                   Tải xuống PDF
                 </Button>
@@ -1002,7 +962,7 @@ export default function StatisticsTab({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 rounded-full hover:bg-slate-200"
+                className="h-8 w-8 rounded-full hover:bg-slate-200"
                 onClick={() => setShowAiDialog(false)}
               >
                 <X className="h-4 w-4 text-slate-500" />
@@ -1010,183 +970,75 @@ export default function StatisticsTab({
             </div>
           </DialogHeader>
 
-          <div className="h-[calc(92vh-73px)] overflow-y-auto">
+          <div className="max-h-[75vh] overflow-y-auto">
             {isEvaluating ? (
-              <div className="flex min-h-[350px] flex-col items-center justify-center gap-4 px-6 py-12 text-muted-foreground">
+              <div className="flex min-h-[300px] flex-col items-center justify-center gap-4 py-10 text-muted-foreground">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <div className="space-y-2 text-center">
-                  <p className="text-base font-semibold text-foreground">
+                <div className="space-y-1 text-center">
+                  <p className="text-sm font-semibold text-foreground">
                     Hệ thống đang xử lý dữ liệu...
                   </p>
-                  <p className="text-sm animate-pulse">
-                    Đang tổng hợp chuyên cần, điểm số và đưa ra nhận xét
+                  <p className="text-xs animate-pulse">
+                    Đang tổng hợp và phân tích đánh giá
                   </p>
                 </div>
               </div>
             ) : aiReport ? (
-              <div className="flex justify-center bg-slate-100 min-h-full py-8 px-4 overflow-x-auto">
-                <div
-                  id="ai-report-content"
-                  className="bg-white w-full min-w-[820px] max-w-[820px] shadow-sm border border-slate-200"
-                  style={{
-                    fontFamily: "Times New Roman, Times, serif",
-                    color: "#111827",
-                    padding: "48px 56px",
-                    lineHeight: "1.65",
-                    fontSize: "13px",
-                  }}
-                >
-                  {/* Header */}
-                  <div
-                    style={{
-                      borderBottom: "2px solid #1e293b",
-                      paddingBottom: "16px",
-                      marginBottom: "20px",
-                      textAlign: "center",
-                    }}
-                  >
-                    <h2
-                      style={{
-                        fontSize: "18px",
-                        fontWeight: "bold",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.5px",
-                        marginBottom: "12px",
-                      }}
-                    >
-                      KẾT QUẢ ĐÁNH GIÁ NĂNG LỰC HỌC VIÊN
-                    </h2>
-                    <table
-                      style={{
-                        width: "100%",
-                        fontSize: "13px",
-                        borderCollapse: "collapse",
-                      }}
-                    >
-                      <tbody>
-                        <tr>
-                          <td
-                            style={{
-                              padding: "2px 8px",
-                              fontWeight: "bold",
-                              width: "160px",
-                              textAlign: "right",
-                            }}
-                          >
-                            Học viên:
-                          </td>
-                          <td style={{ padding: "2px 8px" }}>
-                            {selectedStudent?.fullName}
-                          </td>
-                          <td
-                            style={{
-                              padding: "2px 8px",
-                              fontWeight: "bold",
-                              width: "160px",
-                              textAlign: "right",
-                            }}
-                          >
-                            Ngày xuất báo cáo:
-                          </td>
-                          <td style={{ padding: "2px 8px" }}>
-                            {new Date().toLocaleDateString("vi-VN")}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td
-                            style={{
-                              padding: "2px 8px",
-                              fontWeight: "bold",
-                              textAlign: "right",
-                            }}
-                          >
-                            Lớp:
-                          </td>
-                          <td style={{ padding: "2px 8px" }}>
-                            {classData?.name}
-                          </td>
-                          <td
-                            style={{
-                              padding: "2px 8px",
-                              fontWeight: "bold",
-                              textAlign: "right",
-                            }}
-                          >
-                            Khóa học:
-                          </td>
-                          <td style={{ padding: "2px 8px" }}>
-                            {classData?.course?.name}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+              <div className="p-4 sm:p-5">
+                <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                  {/* Info Header */}
+                  <div className="bg-slate-800 text-white p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                      <h2 className="text-base font-bold uppercase tracking-wider text-slate-100">
+                        Báo Cáo Năng Lực Học Viên
+                      </h2>
+                    </div>
+                    <div className="bg-slate-700/50 rounded-lg p-2.5 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs w-full sm:w-auto">
+                      <div className="flex flex-col">
+                        <span className="text-slate-400 text-[10px] font-semibold uppercase">
+                          Học viên
+                        </span>
+                        <span className="font-medium truncate max-w-[120px]">
+                          {selectedStudent?.fullName}
+                        </span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-slate-400 text-[10px] font-semibold uppercase">
+                          Lớp
+                        </span>
+                        <span className="font-medium truncate max-w-[120px]">
+                          {classData?.name}
+                        </span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-slate-400 text-[10px] font-semibold uppercase">
+                          Khóa học
+                        </span>
+                        <span className="font-medium truncate max-w-[120px]">
+                          {classData?.course?.name}
+                        </span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-slate-400 text-[10px] font-semibold uppercase">
+                          Ngày tạo
+                        </span>
+                        <span className="font-medium">
+                          {new Date().toLocaleDateString("vi-VN")}
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* I. Tiêu chí đánh giá */}
-                  <div style={{ marginBottom: "20px" }}>
-                    <h3
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: "bold",
-                        textTransform: "uppercase",
-                        borderBottom: "1px solid #94a3b8",
-                        paddingBottom: "4px",
-                        marginBottom: "12px",
-                      }}
-                    >
-                      I. Tiêu chí đánh giá
-                    </h3>
-                    <table
-                      style={{
-                        width: "100%",
-                        borderCollapse: "collapse",
-                        fontSize: "13px",
-                      }}
-                    >
-                      <thead>
-                        <tr style={{ backgroundColor: "#f1f5f9" }}>
-                          <th
-                            style={{
-                              border: "1px solid #cbd5e1",
-                              padding: "6px 10px",
-                              textAlign: "left",
-                              width: "22%",
-                            }}
-                          >
-                            Tiêu chí
-                          </th>
-                          <th
-                            style={{
-                              border: "1px solid #cbd5e1",
-                              padding: "6px 10px",
-                              textAlign: "center",
-                              width: "8%",
-                            }}
-                          >
-                            Điểm
-                          </th>
-                          <th
-                            style={{
-                              border: "1px solid #cbd5e1",
-                              padding: "6px 10px",
-                              textAlign: "center",
-                              width: "12%",
-                            }}
-                          >
-                            Xu hướng
-                          </th>
-                          <th
-                            style={{
-                              border: "1px solid #cbd5e1",
-                              padding: "6px 10px",
-                              textAlign: "left",
-                            }}
-                          >
-                            Nhận xét
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                  <div className="p-4 sm:p-5 space-y-5 text-slate-700">
+                    {/* I. Tiêu chí đánh giá */}
+                    <section>
+                      <div className="flex items-center gap-2 mb-2 border-b border-slate-100 pb-1">
+                        <Award className="w-4 h-4 text-blue-600" />
+                        <h3 className="text-sm font-bold text-slate-800">
+                          I. ĐÁNH GIÁ TIÊU CHÍ KỸ NĂNG
+                        </h3>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         {(Array.isArray(aiReport.criteria)
                           ? aiReport.criteria
                           : Object.entries(aiReport.criteria || {}).map(
@@ -1195,152 +1047,123 @@ export default function StatisticsTab({
                                 label:
                                   v.label ||
                                   (k === "attitude"
-                                    ? "Thái độ học tập"
+                                    ? "Thái độ"
                                     : k === "assembly"
-                                      ? "Kỹ năng lắp ráp / Thiết bị"
+                                      ? "Lắp ráp"
                                       : k === "programming"
-                                        ? "Tư duy lập trình"
+                                        ? "Lập trình"
                                         : k),
                               }),
                             )
                         ).map((item: any, index: number) => (
-                          <tr key={index}>
-                            <td
-                              style={{
-                                border: "1px solid #cbd5e1",
-                                padding: "6px 10px",
-                                fontWeight: "bold",
-                                verticalAlign: "top",
-                              }}
-                            >
-                              {item.label}
-                            </td>
-                            <td
-                              style={{
-                                border: "1px solid #cbd5e1",
-                                padding: "6px 10px",
-                                textAlign: "center",
-                                fontWeight: "bold",
-                                verticalAlign: "top",
-                              }}
-                            >
-                              {item.score}/10
-                            </td>
-                            <td
-                              style={{
-                                border: "1px solid #cbd5e1",
-                                padding: "6px 10px",
-                                textAlign: "center",
-                                verticalAlign: "top",
-                                color:
-                                  item.trend === "Tiến bộ"
-                                    ? "#16a34a"
-                                    : item.trend === "Đi xuống"
-                                      ? "#dc2626"
-                                      : "#64748b",
-                                fontWeight: "bold",
-                              }}
-                            >
-                              {item.trend}
-                            </td>
-                            <td
-                              style={{
-                                border: "1px solid #cbd5e1",
-                                padding: "6px 10px",
-                                verticalAlign: "top",
-                                textAlign: "justify",
-                              }}
-                            >
-                              {item.analysis}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* II. Đánh giá chung */}
-                  <div style={{ marginBottom: "20px" }}>
-                    <h3
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: "bold",
-                        textTransform: "uppercase",
-                        borderBottom: "1px solid #94a3b8",
-                        paddingBottom: "4px",
-                        marginBottom: "10px",
-                      }}
-                    >
-                      II. Đánh giá chung
-                    </h3>
-                    <div style={{ textAlign: "justify", lineHeight: "1.8" }}>
-                      {String(aiReport.overall_progress)
-                        .split(/(?=\[(?:L|T|Đ)\])/g)
-                        .map((segment: string, idx: number) => {
-                          const text = segment.trim();
-                          if (!text) return null;
-
-                          const match = text.match(/^\[(L|T|Đ)\]\s*([\s\S]*)$/);
-                          const label = match?.[1];
-                          const content = (match?.[2] || text).trim();
-
-                          const titleMap: Record<string, string> = {
-                            L: "Lý do / Tư duy hoặc kiến thức nền",
-                            T: "Thao tác / Lập trình",
-                            Đ: "Đề xuất / Phương án hỗ trợ",
-                          };
-
-                          return (
-                            <div
-                              key={idx}
-                              style={{
-                                marginBottom:
-                                  idx <
-                                  String(aiReport.overall_progress)
-                                    .split(/(?=\[(?:L|T|Đ)\])/g)
-                                    .filter(Boolean).length -
-                                    1
-                                    ? "12px"
-                                    : 0,
-                              }}
-                            >
-                              {label ? (
-                                <p style={{ margin: 0 }}>
-                                  <strong style={{ fontSize: "13px" }}>
-                                    {titleMap[label] || `[${label}]`}:
-                                  </strong>{" "}
-                                  {content}
-                                </p>
-                              ) : (
-                                <p style={{ margin: 0 }}>{content}</p>
-                              )}
+                          <div
+                            key={index}
+                            className="bg-slate-50 rounded-lg border border-slate-100 p-2.5 flex flex-col h-full hover:shadow-sm transition-shadow"
+                          >
+                            <div className="flex justify-between items-start mb-1.5">
+                              <h4 className="font-bold text-slate-800 text-xs">
+                                {item.label}
+                              </h4>
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded text-[10px]">
+                                  {item.score}/10
+                                </span>
+                                <span
+                                  className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                    item.trend === "Tiến bộ"
+                                      ? "bg-emerald-100 text-emerald-700"
+                                      : item.trend === "Đi xuống"
+                                        ? "bg-rose-100 text-rose-700"
+                                        : "bg-slate-200 text-slate-700"
+                                  }`}
+                                >
+                                  {item.trend}
+                                </span>
+                              </div>
                             </div>
-                          );
-                        })}
-                    </div>
-                  </div>
+                            <p className="text-slate-600 text-xs leading-relaxed flex-grow text-justify">
+                              {item.analysis}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
 
-                  {/* III. Đề xuất / Phương án hỗ trợ */}
-                  <div style={{ marginBottom: "32px" }}>
-                    <h3
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: "bold",
-                        textTransform: "uppercase",
-                        borderBottom: "1px solid #94a3b8",
-                        paddingBottom: "4px",
-                        marginBottom: "10px",
-                      }}
-                    >
-                      III. Đề xuất / Phương án hỗ trợ
-                    </h3>
-                    <ol style={{ paddingLeft: "20px", lineHeight: "1.8" }}>
-                      {aiReport.suggestions.map((s: string, i: number) => (
-                        <li key={i} style={{ marginBottom: "6px" }}>
-                          {s}
-                        </li>
-                      ))}
-                    </ol>
+                    {/* II. Đánh giá chung */}
+                    <section>
+                      <div className="flex items-center gap-2 mb-2 border-b border-slate-100 pb-1">
+                        <ClipboardCheck className="w-4 h-4 text-purple-600" />
+                        <h3 className="text-sm font-bold text-slate-800">
+                          II. TỔNG HỢP NHẬN XÉT
+                        </h3>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-100 rounded-lg p-3">
+                        <div className="space-y-2 text-slate-600 text-xs leading-relaxed text-justify">
+                          {String(aiReport.overall_progress)
+                            .split(/(?=\[(?:L|T|Đ)\])/g)
+                            .map((segment: string, idx: number) => {
+                              const text = segment.trim();
+                              if (!text) return null;
+
+                              const match = text.match(
+                                /^\[(L|T|Đ)\]\s*([\s\S]*)$/,
+                              );
+                              const label = match?.[1];
+                              const content = (match?.[2] || text).trim();
+
+                              const titleMap: Record<string, string> = {
+                                L: "Tư duy / Kiến thức",
+                                T: "Thao tác / Lập trình",
+                                Đ: "Đề xuất hỗ trợ",
+                              };
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className="flex flex-col sm:flex-row gap-1 sm:gap-2"
+                                >
+                                  {label && (
+                                    <div className="sm:w-1/4 shrink-0">
+                                      <span className="inline-block font-semibold text-slate-700 bg-slate-200 px-1.5 py-0.5 rounded text-[10px] w-full sm:w-auto">
+                                        {titleMap[label] || `[${label}]`}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div
+                                    className={label ? "sm:w-3/4" : "w-full"}
+                                  >
+                                    <p>{content}</p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* III. Đề xuất / Phương án hỗ trợ */}
+                    <section>
+                      <div className="flex items-center gap-2 mb-2 border-b border-slate-100 pb-1">
+                        <GraduationCap className="w-4 h-4 text-amber-600" />
+                        <h3 className="text-sm font-bold text-slate-800">
+                          III. ĐỀ XUẤT HỖ TRỢ
+                        </h3>
+                      </div>
+                      <div className="bg-amber-50/50 border border-amber-100 rounded-lg p-3">
+                        <ul className="space-y-1.5">
+                          {aiReport.suggestions.map((s: string, i: number) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <div className="mt-0.5 bg-amber-500 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center shrink-0 text-[9px] font-bold shadow-sm">
+                                {i + 1}
+                              </div>
+                              <span className="text-slate-700 leading-relaxed text-xs font-medium">
+                                {s}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </section>
                   </div>
                 </div>
               </div>

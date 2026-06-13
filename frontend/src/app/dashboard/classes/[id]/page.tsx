@@ -20,7 +20,12 @@ import {
 } from "../../../../components/ui/table";
 import { StatusBadge } from "../../../../components/ui/status-badge";
 import { Button } from "../../../../components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../../../../components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -256,7 +261,76 @@ export default function ClassDetailsPage({
     );
   }, [classData]);
 
+  const formatCommentContent = (text: string) => {
+    if (!text)
+      return '<p class="italic text-slate-400 text-center py-6">Chưa có nhận xét cho học viên trong buổi học này.</p>';
+
+    // Loại bỏ Zero-width space (U+200B) thường bị dính từ copy/paste
+    let cleanText = text.replace(/\u200B/g, "");
+
+    // Nếu text đã chứa các thẻ HTML cấu trúc chuẩn, giữ nguyên
+    if (/<p>|<br>|<li>|<strong>/i.test(cleanText)) {
+      return cleanText;
+    }
+
+    const lines = cleanText.split("\n");
+    let htmlContent = "";
+    let inList = false;
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+
+      if (!trimmed) {
+        if (inList) {
+          htmlContent += "</ul>";
+          inList = false;
+        }
+        return;
+      }
+
+      // Check header (e.g. "KIẾN THỨC:", "KỸ NĂNG:", "THÁI ĐỘ:")
+      // We check if it's all uppercase and ends with a colon
+      const isHeader =
+        /^([A-ZĐÁÀẢÃẠĂÂẤẦẨẪẬẮẰẲẴẶÉÈẺẼẸÊẾỀỂỄỆÍÌỈĨỊÓÒỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢÚÙỦŨỤƯỨỪỬỮỰÝỲỶỸỴ\s]+):/u.test(
+          trimmed,
+        );
+
+      // Check score line (e.g. "Điểm lý thuyết: 3 điểm")
+      const isScore = /^Điểm/i.test(trimmed);
+
+      if (isHeader) {
+        if (inList) {
+          htmlContent += "</ul>";
+          inList = false;
+        }
+        htmlContent += `<h4 class="font-bold text-slate-800 uppercase tracking-wider mt-4 mb-2 text-sm">${trimmed}</h4>`;
+      } else if (isScore) {
+        if (inList) {
+          htmlContent += "</ul>";
+          inList = false;
+        }
+        htmlContent += `<p class="font-semibold text-primary mb-1.5">${trimmed}</p>`;
+      } else {
+        if (!inList) {
+          htmlContent +=
+            '<ul class="list-disc pl-5 space-y-1.5 marker:text-slate-400 text-slate-700">';
+          inList = true;
+        }
+        // Remove manual bullets if teacher typed them
+        const textWithoutBullet = trimmed.replace(/^[-+*•]\s*/, "");
+        htmlContent += `<li class="pl-1">${textWithoutBullet}</li>`;
+      }
+    });
+
+    if (inList) {
+      htmlContent += "</ul>";
+    }
+
+    return htmlContent;
+  };
+
   const copyToClipboard = (text: string) => {
+    // Luôn copy nội dung text sạch (bỏ HTML nếu có)
     const cleanText = text.replace(/<[^>]*>/g, "");
     navigator.clipboard.writeText(cleanText);
   };
@@ -507,30 +581,70 @@ export default function ClassDetailsPage({
                                         Xem
                                       </Button>
                                     </DialogTrigger>
-                                    <DialogContent className="max-w-2xl">
-                                      <DialogHeader>
-                                        <DialogTitle>
-                                          Nhận xét: {sa.student?.fullName}
-                                        </DialogTitle>
-                                      </DialogHeader>
-                                      <div className="space-y-4 py-4">
-                                        <div className="grid grid-cols-2 gap-4">
-                                          <div>
-                                            <p className="text-xs font-bold text-muted-foreground uppercase">
-                                              Trạng thái
-                                            </p>
-                                            <div className="mt-1">
+                                    <DialogContent className="sm:max-w-3xl md:max-w-4xl lg:max-w-5xl w-[95vw] p-0 overflow-hidden flex flex-col max-h-[90vh] rounded-xl border border-slate-200 shadow-xl">
+                                      {/* Header with clean white/slate design */}
+                                      <div className="shrink-0 border-b border-slate-100 bg-slate-50/70 px-6 py-5">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                          <div className="flex items-center gap-3.5">
+                                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-base shadow-sm">
+                                              {sa.student?.fullName
+                                                ? sa.student.fullName
+                                                    .split(" ")
+                                                    .pop()
+                                                    ?.substring(0, 2)
+                                                    .toUpperCase()
+                                                : "HV"}
+                                            </div>
+                                            <div>
+                                              <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">
+                                                {sa.student?.fullName}
+                                              </DialogTitle>
+                                              <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground font-medium">
+                                                <span>
+                                                  Buổi {activeSlotIndex + 1}
+                                                </span>
+                                                <span className="text-slate-300">
+                                                  •
+                                                </span>
+                                                <span>
+                                                  {formatDate(activeSlot?.date)}
+                                                </span>
+                                                {activeSlot?.startTime && (
+                                                  <>
+                                                    <span className="text-slate-300">
+                                                      •
+                                                    </span>
+                                                    <span>
+                                                      {formatTime(
+                                                        activeSlot.startTime,
+                                                      )}{" "}
+                                                      -{" "}
+                                                      {formatTime(
+                                                        activeSlot.endTime,
+                                                      )}
+                                                    </span>
+                                                  </>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          {/* Status indicators */}
+                                          <div className="flex items-center gap-2 self-start sm:self-center">
+                                            <div className="flex flex-col items-start sm:items-end gap-1">
+                                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                Điểm danh
+                                              </span>
                                               <StatusBadge
                                                 type="attendance"
                                                 status={sa.status}
                                               />
                                             </div>
-                                          </div>
-                                          <div>
-                                            <p className="text-xs font-bold text-muted-foreground uppercase">
-                                              Gửi LMS
-                                            </p>
-                                            <div className="mt-1">
+                                            <div className="h-8 w-px bg-slate-200 mx-1 hidden sm:block" />
+                                            <div className="flex flex-col items-start sm:items-end gap-1">
+                                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans">
+                                                LMS Đồng bộ
+                                              </span>
                                               <StatusBadge
                                                 type="lms"
                                                 status={sa.sendCommentStatus}
@@ -538,18 +652,70 @@ export default function ClassDetailsPage({
                                             </div>
                                           </div>
                                         </div>
-                                        <div>
-                                          <p className="text-xs font-bold text-muted-foreground uppercase mb-2">
-                                            Nội dung nhận xét
-                                          </p>
-                                          <div
-                                            className="p-4 bg-slate-50 border rounded-lg text-sm leading-relaxed min-h-[100px]"
-                                            dangerouslySetInnerHTML={{
-                                              __html:
-                                                sa.comment ||
-                                                "<i>Chưa có nhận xét</i>",
-                                            }}
-                                          />
+                                      </div>
+
+                                      {/* Body section */}
+                                      <div className="p-6 space-y-4 overflow-y-auto grow">
+                                        {/* Metadata strip */}
+                                        <div className="grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-3 border border-slate-100/80 text-xs shrink-0">
+                                          <div>
+                                            <span className="text-slate-400 font-semibold block mb-0.5">
+                                              Lớp học
+                                            </span>
+                                            <span className="text-slate-800 font-medium">
+                                              {classData?.name}
+                                            </span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400 font-semibold block mb-0.5">
+                                              Khóa học
+                                            </span>
+                                            <span
+                                              className="text-slate-800 font-medium truncate block"
+                                              title={classData?.course?.name}
+                                            >
+                                              {classData?.course?.name}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        {/* Comment Container */}
+                                        <div className="space-y-2">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <FileText className="h-4 w-4 text-primary" />
+                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                                Nhận xét chi tiết của giáo viên
+                                              </h4>
+                                            </div>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-8 px-2.5 text-xs text-muted-foreground hover:text-slate-900 gap-1.5 hover:bg-slate-100 rounded-md"
+                                              onClick={() =>
+                                                copyToClipboard(
+                                                  sa.comment || "",
+                                                )
+                                              }
+                                            >
+                                              <Copy className="h-3.5 w-3.5" />
+                                              Sao chép nhận xét
+                                            </Button>
+                                          </div>
+
+                                          <div className="relative">
+                                            <div
+                                              className="p-5 sm:p-6 bg-white border border-slate-200/80 rounded-xl text-slate-700 text-[14.5px] leading-relaxed min-h-[250px] shadow-sm prose max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-strong:text-slate-900 prose-code:text-primary font-sans"
+                                              style={{
+                                                wordBreak: "break-word",
+                                              }}
+                                              dangerouslySetInnerHTML={{
+                                                __html: formatCommentContent(
+                                                  sa.comment || "",
+                                                ),
+                                              }}
+                                            />
+                                          </div>
                                         </div>
                                       </div>
                                     </DialogContent>

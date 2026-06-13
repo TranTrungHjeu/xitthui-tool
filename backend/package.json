@@ -1,13 +1,8 @@
 {
-  "name": "mindx-lms-api",
+  "name": "xitthui-backend",
   "version": "1.0.0",
-  "description": "API Server for MindX LMS Teacher Dashboard",
+  "private": true,
   "main": "src/index.js",
-  "nodemonConfig": {
-    "ignore": [
-      "data/*"
-    ]
-  },
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js"
@@ -23,5 +18,13 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
+  },
+  "nodemonConfig": {
+    "ignore": [
+      "data/*"
+    ]
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

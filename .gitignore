@@ -5,6 +5,10 @@ yarn.lock
 
 # Environment variables
 .env
+*.json
+!package.json
+!tsconfig.json
+!components.json
 
 # User data
 data/
