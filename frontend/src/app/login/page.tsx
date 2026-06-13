@@ -115,11 +115,11 @@ function LoginPageContent() {
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Tài khoản / Email</Label>
               <Input
                 id="email"
-                type="email"
-                placeholder="name@example.com"
+                type="text"
+                placeholder="Tài khoản hoặc Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

@@ -91,11 +91,12 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = useAuthStore.getState().refreshToken;
+      const { refreshToken, logout } = useAuthStore.getState();
 
       if (!refreshToken) {
-        useAuthStore.getState().logout();
+        logout(); // Log out if no refresh token is available
         isRefreshing = false;
+        processQueue(new Error("No refresh token available"), null); // Reject pending requests
         return Promise.reject(error);
       }
 
@@ -129,10 +130,25 @@ api.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${lmsToken}`;
 
           return api(originalRequest);
+        } else {
+          // If refresh token request was successful but the backend indicates failure
+          console.error(
+            "Refresh token backend response indicated failure:",
+            response.data.error,
+          );
+          processQueue(
+            new Error(response.data.error || "Refresh token failed"),
+            null,
+          );
+          logout();
+          return Promise.reject(
+            new Error(response.data.error || "Refresh token failed"),
+          );
         }
       } catch (refreshError) {
+        console.error("Error during token refresh:", refreshError);
         processQueue(refreshError, null);
-        useAuthStore.getState().logout();
+        logout();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

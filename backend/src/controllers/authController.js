@@ -2,12 +2,17 @@ const lmsAuth = require("../services/lmsAuth");
 const LMSClient = require("../services/lmsClient");
 
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
+  let { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required" });
   }
+
   try {
-    const result = await lmsAuth.loginWithCredentials(email, password);
+    // Nếu có chứa @ thì đăng nhập theo luồng email, ngược lại theo luồng username
+    const result = email.includes("@")
+      ? await lmsAuth.loginWithCredentials(email, password)
+      : await lmsAuth.loginWithUsernameFlow(email, password);
+
     let teacherId = null;
     let profile = null;
     let teacher = null;

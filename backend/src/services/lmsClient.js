@@ -652,6 +652,161 @@ class LMSClient {
     }
   }
 
+  async getTeacherSchedules(teacherId, dateGte, dateLte) {
+    console.log(
+      `[LMSClient] getTeacherSchedules start for teacher: ${teacherId}`,
+    );
+    try {
+      const query = `
+        query findTeacherSchedule($dateGte: String!, $dateLte: String!, $type: [String], $teacherId: String!, $slotIdNin: [String], $officeHourIdNin: [String]) {
+          findTeacherSchedule(payload: {
+            date_gte: $dateGte,
+            date_lte: $dateLte,
+            type_in: $type,
+            teacherId_eq: $teacherId,
+            slotId_nin: $slotIdNin,
+            officeHourId_nin: $officeHourIdNin
+          }) {
+            data {
+              id
+              teacherId
+              title
+              description
+              date
+              startTime
+              endTime
+              type
+              classSite {
+                class { name }
+                centre { name }
+              }
+              officeHour {
+                type
+                centre { name }
+              }
+            }
+          }
+        }
+      `;
+
+      const variables = {
+        dateGte,
+        dateLte,
+        type: ["CLASS_SESSION", "OFFICE_HOURS"], // Loại bỏ "AVAILABLE" khỏi request để server không trả về dữ liệu rỗng
+        teacherId: teacherId.toString(),
+      };
+
+      const res = await axios.post(
+        this.gatewayUrl,
+        {
+          operationName: "findTeacherSchedule",
+          query,
+          variables,
+        },
+        { headers: this.headers },
+      );
+
+      if (res.data.errors) {
+        console.error(
+          `[LMSClient] findTeacherSchedule errors for ${teacherId}:`,
+          res.data.errors,
+        );
+        throw new Error(res.data.errors[0].message);
+      }
+
+      return res.data.data?.findTeacherSchedule?.data || [];
+    } catch (err) {
+      console.error(
+        `[LMSClient] getTeacherSchedules failed for ${teacherId}:`,
+        err.message,
+      );
+      throw err;
+    }
+  }
+
+  async getTeachers(
+    centers = ["6443460f94300678908f7974"],
+    pageIndex = 0,
+    itemsPerPage = 100,
+  ) {
+    console.log("[LMSClient] getTeachers start. Centers:", centers);
+    try {
+      const query = `
+        query GetTeachers($search: String, $isActive: Boolean, $courseLine: String, $course: String, $pageIndex: Int!, $itemsPerPage: Int!, $orderBy: String, $idNotIn: [String], $centers: [String], $teacherPointFrom: Float, $teacherPointTo: Float, $joinedDate: [String]) {
+          teachers(payload: {
+            searchString_wordSearch: $search,
+            isActive_eq: $isActive,
+            courseLines_eq: $courseLine,
+            courses_eq: $course,
+            id_nin: $idNotIn,
+            pageIndex: $pageIndex,
+            itemsPerPage: $itemsPerPage,
+            orderBy: $orderBy,
+            centres_in: $centers,
+            teacherPoint_gte: $teacherPointFrom,
+            teacherPoint_lte: $teacherPointTo,
+            joinedDate: $joinedDate
+          }) {
+            data {
+              id
+              username
+              user
+              firebaseId
+              fullName
+              code
+              phoneNumber
+              email
+              personalEmail
+              gender
+            }
+            pagination {
+              total
+            }
+          }
+        }
+      `;
+      const variables = {
+        type: "OFFSET",
+        search: "",
+        isActive: true,
+        pageIndex,
+        itemsPerPage,
+        orderBy: "createdAt_desc",
+        centers,
+        teacherPointRange: [null, null],
+        joinedDate: [null, null],
+      };
+
+      const res = await axios.post(
+        this.gatewayUrl,
+        {
+          operationName: "GetTeachers",
+          query,
+          variables,
+        },
+        { headers: this.headers },
+      );
+
+      if (!res || !res.data) throw new Error("Empty response from LMS API");
+      if (res.data.errors) {
+        console.error(
+          "[LMSClient] GetTeachers GraphQL errors:",
+          JSON.stringify(res.data.errors, null, 2),
+        );
+        throw new Error(res.data.errors[0].message);
+      }
+
+      return res.data.data?.teachers?.data || [];
+    } catch (err) {
+      console.error(
+        "[LMSClient] getTeachers failed:",
+        err.message,
+        err.response?.data ? JSON.stringify(err.response.data, null, 2) : "",
+      );
+      throw err;
+    }
+  }
+
   async query(operationName, query, variables, retries = 2) {
     try {
       const res = await axios.post(
