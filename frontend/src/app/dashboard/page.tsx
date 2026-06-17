@@ -25,6 +25,8 @@ export default function DashboardOverview() {
   } = useAuthStore();
   const [isLoading, setIsLoading] = useState(!storedClasses);
   const [error, setError] = useState("");
+  const [notificationsList, setNotificationsList] = useState<any[]>([]);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
   const classes = storedClasses || [];
 
@@ -40,7 +42,9 @@ export default function DashboardOverview() {
     let isMounted = true;
 
     const fetchDashboardData = async (force = false) => {
-      if (!isAuthenticated || !user?.teacherId) {
+      const isTE = user?.appRoles?.includes("TE" as any);
+      if (!isAuthenticated || (!user?.teacherId && !isTE)) {
+        setIsLoading(false);
         return;
       }
 
@@ -58,12 +62,34 @@ export default function DashboardOverview() {
 
       setIsLoading(true);
       try {
+        let targetCentres = user?.teacherCentres?.map((c: any) => c.id || c);
+
+        const isKheim =
+          user?.username === "lekhiem2002" ||
+          user?.email === "lekhiem2002@mindx.net.vn" ||
+          user?.email === "lethekhiem2002@mindx.net.vn";
+
+        if (isKheim && user?.teacherCentres) {
+          const tdmCentre: any = user.teacherCentres.find((c: any) => {
+            const name =
+              typeof c === "object" ? c?.name || c?.shortName : String(c);
+            return (name || "").toLowerCase().includes("thủ dầu một");
+          });
+          if (tdmCentre) {
+            const id = typeof tdmCentre === "object" ? tdmCentre.id : tdmCentre;
+            targetCentres = [id];
+          }
+        }
+
         const data = await classService.getClasses(
           "", // token is handled by interceptor
-          user.teacherId,
+          user?.teacherId || "",
+          targetCentres,
+          user?.appRoles,
+          { statusIn: ["RUNNING", "IN_PROGRESS", "ĐANG_DIỄN_RA"] },
         );
         if (isMounted) {
-          setStoredClasses(data || []);
+          setStoredClasses(data?.data || []);
         }
       } catch (err: any) {
         setError("Không thể tải dữ liệu dashboard");
@@ -90,68 +116,69 @@ export default function DashboardOverview() {
     setStoredClasses,
   ]);
 
-  const notifications = useMemo(() => {
-    const now = new Date();
-    const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
+  useEffect(() => {
+    let isMounted = true;
 
-    const overdueFeedbackList: {
-      classId: string;
-      className: string;
-      date: string;
-      studentCount: number;
-    }[] = [];
-    // const newStudentsMap = new Map<string, { className: string; count: number }>();
+    const fetchNotifications = async () => {
+      const isTE = user?.appRoles?.includes("TE" as any);
+      if (!isAuthenticated || (!user?.teacherId && !isTE)) {
+        return;
+      }
 
-    classes.forEach((cls: ClassData) => {
-      if (!cls.slots) return;
+      setIsLoadingNotifications(true);
+      try {
+        let targetCentres = user?.teacherCentres?.map((c: any) => c.id || c);
 
-      // 1. Logic for "Chưa chấm điểm buổi học qua" (Overdue Feedback)
-      cls.slots.forEach((slot: Slot) => {
-        // Ensure slot.date and slot.endTime exist for accurate calculation
-        if (!slot.date || !slot.endTime) return;
+        const isKheim =
+          user?.username === "lekhiem2002" ||
+          user?.email === "lekhiem2002@mindx.net.vn" ||
+          user?.email === "lethekhiem2002@mindx.net.vn";
 
-        // Combine date and endTime to create a full datetime string, then parse
-        const [hour, minute] = slot.endTime.split(":").map(Number);
-        const slotEndDateTime = new Date(slot.date);
-        slotEndDateTime.setHours(hour, minute, 0, 0); // Set time components
-
-        const timeDiff = now.getTime() - slotEndDateTime.getTime();
-
-        // Check if slot ended more than 48 hours ago
-        if (timeDiff > FORTY_EIGHT_HOURS) {
-          const studentsNeedingFeedback = (slot.studentAttendance || []).filter(
-            (sa: Attendance) =>
-              (sa.status === "PRESENT" || sa.status === "ATTENDED") &&
-              !sa.comment, // Student was present but has no comment
-          );
-
-          if (studentsNeedingFeedback.length > 0) {
-            overdueFeedbackList.push({
-              classId: cls.id,
-              className: cls.name,
-              date: slot.date,
-              studentCount: studentsNeedingFeedback.length,
-            });
+        if (isKheim && user?.teacherCentres) {
+          const tdmCentre: any = user.teacherCentres.find((c: any) => {
+            const name =
+              typeof c === "object" ? c?.name || c?.shortName : String(c);
+            return (name || "").toLowerCase().includes("thủ dầu một");
+          });
+          if (tdmCentre) {
+            const id = typeof tdmCentre === "object" ? tdmCentre.id : tdmCentre;
+            targetCentres = [id];
           }
         }
-      });
 
-      // 2. Logic for "Học viên mới đăng ký" (New Students)
-      // This is a placeholder. Without specific 'enrollmentDate' in the student object
-      // or a way to determine 'new' from the API, this remains hardcoded or requires a backend change.
-      // For now, I'll remove the hardcoded new student notification from the UI.
-    });
+        const data = await classService.getClassesNotifications(
+          "", // token
+          user?.teacherId || "",
+          targetCentres,
+          user?.appRoles,
+          user?.email,
+        );
 
-    // Sort overdue by date descending
-    overdueFeedbackList.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-    );
-
-    return {
-      overdueFeedback: overdueFeedbackList,
-      // newStudents: Array.from(newStudentsMap.values())
+        if (isMounted) {
+          setNotificationsList(data || []);
+        }
+      } catch (err: any) {
+        console.error("[Dashboard] Error fetching notifications:", err);
+      } finally {
+        if (isMounted) {
+          setIsLoadingNotifications(false);
+        }
+      }
     };
-  }, [classes]);
+
+    fetchNotifications();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    user?.teacherId,
+    user?.email,
+    isAuthenticated,
+    user?.appRoles,
+    user?.teacherCentres,
+    user?.username,
+  ]);
 
   if (isLoading) {
     return (
@@ -228,24 +255,67 @@ export default function DashboardOverview() {
             <CardDescription>Các hoạt động cần xử lý ngay</CardDescription>
           </CardHeader>
           <CardContent>
-            {notifications.overdueFeedback.length > 0 ? (
-              <div className="space-y-4">
-                {notifications.overdueFeedback.map((item, index) => (
+            {isLoadingNotifications ? (
+              <div className="flex flex-col items-center justify-center py-6 space-y-2">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <p className="text-xs text-muted-foreground">
+                  Đang lấy thông báo...
+                </p>
+              </div>
+            ) : notificationsList.length > 0 ? (
+              <div className="space-y-3">
+                {notificationsList.map((item, index) => (
                   <div
                     key={`feedback-${index}`}
-                    className="flex items-start space-x-4 text-sm"
+                    className={`flex items-start gap-3 p-3 rounded-lg border ${
+                      item.isLate
+                        ? "bg-red-50/50 border-red-100"
+                        : "bg-orange-50/50 border-orange-100"
+                    } transition-colors`}
                   >
-                    <div className="mt-0.5 bg-orange-100 p-1.5 rounded-full">
-                      <AlertCircle className="h-4 w-4 text-orange-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium">
-                        {item.studentCount} học viên cần chấm điểm buổi học qua
+                    <div className="flex-1 space-y-1.5">
+                      <p
+                        className={`text-sm font-medium leading-tight ${
+                          item.isLate ? "text-red-800" : "text-orange-800"
+                        }`}
+                      >
+                        {item.message}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        Lớp {item.className} -{" "}
-                        {formatVietnameseDate(new Date(item.date))}
-                      </p>
+
+                      {(item.lec || item.ta) && (
+                        <div className="flex flex-wrap gap-2 pt-0.5">
+                          {item.lec && (
+                            <div className="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md text-[11px]">
+                              <span className="font-semibold text-blue-700">
+                                LEC:
+                              </span>
+                              <span className="text-slate-700 font-medium">
+                                {item.lec}
+                              </span>
+                            </div>
+                          )}
+                          {item.ta && (
+                            <div className="inline-flex items-center gap-1.5 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-md text-[11px]">
+                              <span className="font-semibold text-purple-700">
+                                TA:
+                              </span>
+                              <span className="text-slate-700 font-medium">
+                                {item.ta}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex items-center text-xs text-muted-foreground pt-1">
+                        <span className="font-medium text-slate-600">
+                          {formatVietnameseDate(new Date(item.date))}
+                        </span>
+                        <span className="mx-2 text-slate-300">•</span>
+                        <span className="text-slate-600">
+                          {item.studentCount} học viên chưa chấm
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -255,13 +325,9 @@ export default function DashboardOverview() {
                 Không có buổi học nào cần chấm điểm
               </p>
             )}
-
-            {/* New Students notification (if implemented with dynamic data) */}
-            {/* For now, it's removed as new student logic isn't fully defined with available data */}
           </CardContent>
         </Card>
       </div>
     </div>
   );
 }
-

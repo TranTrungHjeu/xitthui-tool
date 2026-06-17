@@ -139,12 +139,48 @@ class LMSClient {
     return teacher.id;
   }
 
-  async getClasses(teacherId) {
-    console.log("[LMSClient] getClasses start. TeacherId:", teacherId);
+  async getClasses(
+    teacherId = null,
+    centreIds = null,
+    statusIn = null,
+    fetchAllPages = false,
+  ) {
+    console.log("[LMSClient] getClasses start.", {
+      teacherId,
+      centreIds,
+      fetchAllPages,
+      statusIn,
+    });
     try {
+      const payloadFields = [];
+      const signatureFields = [
+        "$pageIndex: Int!",
+        "$itemsPerPage: Int!",
+        "$orderBy: String",
+      ];
+
+      if (teacherId) {
+        payloadFields.push("teacher_equals: $teacherId");
+        signatureFields.push("$teacherId: String");
+      }
+      if (centreIds && centreIds.length > 0) {
+        payloadFields.push("centre_in: $centres");
+        signatureFields.push("$centres: [String]");
+      }
+      if (statusIn && statusIn.length > 0) {
+        payloadFields.push("status_in: $statusIn");
+        signatureFields.push("$statusIn: [String]");
+      }
+      payloadFields.push("pageIndex: $pageIndex");
+      payloadFields.push("itemsPerPage: $itemsPerPage");
+      payloadFields.push("orderBy: $orderBy");
+
+      const payloadStr = payloadFields.join(", ");
+      const signatureStr = signatureFields.join(", ");
+
       const query = `
-      query GetClasses($teacherId: String, $pageIndex: Int!, $itemsPerPage: Int!, $orderBy: String) {
-        classes(payload: {teacher_equals: $teacherId, pageIndex: $pageIndex, itemsPerPage: $itemsPerPage, orderBy: $orderBy}) {
+      query GetClasses(${signatureStr}) {
+        classes(payload: {${payloadStr}}) {
           data {
             id
             name
@@ -185,74 +221,218 @@ class LMSClient {
               date
               startTime
               endTime
-              summary
-              studentAttendance {
-                _id
-                status
-                comment
-                sendCommentStatus
+              teachers {
+                teacher {
+                  id
+                  fullName
+                }
+                role {
+                  shortName
+                }
+                isActive
               }
             }
-            students {
-              _id
-              student {
-                id
-                fullName
-              }
-              activeInClass
-            }
+          }
+          pagination {
+            total
           }
         }
       }
     `;
-      const variables = {
-        teacherId,
-        pageIndex: 0,
-        itemsPerPage: 100,
-        orderBy: "createdAt_desc",
-      };
+      let allData = [];
+      let currentPageIndex = 0;
+      const itemsPerPage = 100;
+      let hasMore = true;
 
-      console.log(
-        "[LMSClient] Sending request to MindX Gateway with teacherId:",
-        teacherId,
-      );
+      while (hasMore) {
+        const variables = {
+          teacherId: teacherId || undefined,
+          centres: centreIds && centreIds.length > 0 ? centreIds : undefined,
+          statusIn: statusIn && statusIn.length > 0 ? statusIn : undefined,
+          pageIndex: currentPageIndex,
+          itemsPerPage,
+          orderBy: "createdAt_desc",
+        };
+
+        let res;
+        let retries = 2;
+        while (retries >= 0) {
+          try {
+            res = await axios.post(
+              this.gatewayUrl,
+              {
+                operationName: "GetClasses",
+                query,
+                variables,
+              },
+              { headers: this.headers },
+            );
+            break;
+          } catch (e) {
+            if (e.response && e.response.status === 502 && retries > 0) {
+              console.log(
+                `[LMSClient] 502 Bad Gateway for GetClasses. Retrying... (${retries} left)`,
+              );
+              retries--;
+              await new Promise((r) => setTimeout(r, 1000));
+            } else {
+              throw e;
+            }
+          }
+        }
+
+        if (!res || !res.data) {
+          throw new Error("Empty response from LMS API");
+        }
+
+        if (res.data.errors) {
+          console.error(
+            "[LMSClient] GetClasses GraphQL errors:",
+            res.data.errors,
+          );
+          throw new Error(res.data.errors[0].message);
+        }
+
+        if (!res.data.data || !res.data.data.classes) {
+          console.error(
+            "[LMSClient] GetClasses: Invalid response structure",
+            res.data,
+          );
+          return allData;
+        }
+
+        const pageData = res.data.data.classes.data || [];
+        const totalCount = res.data.data.classes.pagination?.total || 0;
+        allData = allData.concat(pageData);
+
+        if (
+          !fetchAllPages ||
+          pageData.length === 0 ||
+          allData.length >= totalCount
+        ) {
+          hasMore = false;
+        } else {
+          currentPageIndex++;
+        }
+      }
+
+      return allData;
+    } catch (err) {
+      console.error("[LMSClient] getClasses failed:", err.message);
+      throw err;
+    }
+  }
+
+  async getClassByIdForNotifications(classId) {
+    // Tối ưu hoá câu query GraphQL, CHỈ lấy những trường cần thiết cho việc tính Notifications
+    try {
+      const query = `
+      query GetClassByIdForNotifications($id: ID!) {
+        classesById(id: $id) {
+          id
+          name
+          status
+          slots {
+            date
+            endTime
+            studentAttendance {
+              comment
+              status
+            }
+            teachers {
+              teacher {
+                fullName
+              }
+              role {
+                shortName
+              }
+              isActive
+            }
+          }
+          teachers {
+            teacher {
+              id
+              email
+              fullName
+            }
+            role {
+              shortName
+            }
+          }
+        }
+      }
+      `;
+      const variables = { id: classId };
+
       const res = await axios.post(
         this.gatewayUrl,
         {
-          operationName: "GetClasses",
+          operationName: "GetClassByIdForNotifications",
           query,
           variables,
         },
         { headers: this.headers },
       );
 
-      console.log("[LMSClient] MindX response status:", res.status);
-
       if (!res || !res.data) {
         throw new Error("Empty response from LMS API");
       }
 
       if (res.data.errors) {
-        console.error(
-          "[LMSClient] GetClasses GraphQL errors:",
-          res.data.errors,
-        );
         throw new Error(res.data.errors[0].message);
       }
 
-      if (!res.data.data || !res.data.data.classes) {
-        console.error(
-          "[LMSClient] GetClasses: Invalid response structure",
-          res.data,
-        );
-        return [];
-      }
-
-      return res.data.data.classes.data || [];
+      return res.data.data?.classesById;
     } catch (err) {
-      console.error("[LMSClient] getClasses failed:", err.message);
+      console.error(
+        `[LMSClient] getClassByIdForNotifications failed for ${classId}:`,
+        err.message,
+      );
       throw err;
     }
+  }
+
+  async getClassesNotificationsDetails(classIds) {
+    if (!Array.isArray(classIds) || classIds.length === 0) {
+      return [];
+    }
+
+    // Cần giảm batchSize để tránh lỗi 502 từ gateway do quá tải
+    const results = [];
+    const batchSize = 3;
+
+    for (let i = 0; i < classIds.length; i += batchSize) {
+      const batch = classIds.slice(i, i + batchSize);
+      console.log(
+        `[LMSClient] Fetching notification details batch ${Math.floor(i / batchSize) + 1} (${batch.length} classes)...`,
+      );
+
+      const batchResults = await Promise.all(
+        batch.map(async (classId) => {
+          try {
+            // Delay nhẹ các request trong cùng 1 batch để tránh spike đột ngột
+            await new Promise((r) => setTimeout(r, Math.random() * 500));
+            return await this.getClassByIdForNotifications(classId);
+          } catch (err) {
+            // Ném ngược lại nếu là lỗi xác thực để luồng cha catch được
+            if (
+              err.message.includes("Authentication failed") ||
+              err.message.includes("auth") ||
+              err.response?.status === 401 ||
+              err.response?.status === 403
+            ) {
+              throw err;
+            }
+            return null;
+          }
+        }),
+      );
+      results.push(...batchResults);
+      // Đợi 1 giây giữa các batch
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    return results.filter(Boolean);
   }
 
   async getClassesDetails(classIds) {
@@ -265,21 +445,38 @@ class LMSClient {
       return [];
     }
 
-    const detailedClasses = await Promise.all(
-      classIds.map(async (classId) => {
-        try {
-          return await this.getClassById(classId);
-        } catch (err) {
-          console.error(
-            `[LMSClient] Failed to fetch details for class ${classId}:`,
-            err.message,
-          );
-          return null;
-        }
-      }),
+    // Tối ưu: Xử lý theo batch để tránh làm quá tải Gateway LMS (Promise.all quá nhiều request cùng lúc)
+    const results = [];
+    const batchSize = 4;
+
+    for (let i = 0; i < classIds.length; i += batchSize) {
+      const batch = classIds.slice(i, i + batchSize);
+      console.log(
+        `[LMSClient] Fetching batch ${Math.floor(i / batchSize) + 1} (${batch.length} classes)...`,
+      );
+
+      const batchResults = await Promise.all(
+        batch.map(async (classId) => {
+          try {
+            return await this.getClassById(classId);
+          } catch (err) {
+            console.error(
+              `[LMSClient] Failed to fetch details for class ${classId}:`,
+              err.message,
+            );
+            return null;
+          }
+        }),
+      );
+      results.push(...batchResults);
+    }
+
+    const filteredResults = results.filter(Boolean);
+    console.log(
+      `[LMSClient] getClassesDetails finished. Found ${filteredResults.length}/${classIds.length} details.`,
     );
 
-    return detailedClasses.filter(Boolean);
+    return filteredResults;
   }
 
   async getClassById(classId) {
@@ -398,31 +595,50 @@ class LMSClient {
       `;
       const variables = { id: classId };
 
-      const res = await axios.post(
-        this.gatewayUrl,
-        {
-          operationName: "GetClassById",
-          query,
-          variables,
-        },
-        { headers: this.headers },
-      );
+      // Thêm retry đơn giản cho lỗi 502 với Exponential Backoff
+      let res;
+      let retries = 4;
+      let delay = 1000;
+      while (retries >= 0) {
+        try {
+          res = await axios.post(
+            this.gatewayUrl,
+            {
+              operationName: "GetClassById",
+              query,
+              variables,
+            },
+            { headers: this.headers },
+          );
+          break; // success
+        } catch (e) {
+          if (e.response && e.response.status === 502 && retries > 0) {
+            console.log(
+              `[LMSClient] 502 Bad Gateway for GetClassById(${classId}). Retrying... (${retries} left)`,
+            );
+            retries--;
+            await new Promise((r) => setTimeout(r, delay));
+            delay *= 2;
+          } else {
+            throw e;
+          }
+        }
+      }
 
       if (!res || !res.data) {
         throw new Error("Empty response from LMS API");
       }
 
       if (res.data.errors) {
-        console.error(
-          "[LMSClient] GetClassById GraphQL errors:",
-          res.data.errors,
-        );
         throw new Error(res.data.errors[0].message);
       }
 
       return res.data.data?.classesById;
     } catch (err) {
-      console.error("[LMSClient] getClassById failed:", err.message);
+      console.error(
+        `[LMSClient] getClassByIdForNotifications failed for ${classId}:`,
+        err.message,
+      );
       throw err;
     }
   }

@@ -5,8 +5,49 @@ export const classService = {
   getClasses: async (
     _token: string, // Unused as interceptor handles it
     teacherId: string,
-  ): Promise<ClassData[]> => {
-    const response = await api.post("/classes", { teacherId });
+    centreIds?: string[],
+    roles?: string[],
+    options?: {
+      statusIn?: string[];
+      status?: string;
+      page?: number;
+      limit?: number;
+      search?: string;
+      centre?: string;
+      weekday?: string;
+      role?: string;
+      userName?: string;
+    },
+  ): Promise<{ data: ClassData[]; meta: any }> => {
+    const response = await api.post("/classes", {
+      teacherId,
+      centreIds,
+      roles,
+      statusIn: options?.statusIn,
+      status: options?.status,
+      page: options?.page,
+      limit: options?.limit,
+      search: options?.search,
+      centre: options?.centre,
+      weekday: options?.weekday,
+      role: options?.role,
+      userName: options?.userName,
+    });
+    return { data: response.data.data, meta: response.data.meta };
+  },
+  getClassesNotifications: async (
+    _token: string,
+    teacherId: string,
+    centreIds?: string[],
+    roles?: string[],
+    email?: string,
+  ): Promise<any[]> => {
+    const response = await api.post("/classes/notifications", {
+      teacherId,
+      centreIds,
+      roles,
+      email,
+    });
     return response.data.data;
   },
   getClassesDetails: async (
@@ -56,4 +97,3 @@ export const classService = {
     return response.data;
   },
 };
-

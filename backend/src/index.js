@@ -19,6 +19,9 @@ const authRoutes = require("./routes/authRoutes");
 const classRoutes = require("./routes/classRoutes");
 const sessionRoutes = require("./routes/sessionRoutes");
 const teacherRoutes = require("./routes/teacherRoutes");
+const zaloRoutes = require("./routes/zaloRoutes");
+const { startScheduler } = require("./services/zaloScheduler");
+const { startPolling } = require("./services/zaloPolling");
 
 // ---- 1. Express API Server Setup ----
 const app = express();
@@ -51,6 +54,8 @@ app.use("/api", authRoutes);
 app.use("/api", classRoutes);
 app.use("/api", sessionRoutes);
 app.use("/api", teacherRoutes);
+app.use("/api/zalo", zaloRoutes); // Dashboard APIs & Webhook
+app.use("/zalo", zaloRoutes); // Legacy Zalo Webhook endpoint (keep to not break existing webhooks)
 
 // Global Error Handler - Prevents server from crashing on unhandled errors
 app.use((err, req, res, next) => {
@@ -67,6 +72,10 @@ async function startApp() {
     // 2.1 Start API Server
     app.listen(PORT, "127.0.0.1", () => {
       console.log(`API Server is running on PORT ${PORT}`);
+      // Start Zalo Bot polling (reads messages from users)
+      startPolling();
+      // Start Zalo reminder scheduler (sends proactive reminders)
+      startScheduler();
     });
   } catch (error) {
     console.error("Failed to start API server:", error);

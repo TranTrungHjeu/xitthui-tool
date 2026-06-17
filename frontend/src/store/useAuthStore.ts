@@ -1,15 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-
-interface User {
-  id: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  fullName?: string;
-  username?: string;
-  teacherId?: string;
-}
+import type { User } from "@/types";
 
 interface AuthState {
   user: User | null;
@@ -20,12 +11,7 @@ interface AuthState {
   lastClassesFetch: number | null;
   classDetailsById: Record<string, any>;
   lastClassDetailsFetch: Record<string, number>;
-  login: (
-    user: User,
-    token: string,
-    refreshToken: string,
-    teacherId?: string,
-  ) => void;
+  login: (user: User, token: string, refreshToken: string) => void;
   updateToken: (token: string, refreshToken?: string) => void;
   logout: () => void;
   setTeacherId: (teacherId: string) => void;
@@ -45,9 +31,9 @@ export const useAuthStore = create<AuthState>()(
       lastClassesFetch: null,
       classDetailsById: {},
       lastClassDetailsFetch: {},
-      login: (user, token, refreshToken, teacherId) =>
+      login: (user, token, refreshToken) =>
         set({
-          user: teacherId ? { ...user, teacherId } : user,
+          user,
           token,
           refreshToken,
           isAuthenticated: true,
@@ -116,4 +102,3 @@ export const useAuthStore = create<AuthState>()(
     },
   ),
 );
-

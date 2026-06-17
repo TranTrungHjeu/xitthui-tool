@@ -41,3 +41,5 @@ Thumbs.db
 # Build
 dist/
 build/
+# CocoIndex Code (ccc)
+/.cocoindex_code/

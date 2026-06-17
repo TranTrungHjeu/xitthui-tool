@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "../../store/useAuthStore";
 import { classService } from "../../services/classService";
+import { authService } from "../../services/authService";
 import { Button } from "../../components/ui/button";
 import {
   LayoutDashboard,
@@ -20,6 +21,7 @@ import {
   ChevronRight,
   ChevronLeft,
   TableProperties,
+  Bot,
 } from "lucide-react";
 import Link from "next/link";
 import { Toaster } from "sonner";
@@ -55,6 +57,15 @@ export default function DashboardLayout({
     user?.email?.split("@")[0] ||
     "Giáo viên";
 
+  const getRoleDisplay = (roles?: string[]) => {
+    if (!roles || roles.length === 0) return "Giáo viên";
+    if (roles.includes("TE")) return "Quản lý / TE";
+    if (roles.includes("TEACHER")) return "Giáo viên";
+    return roles.join(", ");
+  };
+
+  const roleDisplay = getRoleDisplay(user?.appRoles);
+
   // Wait for Zustand persist rehydration before accessing auth state
   useEffect(() => {
     if (useAuthStore.persist?.hasHydrated?.()) {
@@ -74,11 +85,36 @@ export default function DashboardLayout({
     }
   }, [hasHydrated, isAuthenticated, router]);
 
+  // Explicitly validate token on mount
+  useEffect(() => {
+    let isCancelled = false;
+
+    const validateSession = async () => {
+      if (hasHydrated && isAuthenticated && token && user?.id) {
+        try {
+          await authService.testToken(token, user.id);
+        } catch (error) {
+          if (!isCancelled) {
+            console.warn("Token validation failed:", error);
+            // Interceptor handles logout if refresh fails
+          }
+        }
+      }
+    };
+
+    validateSession();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [hasHydrated, isAuthenticated, token, user]);
+
   useEffect(() => {
     let isCancelled = false;
 
     const fetchClasses = async () => {
-      if (!user?.teacherId || !token || !isAuthenticated) return;
+      const isTE = user?.appRoles?.includes("TE" as any);
+      if ((!user?.teacherId && !isTE) || !token || !isAuthenticated) return;
 
       // Optimize: If we have classes in store and they're less than 5 mins old, don't refetch
       const CACHE_TIME = 5 * 60 * 1000;
@@ -95,9 +131,15 @@ export default function DashboardLayout({
       if (pathname === "/dashboard" && !storedClasses) return;
 
       try {
-        const data = await classService.getClasses(token || "", user.teacherId);
+        const data = await classService.getClasses(
+          token || "",
+          user?.teacherId || "",
+          user?.teacherCentres?.map((c: any) => c.id || c),
+          user?.appRoles,
+          { statusIn: ["RUNNING", "IN_PROGRESS", "ĐANG_DIỄN_RA"] },
+        );
         if (!isCancelled) {
-          setStoredClasses(data || []);
+          setStoredClasses(data?.data || []);
         }
       } catch (err: unknown) {
         // Sidebar classes are non-critical. Do not use console.error here because
@@ -139,6 +181,10 @@ export default function DashboardLayout({
       href: "/dashboard/spreadsheet",
       icon: TableProperties,
     },
+    ...(user?.username === "lekhiem2002" ||
+    user?.email === "lekhiem2002@mindx.net.vn"
+      ? [{ label: "Cài đặt Zalo Bot", href: "/dashboard/zalo-bot", icon: Bot }]
+      : []),
     { label: "Cài đặt", href: "/dashboard/settings", icon: Settings },
   ];
 
@@ -331,7 +377,7 @@ export default function DashboardLayout({
                 {displayName.charAt(0).toUpperCase()}
               </div>
               <div
-                className={`transition-all duration-300 ease-in-out ${
+                className={`transition-all duration-300 ease-in-out flex flex-col justify-center min-w-0 ${
                   isSidebarCollapsed
                     ? "max-w-0 opacity-0 pointer-events-none overflow-hidden"
                     : "max-w-[180px] opacity-100"
@@ -343,6 +389,11 @@ export default function DashboardLayout({
                 <p className="text-[11px] text-slate-500 truncate mt-0.5">
                   {user?.email}
                 </p>
+                <div className="mt-1.5 flex">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                    {roleDisplay}
+                  </span>
+                </div>
               </div>
             </div>
             {isSidebarCollapsed ? (
@@ -474,6 +525,21 @@ export default function DashboardLayout({
                 </div>
               );
             })}
+
+            <div className="pt-4 pb-3 px-4 mb-2 mt-4 bg-slate-50 rounded-xl border border-slate-100 shadow-sm">
+              <p className="text-sm font-bold text-slate-900 truncate">
+                {displayName}
+              </p>
+              <p className="text-xs text-slate-500 truncate mt-0.5">
+                {user?.email}
+              </p>
+              <div className="mt-2.5 flex">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                  {roleDisplay}
+                </span>
+              </div>
+            </div>
+
             <Button
               variant="ghost"
               className="w-full justify-start text-red-600 py-3"

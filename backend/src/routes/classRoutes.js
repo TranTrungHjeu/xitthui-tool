@@ -11,6 +11,7 @@ const aiLimiter = rateLimiter(
 );
 
 router.post("/classes", classController.getClasses);
+router.post("/classes/notifications", classController.getClassesNotifications);
 router.post("/classes/detail", classController.getClassById);
 router.post("/classes/details", classController.getClassesDetails);
 router.post("/update-evaluation", classController.updateEvaluation);

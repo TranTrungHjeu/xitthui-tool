@@ -1,5 +1,7 @@
 const axios = require("axios");
 const config = require("../config/index");
+const { resolveUserRolesAndProfile } = require("../utils/roleResolver");
+const { ROLES } = require("../constants/roles");
 
 // Firebase project config extracted from config
 const FIREBASE_API_KEY = config.firebase.apiKey;
@@ -99,6 +101,67 @@ async function getUserByFirebaseId(firebaseIdToken, firebaseUid) {
   } catch (decodeErr) {
     console.error("[Auth] Failed to decode JWT:", decodeErr);
     throw new Error("Cannot get user info from API or JWT.");
+  }
+}
+
+/**
+ * New Step 2.5: Get LMS Role Info using FindInfoInRoleById
+ */
+async function getTeacherIdByUserId(lmsIdToken, mindxUserId) {
+  try {
+    const res = await axios.post(
+      config.lms.gatewayGraphql || "https://lms-api.mindx.edu.vn/",
+      {
+        operationName: "teacherByUserId",
+        variables: { user: mindxUserId },
+        query: `query teacherByUserId($user: String) {
+          teacherByUserId(payload: { user: $user }) { id email fullName }
+        }`,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${lmsIdToken}`,
+          origin: "https://lms.mindx.edu.vn",
+          Cookie: getCookies(),
+        },
+      },
+    );
+    return res.data?.data?.teacherByUserId?.id || null;
+  } catch (err) {
+    console.log("[Auth] teacherByUserId failed:", err.message);
+    return null;
+  }
+}
+
+async function getLmsRoleInfo(lmsIdToken, mindxUserId) {
+  try {
+    const res = await axios.post(
+      config.lms.gatewayGraphql || "https://lms-api.mindx.edu.vn/",
+      {
+        operationName: "FindInfoInRoleById",
+        variables: { payload: { id: mindxUserId } },
+        query: `mutation FindInfoInRoleById($payload: FindInfoInRoleByIdCommand!) {
+          users { findInfoInRoleById(payload: $payload) { info role __typename } __typename }
+        }`,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${lmsIdToken}`,
+          origin: "https://lms.mindx.edu.vn",
+          Cookie: getCookies(),
+        },
+      },
+    );
+
+    if (res.data?.data?.users?.findInfoInRoleById) {
+      return res.data.data.users.findInfoInRoleById;
+    }
+    return [];
+  } catch (err) {
+    console.log("[Auth] FindInfoInRoleById failed:", err.message);
+    return [];
   }
 }
 
@@ -252,11 +315,47 @@ async function loginWithCredentials(email, password) {
       // Continue with Firebase token - it should work for LMS API calls
     }
 
-    console.log("[Auth] ✅ Login successful!");
+    // 5. Get detailed Role-Based info from LMS API
+    console.log("[Auth] Step 5: Getting LMS Role Info...");
+    const roleInfos = await getLmsRoleInfo(lmsToken, mindxUser.id);
+
+    // 6. Resolve final profile & roles
+    let finalProfile = resolveUserRolesAndProfile(mindxUser, roleInfos);
+
+    // Fallback: If teacherId is null, try getting it directly
+    if (!finalProfile.teacherId) {
+      console.log(
+        "[Auth] Step 6.5: teacherId still null, trying teacherByUserId fallback...",
+      );
+      const directTeacherId = await getTeacherIdByUserId(
+        lmsToken,
+        mindxUser.id,
+      );
+      if (directTeacherId) {
+        console.log("[Auth] Found teacherId via fallback:", directTeacherId);
+        finalProfile.teacherId = directTeacherId;
+        // Also ensure Teacher role is added if it was missing but teacherId exists
+        if (!finalProfile.appRoles.includes(ROLES.TEACHER)) {
+          finalProfile.appRoles.push(ROLES.TEACHER);
+        }
+      }
+    }
+
+    if (!finalProfile.appRoles || finalProfile.appRoles.length === 0) {
+      console.error(
+        "[Auth] Login rejected: No valid roles resolved for user",
+        mindxUser.username,
+      );
+      throw new Error(
+        "Tài khoản của bạn không có quyền truy cập hệ thống này.",
+      );
+    }
+
+    console.log("[Auth] ✅ Login successful for roles:", finalProfile.appRoles);
     return {
       lmsToken,
       lmsRefreshToken,
-      mindxUser,
+      mindxUser: finalProfile,
       firebaseUid,
     };
   } catch (err) {
@@ -340,11 +439,45 @@ async function loginWithUsernameFlow(username, password) {
     if (!mindxUser.isActive) throw new Error("Tài khoản đã bị vô hiệu hóa");
     console.log("[Auth] MindX user found:", mindxUser.username);
 
-    console.log("[Auth] ✅ Login successful!");
+    console.log("[Auth] Step 4: Getting LMS Role Info...");
+    const roleInfos = await getLmsRoleInfo(lmsToken, mindxUser.id);
+
+    // 5. Resolve final profile & roles
+    let finalProfile = resolveUserRolesAndProfile(mindxUser, roleInfos);
+
+    // Fallback: If teacherId is null, try getting it directly
+    if (!finalProfile.teacherId) {
+      console.log(
+        "[Auth] Step 5.5: teacherId still null, trying teacherByUserId fallback...",
+      );
+      const directTeacherId = await getTeacherIdByUserId(
+        lmsToken,
+        mindxUser.id,
+      );
+      if (directTeacherId) {
+        console.log("[Auth] Found teacherId via fallback:", directTeacherId);
+        finalProfile.teacherId = directTeacherId;
+        if (!finalProfile.appRoles.includes(ROLES.TEACHER)) {
+          finalProfile.appRoles.push(ROLES.TEACHER);
+        }
+      }
+    }
+
+    if (!finalProfile.appRoles || finalProfile.appRoles.length === 0) {
+      console.error(
+        "[Auth] Login rejected: No valid roles resolved for user",
+        mindxUser.username,
+      );
+      throw new Error(
+        "Tài khoản của bạn không có quyền truy cập hệ thống này.",
+      );
+    }
+
+    console.log("[Auth] ✅ Login successful for roles:", finalProfile.appRoles);
     return {
       lmsToken,
       lmsRefreshToken,
-      mindxUser,
+      mindxUser: finalProfile,
       firebaseUid,
     };
   } catch (err) {

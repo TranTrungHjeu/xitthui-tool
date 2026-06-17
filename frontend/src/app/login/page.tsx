@@ -29,7 +29,6 @@ function LoginPageContent() {
 
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
-  const setTeacherId = useAuthStore((state) => state.setTeacherId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,9 +49,6 @@ function LoginPageContent() {
         const mindxUser = data.mindxUser || data.user;
         const lmsToken = data.lmsToken || data.token;
         const lmsRefreshToken = data.lmsRefreshToken || data.refreshToken;
-        const teacher = data.teacher;
-        const profile = data.profile;
-        const teacherId = data.teacherId;
 
         if (!mindxUser || !mindxUser.id) {
           console.error("Login response missing user info:", res);
@@ -61,24 +57,8 @@ function LoginPageContent() {
           );
         }
 
-        // Use teacher full name from gateway as the canonical display name
-        login(
-          {
-            id: mindxUser.id,
-            email: profile?.email || mindxUser.email,
-            firstName:
-              teacher?.fullName ||
-              profile?.firstName ||
-              profile?.givenName ||
-              mindxUser.firstName,
-            lastName: profile?.lastName || mindxUser.lastName,
-            fullName: teacher?.fullName || mindxUser.fullName,
-            username: profile?.username || mindxUser.username,
-          },
-          lmsToken,
-          lmsRefreshToken,
-          teacherId,
-        );
+        // Backend đã resolve sẵn fullName, appRoles, appPermissions, teacherId
+        login(mindxUser, lmsToken, lmsRefreshToken);
 
         router.push("/dashboard");
       } else {

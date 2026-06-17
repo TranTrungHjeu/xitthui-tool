@@ -1,8 +1,39 @@
+/**
+ * Enum các Role chuẩn của hệ thống XitthuiTool.
+ * Tách biệt hoàn toàn với Role gốc của MindX LMS.
+ */
+export enum AppRole {
+  TEACHER = "TEACHER",
+  TE = "TE", // Teacher Experience / Quản lý
+}
+
+/**
+ * Enum các Permission chi tiết.
+ * Dùng để kiểm tra hành động cụ thể thay vì check Role cứng.
+ */
+export enum AppPermission {
+  ACCESS_DASHBOARD = "ACCESS_DASHBOARD",
+  VIEW_OWN_SCHEDULE = "VIEW_OWN_SCHEDULE",
+  MANAGE_ALL_SCHEDULES = "MANAGE_ALL_SCHEDULES",
+  MANAGE_TEACHERS = "MANAGE_TEACHERS",
+  MANAGE_SYSTEM = "MANAGE_SYSTEM",
+}
+
 export interface User {
   id: string;
   email: string;
   username: string;
+  fullName: string;
+  firstName?: string;
+  lastName?: string;
+  givenName?: string;
   isActive: boolean;
+  appRoles: AppRole[];
+  appPermissions: AppPermission[];
+  teacherCentres?: { id: string; name: string; shortName: string }[] | string[];
+  teacherId?: string;
+  firebaseUid?: string;
+  /** @deprecated Dùng appRoles/appPermissions thay thế */
   permissions?: string[];
 }
 
@@ -73,4 +104,3 @@ export interface ClassData {
   teachers: ClassTeacher[];
   slots: Slot[];
 }
-

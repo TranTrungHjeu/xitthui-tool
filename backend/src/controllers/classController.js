@@ -1,4 +1,5 @@
 const LMSClient = require("../services/lmsClient");
+const ClassCacheService = require("../services/classCache");
 const { VertexAI } = require("@google-cloud/vertexai");
 
 const vertexAI = new VertexAI({
@@ -14,15 +15,55 @@ exports.getClasses = async (req, res) => {
     if (!token && req.headers.authorization) {
       token = req.headers.authorization.split(" ")[1];
     }
-    const { teacherId } = req.body;
+    const {
+      teacherId,
+      centreIds,
+      roles,
+      statusIn,
+      page = 1,
+      limit = 10,
+      search = "",
+      centre = "all",
+      weekday = "all",
+      role = "all",
+      userName = "",
+      status = "all",
+    } = req.body;
 
     if (!token) return res.status(400).json({ error: "Token is required" });
     if (!teacherId)
       return res.status(400).json({ error: "Teacher ID is required" });
 
-    const client = new LMSClient(token);
-    const data = await client.getClasses(teacherId);
-    res.json({ success: true, data });
+    // Lấy toàn bộ danh sách lớp (sử dụng cache)
+    const allEnrichedClasses = await ClassCacheService.getEnrichedClasses(
+      token,
+      teacherId,
+      centreIds,
+      roles,
+      statusIn,
+    );
+
+    // Áp dụng filters và phân trang tại Server
+    const paginatedResult = ClassCacheService.applyFiltersAndPagination(
+      allEnrichedClasses,
+      {
+        page,
+        limit,
+        search,
+        centre,
+        weekday,
+        role,
+        userName,
+        teacherId,
+        status,
+      },
+    );
+
+    res.json({
+      success: true,
+      data: paginatedResult.data,
+      meta: paginatedResult.meta,
+    });
   } catch (err) {
     console.error("[Controller] getClasses failed:", err.message);
     console.error(
@@ -38,20 +79,50 @@ exports.getClasses = async (req, res) => {
   }
 };
 
+const classDetailsCache = new Map();
+const CLASS_DETAILS_TTL = 5 * 60 * 1000; // 5 minutes
+
+// In-memory cache cho Notifications (chứa danh sách feedback đã tính toán)
+const notificationCache = new Map();
+const NOTIFICATION_CACHE_TTL = 5 * 60 * 1000; // 5 phút
+
+// Caches cho từng class cụ thể khi load Notifications, giúp load nhanh hơn đáng kể
+const classNotificationDetailsCache = new Map();
+const CLASS_NOTIF_DETAILS_TTL = 30 * 60 * 1000; // 30 phút
+
 exports.getClassById = async (req, res) => {
   try {
     let token = req.body.token;
     if (!token && req.headers.authorization) {
       token = req.headers.authorization.split(" ")[1];
     }
-    const { classId } = req.body;
+    const { classId, noCache } = req.body;
 
     if (!token) return res.status(400).json({ error: "Token is required" });
     if (!classId)
       return res.status(400).json({ error: "Class ID is required" });
 
+    const now = Date.now();
+    if (!noCache) {
+      const cached = classDetailsCache.get(classId);
+      if (cached && cached.expiresAt > now) {
+        console.log(
+          `[Cache] Trả về class details từ cache cho lớp: ${classId}`,
+        );
+        return res.json({ success: true, data: cached.data });
+      }
+    }
+
     const client = new LMSClient(token);
     const data = await client.getClassById(classId);
+
+    if (data && data.id) {
+      classDetailsCache.set(data.id, {
+        data,
+        expiresAt: Date.now() + CLASS_DETAILS_TTL,
+      });
+    }
+
     res.json({ success: true, data });
   } catch (err) {
     console.error("[Controller] getClassById failed:", err.message);
@@ -74,16 +145,46 @@ exports.getClassesDetails = async (req, res) => {
     if (!token && req.headers.authorization) {
       token = req.headers.authorization.split(" ")[1];
     }
-    const { classIds } = req.body;
+    const { classIds, noCache } = req.body;
 
     if (!token) return res.status(400).json({ error: "Token is required" });
     if (!Array.isArray(classIds) || classIds.length === 0) {
       return res.status(400).json({ error: "classIds is required" });
     }
 
-    const client = new LMSClient(token);
-    const data = await client.getClassesDetails(classIds);
-    res.json({ success: true, data });
+    const results = [];
+    const missingIds = [];
+    const now = Date.now();
+
+    if (!noCache) {
+      classIds.forEach((id) => {
+        const cached = classDetailsCache.get(id);
+        if (cached && cached.expiresAt > now) {
+          results.push(cached.data);
+        } else {
+          missingIds.push(id);
+        }
+      });
+    } else {
+      missingIds.push(...classIds);
+    }
+
+    if (missingIds.length > 0) {
+      const client = new LMSClient(token);
+      const fetchedData = await client.getClassesDetails(missingIds);
+
+      fetchedData.forEach((item) => {
+        if (item && item.id) {
+          classDetailsCache.set(item.id, {
+            data: item,
+            expiresAt: Date.now() + CLASS_DETAILS_TTL,
+          });
+          results.push(item);
+        }
+      });
+    }
+
+    res.json({ success: true, data: results });
   } catch (err) {
     const statusCode = err.response?.status || 500;
     res.status(statusCode).json({
@@ -105,6 +206,14 @@ exports.updateEvaluation = async (req, res) => {
   try {
     const client = new LMSClient(token);
     const data = await client.updateEvaluation(payload);
+
+    // Xoá cache để người dùng thấy cập nhật ngay lập tức
+    if (payload.classId) {
+      classDetailsCache.delete(payload.classId);
+      classNotificationDetailsCache.delete(payload.classId);
+      notificationCache.clear();
+    }
+
     res.json({ success: true, data });
   } catch (err) {
     res
@@ -363,5 +472,232 @@ exports.getStudentAIReport = async (req, res) => {
       success: false,
       error: err.response?.data?.errors?.[0]?.message || err.message,
     });
+  }
+};
+
+exports.getClassesNotifications = async (req, res) => {
+  try {
+    let token = req.body.token;
+    if (!token && req.headers.authorization) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+    const { teacherId, centreIds, roles, statusIn, email } = req.body;
+
+    if (!token) return res.status(400).json({ error: "Token is required" });
+    if (!teacherId)
+      return res.status(400).json({ error: "Teacher ID is required" });
+
+    // Kiểm tra cache trước
+    const centresKey = (centreIds || []).sort().join("-");
+    const rolesKey = (roles || []).sort().join("-");
+    const statusKey = statusIn ? statusIn.sort().join(",") : "DEFAULT";
+    const cacheKey = `notif_${teacherId || "no_id"}_${centresKey}_${rolesKey}_${statusKey}`;
+
+    const cachedData = notificationCache.get(cacheKey);
+    if (cachedData && cachedData.expiresAt > Date.now()) {
+      console.log(
+        `[Cache] Trả về notifications từ cache cho teacher: ${teacherId}`,
+      );
+      return res.json({ success: true, data: cachedData.data });
+    }
+
+    // 1. Fetch running classes from cache/API
+    const allEnrichedClasses = await ClassCacheService.getEnrichedClasses(
+      token,
+      teacherId,
+      centreIds,
+      roles,
+      statusIn || ["OPEN", "RUNNING"],
+    );
+
+    // Filter to ensure only running classes
+    const runningClasses = allEnrichedClasses.filter((cls) =>
+      ["OPEN", "RUNNING"].includes(cls.status),
+    );
+
+    const classIds = runningClasses.map((c) => c.id);
+
+    if (classIds.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    // 2. Fetch details for these classes (includes full slots and studentAttendance) - Sử dụng API tối ưu hoá payload & concurrency
+    const client = new LMSClient(token);
+    const detailedClasses = [];
+    const missingClassIds = [];
+
+    classIds.forEach((id) => {
+      const cached = classNotificationDetailsCache.get(id);
+      if (cached && cached.expiresAt > Date.now()) {
+        detailedClasses.push(cached.data);
+      } else {
+        missingClassIds.push(id);
+      }
+    });
+
+    if (missingClassIds.length > 0) {
+      const fetchedDetails =
+        await client.getClassesNotificationsDetails(missingClassIds);
+      fetchedDetails.forEach((cls) => {
+        if (cls && cls.id) {
+          classNotificationDetailsCache.set(cls.id, {
+            data: cls,
+            expiresAt: Date.now() + CLASS_NOTIF_DETAILS_TTL,
+          });
+          detailedClasses.push(cls);
+        }
+      });
+    }
+
+    // 3. Compute notifications
+    const now = new Date();
+    const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
+    const feedbackList = [];
+    const isTE = Array.isArray(roles) && roles.includes("TE");
+
+    const getTeacherNames = (teachersList, roleShortName) => {
+      if (!Array.isArray(teachersList)) return "N/A";
+      const matched = teachersList.filter(
+        (t) => t.role?.shortName === roleShortName && t.isActive !== false,
+      );
+      if (matched.length > 0) {
+        return matched
+          .map((t) => t.teacher?.fullName)
+          .filter(Boolean)
+          .join(", ");
+      }
+      return "N/A";
+    };
+
+    detailedClasses.forEach((cls) => {
+      if (!cls || !cls.slots || cls.slots.length === 0) return;
+
+      // Determine user's role in this class
+      const currentTeacher = cls.teachers?.find(
+        (t) =>
+          (t.teacher?.id && t.teacher.id === teacherId) ||
+          (t.teacher?.email && t.teacher.email === email),
+      );
+      const role = currentTeacher?.role?.shortName || "";
+
+      cls.slots.forEach((slot) => {
+        if (!slot.date || !slot.endTime) return;
+
+        let slotEndDateTime;
+        try {
+          if (typeof slot.date === "string" && slot.date.includes("/")) {
+            const [d, m, y] = slot.date.split("/").map(Number);
+            slotEndDateTime = new Date(y, m - 1, d);
+          } else {
+            slotEndDateTime = new Date(slot.date);
+          }
+
+          if (isNaN(slotEndDateTime.getTime())) throw new Error("Invalid Date");
+
+          let hour = 0,
+            minute = 0;
+          if (slot.endTime.includes("T")) {
+            const dateObj = new Date(slot.endTime);
+            hour = dateObj.getHours();
+            minute = dateObj.getMinutes();
+          } else {
+            const timeParts = slot.endTime.split(":");
+            hour = parseInt(timeParts[0], 10) || 0;
+            minute = parseInt(timeParts[1], 10) || 0;
+          }
+          slotEndDateTime.setHours(hour, minute, 0, 0);
+        } catch (e) {
+          return;
+        }
+
+        const timeDiff = now.getTime() - slotEndDateTime.getTime();
+
+        if (timeDiff > 0) {
+          const studentsNeedingFeedback = (slot.studentAttendance || []).filter(
+            (sa) =>
+              (sa.status === "PRESENT" ||
+                sa.status === "ATTENDED" ||
+                sa.status === "LATE" ||
+                sa.status === "LATE_ARRIVED") &&
+              (!sa.comment || sa.comment.trim() === ""),
+          );
+
+          if (studentsNeedingFeedback.length > 0) {
+            const isLate = timeDiff > FORTY_EIGHT_HOURS;
+            let message = "";
+
+            let lecNameStr = null;
+            let taNameStr = null;
+
+            if (isTE) {
+              const teachersToUse =
+                slot.teachers && slot.teachers.length > 0
+                  ? slot.teachers
+                  : cls.teachers;
+              const taName = getTeacherNames(teachersToUse, "TA");
+              const lecName = getTeacherNames(teachersToUse, "LEC");
+
+              if (lecName !== "N/A") lecNameStr = lecName;
+              if (taName !== "N/A") taNameStr = taName;
+
+              if (isLate) {
+                message = `Lớp ${cls.name} đã trễ nhận xét`;
+              } else {
+                message = `Lớp ${cls.name} có ${studentsNeedingFeedback.length} học viên cần chấm điểm.`;
+              }
+            } else {
+              if (isLate) {
+                message = `Bạn đã trễ nhận xét buổi học lớp ${cls.name} (đã quá 48h).`;
+              } else {
+                if (role === "TA") {
+                  message = `Bạn cần nhanh chóng nhận xét buổi học lớp ${cls.name} để theo kịp tiến độ.`;
+                } else if (role === "LEC") {
+                  message = `Bạn cần nhận xét hoặc báo TA nhận xét buổi học lớp ${cls.name}.`;
+                } else {
+                  message = `Bạn có ${studentsNeedingFeedback.length} học viên cần chấm điểm buổi học lớp ${cls.name}.`;
+                }
+              }
+            }
+
+            feedbackList.push({
+              classId: cls.id,
+              className: cls.name,
+              date: slot.date,
+              studentCount: studentsNeedingFeedback.length,
+              isLate,
+              message,
+              lec: lecNameStr,
+              ta: taNameStr,
+            });
+          }
+        }
+      });
+    });
+
+    // Sort: late tasks first, then most recent date
+    feedbackList.sort((a, b) => {
+      if (a.isLate && !b.isLate) return -1;
+      if (!a.isLate && b.isLate) return 1;
+      // parse dates to compare
+      const parseDate = (dStr) => {
+        if (dStr.includes("/")) {
+          const [d, m, y] = dStr.split("/").map(Number);
+          return new Date(y, m - 1, d).getTime();
+        }
+        return new Date(dStr).getTime();
+      };
+      return parseDate(b.date) - parseDate(a.date);
+    });
+
+    // Lưu vào cache
+    notificationCache.set(cacheKey, {
+      data: feedbackList,
+      expiresAt: Date.now() + NOTIFICATION_CACHE_TTL,
+    });
+
+    res.json({ success: true, data: feedbackList });
+  } catch (err) {
+    console.error("[Controller] getClassesNotifications failed:", err.message);
+    res.status(500).json({ success: false, error: err.message, data: [] });
   }
 };

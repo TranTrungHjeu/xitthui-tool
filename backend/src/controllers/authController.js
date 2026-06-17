@@ -20,9 +20,17 @@ exports.login = async (req, res) => {
     if (result.mindxUser && result.lmsToken) {
       try {
         const client = new LMSClient(result.lmsToken);
-        teacher = await client.getTeacherByUserId(result.mindxUser.id);
-        teacherId = teacher?.id || null;
+        try {
+          teacher = await client.getTeacherByUserId(result.mindxUser.id);
+          teacherId = teacher?.id || null;
+        } catch (e) {
+          console.warn("[Auth] No teacher record found:", e.message);
+        }
+
         profile = await client.getProfile(result.mindxUser.id);
+
+        // DO NOT override teacherCentres with all centres for TE.
+        // roleResolver.js already sets the correct teacherCentres based on RoleInfo or custom rules.
       } catch (e) {
         console.error(
           "[Auth] Error fetching additional teacher info:",
@@ -58,20 +66,25 @@ exports.login = async (req, res) => {
 
 exports.refreshToken = async (req, res) => {
   const { refreshToken } = req.body;
+
   if (!refreshToken) {
     return res.status(400).json({ error: "Refresh token is required" });
   }
+
   try {
     const refreshed = await lmsAuth.refreshLmsToken(refreshToken);
+
     res.json({
       success: true,
       lmsToken: refreshed.idToken,
       lmsRefreshToken: refreshed.refreshToken,
     });
   } catch (err) {
-    res
-      .status(500)
-      .json({ success: false, error: err.response?.data || err.message });
+    console.error("[Auth] Refresh token error:", err.message);
+    res.status(err.response?.status || 500).json({
+      success: false,
+      error: err.response?.data || err.message,
+    });
   }
 };
 
