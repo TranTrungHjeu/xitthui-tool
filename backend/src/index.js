@@ -83,5 +83,9 @@ async function startApp() {
   }
 }
 
-// Start everything
-startApp();
+// Nếu chạy trên môi trường Vercel, xuất Express app ra thay vì listen()
+if (process.env.VERCEL) {
+  module.exports = app;
+} else {
+  startApp();
+}
