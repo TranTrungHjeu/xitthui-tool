@@ -50,12 +50,11 @@ app.use(
 app.use(express.json({ limit: "200kb" }));
 
 // API Routes
-app.use("/api", authRoutes);
-app.use("/api", classRoutes);
-app.use("/api", sessionRoutes);
-app.use("/api", teacherRoutes);
-app.use("/api/zalo", zaloRoutes); // Dashboard APIs & Webhook
-app.use("/zalo", zaloRoutes); // Legacy Zalo Webhook endpoint (keep to not break existing webhooks)
+app.use("/", authRoutes);
+app.use("/", classRoutes);
+app.use("/", sessionRoutes);
+app.use("/", teacherRoutes);
+app.use("/zalo", zaloRoutes); // Dashboard APIs & Webhook
 
 // Global Error Handler - Prevents server from crashing on unhandled errors
 app.use((err, req, res, next) => {
