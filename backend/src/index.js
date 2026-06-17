@@ -70,7 +70,8 @@ app.use((err, req, res, next) => {
 async function startApp() {
   try {
     // 2.1 Start API Server
-    app.listen(PORT, "127.0.0.1", () => {
+    // Lắng nghe trên "0.0.0.0" thay vì "127.0.0.1" để cho phép các kết nối từ bên ngoài Internet gọi vào API trên VPS
+    app.listen(PORT, "0.0.0.0", () => {
       console.log(`API Server is running on PORT ${PORT}`);
       // Start Zalo Bot polling (reads messages from users)
       startPolling();
