@@ -40,8 +40,29 @@ export interface User {
 export interface Teacher {
   id: string;
   username: string;
+  user: string;
+  firebaseId: string;
   fullName: string;
+  code: string;
+  phoneNumber: string;
   email: string;
+  personalEmail: string;
+  gender: string;
+  dob?: string;
+  imageUrl?: string;
+  address?: string;
+  socialMediaLink?: string;
+  courseLines?: { id: string; name: string }[];
+  courses?: { id: string; name: string; shortName: string }[];
+  notes?: string;
+  isActive: boolean;
+  createdAt: string;
+  createdBy: string;
+  lastModifiedAt: string;
+  lastModifiedBy: string;
+  teacherPoint: number;
+  joinedDate?: string;
+  centres?: Centre[];
 }
 
 export interface Course {

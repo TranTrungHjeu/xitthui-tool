@@ -48,7 +48,8 @@ function LoginPageContent() {
 
         const mindxUser = data.mindxUser || data.user;
         const lmsToken = data.lmsToken || data.token;
-        const lmsRefreshToken = data.lmsRefreshToken || data.refreshToken;
+        const sessionId =
+          data.sessionId || data.lmsRefreshToken || data.refreshToken;
 
         if (!mindxUser || !mindxUser.id) {
           console.error("Login response missing user info:", res);
@@ -58,7 +59,7 @@ function LoginPageContent() {
         }
 
         // Backend đã resolve sẵn fullName, appRoles, appPermissions, teacherId
-        login(mindxUser, lmsToken, lmsRefreshToken);
+        login(mindxUser, lmsToken, sessionId);
 
         router.push("/dashboard");
       } else {

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Toaster } from "sonner";
+import { isKhiemAccount } from "@/lib/utils";
 
 export default function DashboardLayout({
   children,
@@ -181,14 +182,21 @@ export default function DashboardLayout({
       href: "/dashboard/spreadsheet",
       icon: TableProperties,
     },
-    ...(user?.username === "lekhiem2002" ||
-    user?.email === "lekhiem2002@mindx.net.vn"
+    ...(isKhiemAccount(user)
       ? [{ label: "Cài đặt Zalo Bot", href: "/dashboard/zalo-bot", icon: Bot }]
       : []),
     { label: "Cài đặt", href: "/dashboard/settings", icon: Settings },
   ];
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const sessionId = useAuthStore.getState().sessionId;
+    if (sessionId) {
+      try {
+        await authService.logout(sessionId);
+      } catch (err) {
+        console.error("Backend logout failed:", err);
+      }
+    }
     logout();
     router.push("/login");
   };

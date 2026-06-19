@@ -21,6 +21,8 @@ module.exports = {
     gatewayGraphql: process.env.MINDX_LMS_GATEWAY_API,
     origin: process.env.MINDX_LMS_ORIGIN,
     referer: process.env.MINDX_LMS_REFERER,
+    masterUsername: process.env.LMS_MASTER_USERNAME,
+    masterPassword: process.env.LMS_MASTER_PASSWORD,
   },
   reminder: {
     checkInterval: 5,

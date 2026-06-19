@@ -4,9 +4,11 @@ const classController = require("./classController");
 const {
   refreshLmsToken,
   loginWithCredentials,
+  loginWithUsernameFlow,
 } = require("../services/lmsAuth");
 const FirestoreZalo = require("../storage/firestoreZalo");
 const LMSClient = require("../services/lmsClient");
+const { getSessionExamType } = require("../utils/courseConfig");
 
 const COMMANDS = {
   HELP: ["help", "h", "trợ giúp", "?"],
@@ -53,8 +55,8 @@ function getMainMenu() {
     "▪️ report     (rp) ➜ Quét và gửi báo cáo tiến độ nhận xét hiện tại.\n" +
     "▪️ status     (st) ➜ Kiểm tra trạng thái cấu hình và lịch nhắc nhở.\n\n" +
     "👤 LỆNH CÁ NHÂN (Cần đăng nhập):\n" +
-    "▪️ login [email] [mật_khẩu]   ➜ Đăng nhập tài khoản LMS của bạn.\n" +
-    "▪️ logout                (lo) ➜ Đăng xuất khỏi tài khoản.\n" +
+    "▪️ login [email/username] [mật_khẩu] ➜ Đăng nhập tài khoản LMS của bạn.\n" +
+    "▪️ logout                      (lo) ➜ Đăng xuất khỏi tài khoản.\n" +
     "▪️ lichday               (ld) ➜ Xem lịch giảng dạy trong 7 ngày tới.\n" +
     "▪️ chuanhanxet          (cnx) ➜ Danh sách lớp bạn cần hoàn thành nhận xét.\n\n" +
     "💡 Gõ lệnh trực tiếp để trợ lý hỗ trợ bạn nhé!"
@@ -163,7 +165,12 @@ async function handleWebhook(event) {
       );
 
       try {
-        const authData = await loginWithCredentials(username, password);
+        let authData;
+        if (username.includes("@")) {
+          authData = await loginWithCredentials(username, password);
+        } else {
+          authData = await loginWithUsernameFlow(username, password);
+        }
 
         // Lưu session vào Firestore
         await FirestoreZalo.saveUserSession(userId, authData);
@@ -218,8 +225,8 @@ async function handleWebhook(event) {
           userId,
           `⚠️ CHƯA ĐĂNG NHẬP\n\n` +
             `Bạn cần đăng nhập để sử dụng các tính năng cá nhân.\n\n` +
-            `🔑 Cú pháp:\nlogin <email> <mật_khẩu>\n\n` +
-            `📝 Ví dụ:\nlogin teacher@mindx.edu.vn 123456\n\n` +
+            `🔑 Cú pháp:\nlogin <email/username> <mật_khẩu>\n\n` +
+            `📝 Ví dụ:\nlogin teacher@mindx.edu.vn 123456\nhoặc: login teacher_username 123456\n\n` +
             `💡 Sau khi đăng nhập, bạn có thể sử dụng:\n` +
             `• ld  → Xem lịch dạy\n` +
             `• cnx → Xem lớp cần nhận xét`,
@@ -265,8 +272,8 @@ async function handlePersonalCommand(userId, command, session) {
       const end = new Date(now);
       end.setDate(now.getDate() + 7);
 
-      const dateGte = now.toISOString().split("T")[0]; // YYYY-MM-DD
-      const dateLte = end.toISOString().split("T")[0];
+      const dateGte = now.toISOString();
+      const dateLte = end.toISOString();
 
       let schedules = [];
       try {
@@ -300,15 +307,77 @@ async function handlePersonalCommand(userId, command, session) {
       }
 
       if (!schedules || schedules.length === 0) {
+        const fromStr = now.toLocaleDateString("vi-VN", {
+          timeZone: "Asia/Ho_Chi_Minh",
+        });
+        const toStr = end.toLocaleDateString("vi-VN", {
+          timeZone: "Asia/Ho_Chi_Minh",
+        });
         await zaloClient.sendText(
           userId,
-          `✨ Tuyệt vời! Bạn không có lịch dạy nào từ ${dateGte} đến ${dateLte}.`,
+          `✨ Tuyệt vời! Bạn không có lịch dạy nào từ ${fromStr} đến ${toStr}.`,
         );
         return;
       }
 
       // Sắp xếp lịch dạy theo thời gian tăng dần (sớm nhất lên đầu)
       schedules.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+
+      // Lấy danh sách classId duy nhất để gọi API lấy thông tin buổi (slots.index) chính xác
+      const uniqueClassIds = new Set();
+      schedules.forEach((s) => {
+        if (s.type === "CLASS_SESSION" && s.classSite?.class?.id) {
+          uniqueClassIds.add(s.classSite.class.id);
+        }
+      });
+
+      const classDetailsMap = new Map();
+      await Promise.all(
+        Array.from(uniqueClassIds).map(async (classId) => {
+          try {
+            const details = await lmsClient.getClassById(classId);
+            if (details) {
+              classDetailsMap.set(classId, details);
+            }
+          } catch (err) {
+            console.error(
+              `[ZaloBot] Failed to fetch class details for ${classId}:`,
+              err.message,
+            );
+          }
+        }),
+      );
+
+      // Tính số buổi theo từng lớp để hiển thị "Buổi X/Y" trong lịch Zalo
+      const classSessionIndexMap = new Map();
+      const classTotalSessionsMap = new Map();
+
+      schedules
+        .filter((s) => s.type === "CLASS_SESSION" && s.classSite?.class?.name)
+        .forEach((s) => {
+          const className = s.classSite.class.name;
+          if (!classSessionIndexMap.has(className)) {
+            classSessionIndexMap.set(className, []);
+          }
+          classSessionIndexMap.get(className).push(s);
+
+          const classDetails = classDetailsMap.get(s.classSite.class.id);
+          const totalSessions =
+            classDetails?.numberOfSessions ||
+            s.classSite?.class?.numberOfSessions;
+          if (totalSessions && !classTotalSessionsMap.has(className)) {
+            classTotalSessionsMap.set(className, Number(totalSessions));
+          }
+        });
+
+      for (const [
+        className,
+        classSchedules,
+      ] of classSessionIndexMap.entries()) {
+        classSchedules.sort(
+          (a, b) => new Date(a.startTime) - new Date(b.startTime),
+        );
+      }
 
       let msg = `📅 LỊCH GIẢNG DẠY (7 NGÀY TỚI)\n\n`;
 
@@ -333,6 +402,9 @@ async function handlePersonalCommand(userId, command, session) {
           dateKey = dateObj.toLocaleDateString("en-GB", {
             timeZone: "Asia/Ho_Chi_Minh",
           }); // DD/MM/YYYY
+        } else {
+          // Fallback if date is invalid, though it shouldn't be with ISO strings
+          dateKey = s.date ? s.date.split("T")[0] : dateKey;
         }
 
         const fullDateKey = dayOfWeek ? `${dayOfWeek} • ${dateKey}` : dateKey;
@@ -348,7 +420,93 @@ async function handlePersonalCommand(userId, command, session) {
         items.forEach((s) => {
           const start = formatTime(s.startTime);
           const end = formatTime(s.endTime);
-          const className = s.classSite?.class?.name || s.title || "Không rõ";
+          let displayName = s.classSite?.class?.name || s.title || "Không rõ";
+          if (s.type === "CLASS_SESSION" && s.classSite?.class?.name) {
+            const className = s.classSite.class.name;
+            const classId = s.classSite.class.id;
+
+            let sessionInfo = "";
+            let computedSession = null;
+
+            // Lấy chính xác buổi số của lớp học từ slots của API getClassById
+            if (classId) {
+              const classDetails = classDetailsMap.get(classId);
+              if (classDetails && classDetails.slots) {
+                const slot = classDetails.slots.find(
+                  (slot) =>
+                    slot.startTime === s.startTime &&
+                    slot.endTime === s.endTime,
+                );
+                if (slot && typeof slot.index === "number") {
+                  // API trả về index bắt đầu từ 0 (0-based)
+                  computedSession = slot.index + 1;
+                }
+              }
+            }
+
+            if (computedSession !== null) {
+              const examType = getSessionExamType(className, computedSession);
+              if (examType === "checkpoint1") sessionInfo = "Checkpoint 1";
+              else if (examType === "checkpoint2") sessionInfo = "Checkpoint 2";
+              else if (examType === "demo") sessionInfo = "Demo";
+              else {
+                sessionInfo = `Buổi ${computedSession}`;
+              }
+            }
+
+            // Fallback 1: Parse từ title
+            if (!sessionInfo && s.title) {
+              const titleLower = s.title.toLowerCase();
+              if (titleLower.includes("checkpoint")) {
+                const match = s.title.match(/checkpoint\s*\d*/i);
+                sessionInfo = match ? match[0] : "Checkpoint";
+              } else if (titleLower.includes("demo")) {
+                const match = s.title.match(/demo\s*\d*/i);
+                sessionInfo = match ? match[0] : "Demo";
+              } else {
+                const matchBuoi = s.title.match(/buổi\s*(\d+)(?:\/\d+)?/i);
+                if (matchBuoi) {
+                  sessionInfo = `Buổi ${matchBuoi[1]}`;
+                } else if (s.title !== className) {
+                  const cleaned = s.title
+                    .replace(className, "")
+                    .replace(/^[\s-:]+|[\s-:]+$/g, "");
+                  if (cleaned) sessionInfo = cleaned;
+                }
+              }
+            }
+
+            // Fallback 2: Parse từ description
+            if (!sessionInfo && s.description) {
+              const matchSessionIndex = s.description.match(
+                /(?:buổi|lesson|session)\s*(\d+)/i,
+              );
+              if (matchSessionIndex && matchSessionIndex[1]) {
+                const sessionNum = parseInt(matchSessionIndex[1], 10);
+                const examType = getSessionExamType(className, sessionNum);
+                if (examType === "checkpoint1") sessionInfo = "Checkpoint 1";
+                else if (examType === "checkpoint2")
+                  sessionInfo = "Checkpoint 2";
+                else if (examType === "demo") sessionInfo = "Demo";
+                else {
+                  sessionInfo = `Buổi ${sessionNum}`;
+                }
+              }
+            }
+
+            // Fallback 3: Lấy luôn title nếu khác class name mà chưa clean ra được
+            if (!sessionInfo && s.title && s.title !== className) {
+              let cleaned = s.title
+                .replace(className, "")
+                .replace(/^[\s-:]+|[\s-:]+$/g, "");
+              cleaned = cleaned.replace(/buổi\s*(\d+)(?:\/\d+)?/i, "Buổi $1");
+              sessionInfo = cleaned;
+            }
+
+            displayName = sessionInfo
+              ? `${className} (${sessionInfo})`
+              : className;
+          }
 
           // Dùng icon đồng hồ dựa trên giờ bắt đầu nếu có thể, mặc định dùng 🕗
           let timeIcon = "🕗";
@@ -359,7 +517,7 @@ async function handlePersonalCommand(userId, command, session) {
           else if (start.startsWith("18:") || start.startsWith("19:"))
             timeIcon = "🕕";
 
-          msg += `📚 ${className}\n${timeIcon} ${start} - ${end}\n\n`;
+          msg += `📚 ${displayName}\n${timeIcon} ${start} - ${end}\n\n`;
         });
       }
 

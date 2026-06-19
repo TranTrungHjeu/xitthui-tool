@@ -18,6 +18,9 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import CatLoader from "@/components/CatLoader";
+import { useMinLoading } from "@/hooks/useMinLoading";
+import { isKhiemAccount } from "@/lib/utils";
 
 export default function ZaloBotSettingsPage() {
   const { user, token } = useAuthStore();
@@ -26,14 +29,13 @@ export default function ZaloBotSettingsPage() {
   const [config, setConfig] = useState<ZaloConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const showLoading = useMinLoading(loading, 500);
   const [triggering, setTriggering] = useState(false);
   const [newTime, setNewTime] = useState("");
   const [reminderTimes, setReminderTimes] = useState<string[]>([]);
 
-  const isKhiem =
-    user?.username === "lekhiem2002" ||
-    user?.email === "lekhiem2002@mindx.net.vn" ||
-    user?.email === "lethekhiem2002@mindx.net.vn";
+  const isKhiem = isKhiemAccount(user);
 
   // Guard access
   useEffect(() => {
@@ -156,10 +158,10 @@ export default function ZaloBotSettingsPage() {
     }
   };
 
-  if (loading) {
+  if (showLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <RefreshCw className="w-10 h-10 text-primary animate-spin" />
+        <CatLoader />
       </div>
     );
   }

@@ -50,6 +50,21 @@ export const classService = {
     });
     return response.data.data;
   },
+  syncNotifications: async (_token: string, roles?: string[]): Promise<any> => {
+    const response = await api.post("/classes/sync-notifications", {
+      roles,
+    });
+    return response.data;
+  },
+  sendNotificationEmails: async (
+    _token: string,
+    roles?: string[],
+  ): Promise<any> => {
+    const response = await api.post("/classes/send-notification-emails", {
+      roles,
+    });
+    return response.data;
+  },
   getClassesDetails: async (
     _token: string,
     classIds: string[],
@@ -93,6 +108,41 @@ export const classService = {
       classId,
       studentId,
       rosterToApiMap,
+    });
+    return response.data.data;
+  },
+  getStudents: async (
+    _token: string, // Unused as interceptor handles it
+    teacherId: string,
+    centreIds?: string[],
+    roles?: string[],
+    options?: {
+      statusIn?: string[];
+      page?: number;
+      limit?: number;
+      search?: string;
+      centre?: string;
+      classId?: string;
+    },
+  ): Promise<{ data: any[]; meta: any }> => {
+    const response = await api.post("/classes/students", {
+      teacherId,
+      centreIds,
+      roles,
+      statusIn: options?.statusIn,
+      page: options?.page,
+      limit: options?.limit,
+      search: options?.search,
+      centre: options?.centre,
+      classId: options?.classId,
+    });
+    return { data: response.data.data, meta: response.data.meta };
+  },
+  syncStudents: async (
+    roles?: string[],
+  ): Promise<{ success: boolean; message: string; error?: string }> => {
+    const response = await api.post("/classes/sync-students", {
+      roles,
     });
     return response.data;
   },

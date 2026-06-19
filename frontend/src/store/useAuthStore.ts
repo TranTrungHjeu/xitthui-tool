@@ -5,14 +5,14 @@ import type { User } from "@/types";
 interface AuthState {
   user: User | null;
   token: string | null;
-  refreshToken: string | null;
+  sessionId: string | null;
   isAuthenticated: boolean;
   classes: any[] | null;
   lastClassesFetch: number | null;
   classDetailsById: Record<string, any>;
   lastClassDetailsFetch: Record<string, number>;
-  login: (user: User, token: string, refreshToken: string) => void;
-  updateToken: (token: string, refreshToken?: string) => void;
+  login: (user: User, token: string, sessionId: string) => void;
+  updateToken: (token: string, sessionId?: string) => void;
   logout: () => void;
   setTeacherId: (teacherId: string) => void;
   setClasses: (classes: any[]) => void;
@@ -25,29 +25,29 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       token: null,
-      refreshToken: null,
+      sessionId: null,
       isAuthenticated: false,
       classes: null,
       lastClassesFetch: null,
       classDetailsById: {},
       lastClassDetailsFetch: {},
-      login: (user, token, refreshToken) =>
+      login: (user, token, sessionId) =>
         set({
           user,
           token,
-          refreshToken,
+          sessionId,
           isAuthenticated: true,
         }),
-      updateToken: (token, refreshToken) =>
+      updateToken: (token, sessionId) =>
         set((state) => ({
           token,
-          refreshToken: refreshToken || state.refreshToken,
+          sessionId: sessionId || state.sessionId,
         })),
       logout: () =>
         set({
           user: null,
           token: null,
-          refreshToken: null,
+          sessionId: null,
           isAuthenticated: false,
           classes: null,
           lastClassesFetch: null,

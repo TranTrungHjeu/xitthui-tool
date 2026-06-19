@@ -91,24 +91,24 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const { refreshToken, logout } = useAuthStore.getState();
+      const { sessionId, logout } = useAuthStore.getState();
 
-      if (!refreshToken) {
-        logout(); // Log out if no refresh token is available
+      if (!sessionId) {
+        logout(); // Log out if no session ID is available
         isRefreshing = false;
-        processQueue(new Error("No refresh token available"), null); // Reject pending requests
+        processQueue(new Error("No session ID available"), null); // Reject pending requests
         return Promise.reject(error);
       }
 
       try {
         const response = await axios.post(
           `${process.env.NEXT_PUBLIC_SERVER_API_URL}/refresh-token`,
-          { refreshToken },
+          { sessionId },
         );
 
         if (response.data.success) {
-          const { lmsToken, lmsRefreshToken } = response.data;
-          useAuthStore.getState().updateToken(lmsToken, lmsRefreshToken);
+          const { lmsToken, sessionId: newSessionId } = response.data;
+          useAuthStore.getState().updateToken(lmsToken, newSessionId);
 
           processQueue(null, lmsToken);
 

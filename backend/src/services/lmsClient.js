@@ -341,6 +341,9 @@ class LMSClient {
             }
             teachers {
               teacher {
+                id
+                email
+                personalEmail
                 fullName
               }
               role {
@@ -353,6 +356,7 @@ class LMSClient {
             teacher {
               id
               email
+              personalEmail
               fullName
             }
             role {
@@ -397,9 +401,9 @@ class LMSClient {
       return [];
     }
 
-    // Cần giảm batchSize để tránh lỗi 502 từ gateway do quá tải
     const results = [];
-    const batchSize = 3;
+    // Tăng batch size để lấy dữ liệu nhanh hơn, bỏ delay cứng
+    const batchSize = 6;
 
     for (let i = 0; i < classIds.length; i += batchSize) {
       const batch = classIds.slice(i, i + batchSize);
@@ -409,27 +413,36 @@ class LMSClient {
 
       const batchResults = await Promise.all(
         batch.map(async (classId) => {
-          try {
-            // Delay nhẹ các request trong cùng 1 batch để tránh spike đột ngột
-            await new Promise((r) => setTimeout(r, Math.random() * 500));
-            return await this.getClassByIdForNotifications(classId);
-          } catch (err) {
-            // Ném ngược lại nếu là lỗi xác thực để luồng cha catch được
-            if (
-              err.message.includes("Authentication failed") ||
-              err.message.includes("auth") ||
-              err.response?.status === 401 ||
-              err.response?.status === 403
-            ) {
-              throw err;
+          let retries = 2;
+          while (retries >= 0) {
+            try {
+              return await this.getClassByIdForNotifications(classId);
+            } catch (err) {
+              // Lỗi xác thực thì văng ra ngoài ngay
+              if (
+                err.message.includes("Authentication failed") ||
+                err.message.includes("auth") ||
+                err.response?.status === 401 ||
+                err.response?.status === 403
+              ) {
+                throw err;
+              }
+              // Lỗi mạng hoặc 502/429 => Retry
+              if (retries > 0) {
+                console.log(
+                  `[LMSClient] Retrying fetch for class ${classId} due to error: ${err.message}. Retries left: ${retries}`,
+                );
+                await new Promise((r) => setTimeout(r, 500)); // Đợi nhẹ 0.5s trước khi retry
+                retries--;
+              } else {
+                return null;
+              }
             }
-            return null;
           }
+          return null;
         }),
       );
       results.push(...batchResults);
-      // Đợi 1 giây giữa các batch
-      await new Promise((r) => setTimeout(r, 1000));
     }
 
     return results.filter(Boolean);
@@ -874,14 +887,12 @@ class LMSClient {
     );
     try {
       const query = `
-        query findTeacherSchedule($dateGte: String!, $dateLte: String!, $type: [String], $teacherId: String!, $slotIdNin: [String], $officeHourIdNin: [String]) {
+        query findTeacherSchedule($dateGte: String!, $dateLte: String!, $type: [String], $teacherId: String!) {
           findTeacherSchedule(payload: {
             date_gte: $dateGte,
             date_lte: $dateLte,
             type_in: $type,
-            teacherId_eq: $teacherId,
-            slotId_nin: $slotIdNin,
-            officeHourId_nin: $officeHourIdNin
+            teacherId_eq: $teacherId
           }) {
             data {
               id
@@ -893,12 +904,12 @@ class LMSClient {
               endTime
               type
               classSite {
-                class { name }
-                centre { name }
+                class { id name }
+                centre { id name }
               }
               officeHour {
                 type
-                centre { name }
+                centre { id name }
               }
             }
           }
@@ -940,6 +951,109 @@ class LMSClient {
     }
   }
 
+  async getTeacherSchedulesBatch(teacherIds, dateGte, dateLte) {
+    console.log(
+      `[LMSClient] getTeacherSchedulesBatch start for ${teacherIds.length} teachers`,
+    );
+    if (!teacherIds || teacherIds.length === 0) return [];
+
+    try {
+      const allResults = [];
+      const batchSize = 20;
+
+      for (let i = 0; i < teacherIds.length; i += batchSize) {
+        const chunk = teacherIds.slice(i, i + batchSize);
+
+        const queries = chunk
+          .map((id) => {
+            const safeId = id.toString().replace(/[^a-zA-Z0-9]/g, "");
+            return `
+            t_${safeId}: findTeacherSchedule(payload: {
+              date_gte: $dateGte,
+              date_lte: $dateLte,
+              type_in: $type,
+              teacherId_eq: "${id}"
+            }) {
+              data {
+                id
+                teacherId
+                title
+                description
+                date
+                startTime
+                endTime
+                type
+                classSite {
+                  class { id name }
+                  centre { id name }
+                }
+                officeHour {
+                  type
+                  centre { id name }
+                }
+              }
+            }
+          `;
+          })
+          .join("\n");
+
+        const query = `
+          query findMultipleTeacherSchedules($dateGte: String!, $dateLte: String!, $type: [String]) {
+            ${queries}
+          }
+        `;
+
+        const variables = {
+          dateGte,
+          dateLte,
+          type: ["CLASS_SESSION", "OFFICE_HOURS"],
+        };
+
+        const res = await axios.post(
+          this.gatewayUrl,
+          {
+            operationName: "findMultipleTeacherSchedules",
+            query,
+            variables,
+          },
+          { headers: this.headers },
+        );
+
+        if (res.data.errors) {
+          const failedPaths = res.data.errors
+            .map((err) => err.path?.[0])
+            .filter(Boolean);
+          console.warn(
+            `[LMSClient] getTeacherSchedulesBatch partial errors for ${res.data.errors.length} teachers. Failed paths (Forbidden, etc.):`,
+            failedPaths.join(", "),
+          );
+        }
+
+        const data = res.data.data || {};
+        Object.keys(data).forEach((key) => {
+          const list = data[key]?.data || [];
+          // Extract the original teacher ID from the alias (e.g., t_6a2a...)
+          const actualTeacherId = key.replace(/^t_/, "");
+
+          list.forEach((sch) => {
+            // Guarantee teacherId is populated, because LMS might omit it
+            sch.teacherId = sch.teacherId || actualTeacherId;
+          });
+
+          allResults.push(...list);
+        });
+      }
+
+      return allResults;
+    } catch (err) {
+      console.error(
+        `[LMSClient] getTeacherSchedulesBatch general failure:`,
+        err.message,
+      );
+      return [];
+    }
+  }
+
   async getTeachers(
     centers = ["6443460f94300678908f7974"],
     pageIndex = 0,
@@ -965,6 +1079,8 @@ class LMSClient {
           }) {
             data {
               id
+              handleScore
+              hourlyRate
               username
               user
               firebaseId
@@ -974,22 +1090,56 @@ class LMSClient {
               email
               personalEmail
               gender
+              dob
+              imageUrl
+              address
+              socialMediaLink
+              courseLines {
+                id
+                name
+                __typename
+              }
+              courses {
+                id
+                name
+                shortName
+                courseTopic {
+                  id
+                  name
+                  __typename
+                }
+                __typename
+              }
+              notes
+              isActive
+              createdAt
+              createdBy
+              lastModifiedAt
+              lastModifiedBy
+              teacherPoint
+              joinedDate
+              centres {
+                id
+                name
+                __typename
+              }
+              __typename
             }
             pagination {
+              type
               total
+              __typename
             }
+            __typename
           }
         }
       `;
       const variables = {
-        type: "OFFSET",
         search: "",
-        isActive: true,
         pageIndex,
         itemsPerPage,
         orderBy: "createdAt_desc",
         centers,
-        teacherPointRange: [null, null],
         joinedDate: [null, null],
       };
 
@@ -1012,7 +1162,7 @@ class LMSClient {
         throw new Error(res.data.errors[0].message);
       }
 
-      return res.data.data?.teachers?.data || [];
+      return res.data.data?.teachers || { data: [], pagination: { total: 0 } };
     } catch (err) {
       console.error(
         "[LMSClient] getTeachers failed:",

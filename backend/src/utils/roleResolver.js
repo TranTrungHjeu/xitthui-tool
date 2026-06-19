@@ -72,7 +72,6 @@ function resolveUserRolesAndProfile(baseUser, roleInfos = []) {
   const isKheim =
     baseUser.username === "lekhiem2002" ||
     baseUser.email === "lekhiem2002@mindx.net.vn" ||
-    baseUser.email === "lethekhiem2002@mindx.net.vn" ||
     baseUser.username === "I3470" ||
     baseUser.email === "khiemlt@mindx.com.vn";
 

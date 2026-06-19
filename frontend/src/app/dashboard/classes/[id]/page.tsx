@@ -51,11 +51,13 @@ import {
   BarChart3,
   Users,
 } from "lucide-react";
+import CatLoader from "../../../../components/CatLoader";
 import EvaluationDialog from "../../../../components/EvaluationDialog";
 import StatisticsTab from "./StatisticsTab";
 import { useRouter } from "next/navigation";
 import { formatDate, formatTime } from "../../../../lib/date";
 import { shouldShowGrading } from "../../../../lib/class";
+import { useMinLoading } from "@/hooks/useMinLoading";
 
 export default function ClassDetailsPage({
   params,
@@ -68,6 +70,8 @@ export default function ClassDetailsPage({
   const [classData, setClassData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeSlotIndex, setActiveSlotIndex] = useState<number>(0);
+
+  const showLoading = useMinLoading(isLoading, 1000);
   const [editingStudent, setEditingStudent] = useState<any>(null);
 
   const processClassData = (data: any) => {
@@ -335,10 +339,10 @@ export default function ClassDetailsPage({
     navigator.clipboard.writeText(cleanText);
   };
 
-  if (isLoading) {
+  if (showLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center h-full min-h-[60vh]">
+        <CatLoader />
       </div>
     );
   }

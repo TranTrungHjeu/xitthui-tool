@@ -1,5 +1,8 @@
+const { v4: uuidv4 } = require("uuid");
 const lmsAuth = require("../services/lmsAuth");
 const LMSClient = require("../services/lmsClient");
+const FirestoreNotification = require("../storage/firestoreNotification");
+const FirestoreSession = require("../storage/firestoreSession");
 
 exports.login = async (req, res) => {
   let { email, password } = req.body;
@@ -16,6 +19,8 @@ exports.login = async (req, res) => {
     let teacherId = null;
     let profile = null;
     let teacher = null;
+    let centreIds = [];
+    let roles = [];
 
     if (result.mindxUser && result.lmsToken) {
       try {
@@ -29,6 +34,18 @@ exports.login = async (req, res) => {
 
         profile = await client.getProfile(result.mindxUser.id);
 
+        // Lưu active token để dùng cho background job
+        roles = result.mindxUser.roles || [];
+        centreIds =
+          teacher?.centres?.map((c) => (typeof c === "object" ? c.id : c)) ||
+          [];
+        await FirestoreNotification.saveActiveToken(
+          teacherId || result.mindxUser.id,
+          result.lmsToken,
+          centreIds,
+          roles,
+        );
+
         // DO NOT override teacherCentres with all centres for TE.
         // roleResolver.js already sets the correct teacherCentres based on RoleInfo or custom rules.
       } catch (e) {
@@ -39,22 +56,41 @@ exports.login = async (req, res) => {
       }
     }
 
+    // Tạo centralized session lưu vào Firestore
+    const sessionId = uuidv4();
+    await FirestoreSession.createSession({
+      sessionId,
+      userId: result.mindxUser.id,
+      teacherId,
+      lmsRefreshToken: result.lmsRefreshToken || "",
+      userAgent: req.headers["user-agent"] || "unknown",
+      centreIds,
+      roles,
+    });
+
+    // Trả về sessionId thay vì lmsRefreshToken gốc
+    const responseData = {
+      ...result,
+      teacherId,
+      teacher,
+      profile,
+      sessionId, // thay thế cho lmsRefreshToken
+      mindxUser: {
+        ...result.mindxUser,
+        firstName: profile?.firstName || result.mindxUser?.firstName,
+        lastName: profile?.lastName || result.mindxUser?.lastName,
+        username: profile?.username || result.mindxUser?.username,
+        givenName: profile?.givenName || result.mindxUser?.givenName,
+        fullName: teacher?.fullName || result.mindxUser?.fullName,
+      },
+    };
+
+    // Loại bỏ lmsRefreshToken gốc khỏi response để tăng bảo mật
+    delete responseData.lmsRefreshToken;
+
     res.json({
       success: true,
-      data: {
-        ...result,
-        teacherId,
-        teacher,
-        profile,
-        mindxUser: {
-          ...result.mindxUser,
-          firstName: profile?.firstName || result.mindxUser?.firstName,
-          lastName: profile?.lastName || result.mindxUser?.lastName,
-          username: profile?.username || result.mindxUser?.username,
-          givenName: profile?.givenName || result.mindxUser?.givenName,
-          fullName: teacher?.fullName || result.mindxUser?.fullName,
-        },
-      },
+      data: responseData,
     });
   } catch (err) {
     res.status(500).json({
@@ -65,25 +101,78 @@ exports.login = async (req, res) => {
 };
 
 exports.refreshToken = async (req, res) => {
-  const { refreshToken } = req.body;
+  const { sessionId } = req.body;
 
-  if (!refreshToken) {
-    return res.status(400).json({ error: "Refresh token is required" });
+  if (!sessionId) {
+    return res.status(400).json({ error: "Session ID is required" });
   }
 
   try {
-    const refreshed = await lmsAuth.refreshLmsToken(refreshToken);
+    // 1. Kiểm tra session từ Firestore
+    const session = await FirestoreSession.getSession(sessionId);
+    if (!session || !session.isValid) {
+      return res.status(401).json({
+        success: false,
+        error: "Session is invalid or has been revoked",
+      });
+    }
+
+    if (!session.lmsRefreshToken) {
+      return res.status(401).json({
+        success: false,
+        error: "No refresh token associated with this session",
+      });
+    }
+
+    // 2. Refresh token qua Firebase
+    const refreshed = await lmsAuth.refreshLmsToken(session.lmsRefreshToken);
+
+    // 3. Cập nhật lmsRefreshToken mới vào Firestore session
+    await FirestoreSession.updateSession(sessionId, {
+      lmsRefreshToken: refreshed.refreshToken,
+    });
+
+    // 4. Đồng bộ active token mới của user vào Firestore để các task chạy nền nếu có dùng thì dùng
+    await FirestoreNotification.saveActiveToken(
+      session.teacherId || session.userId,
+      refreshed.idToken,
+      session.centreIds || [],
+      session.roles || [],
+    );
 
     res.json({
       success: true,
       lmsToken: refreshed.idToken,
-      lmsRefreshToken: refreshed.refreshToken,
+      // Trả lại sessionId cho client để giữ tính nhất quán
+      sessionId: sessionId,
     });
   } catch (err) {
     console.error("[Auth] Refresh token error:", err.message);
     res.status(err.response?.status || 500).json({
       success: false,
       error: err.response?.data || err.message,
+    });
+  }
+};
+
+exports.logout = async (req, res) => {
+  const { sessionId } = req.body;
+
+  if (!sessionId) {
+    return res.status(400).json({ error: "Session ID is required" });
+  }
+
+  try {
+    await FirestoreSession.revokeSession(sessionId);
+    res.json({
+      success: true,
+      message: "Successfully logged out",
+    });
+  } catch (err) {
+    console.error("[Auth] Logout error:", err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message,
     });
   }
 };

@@ -5,8 +5,12 @@ export const authService = {
     const response = await api.post("/login", credentials);
     return response.data;
   },
-  refreshToken: async (refreshToken: string) => {
-    const response = await api.post("/refresh-token", { refreshToken });
+  refreshToken: async (sessionId: string) => {
+    const response = await api.post("/refresh-token", { sessionId });
+    return response.data;
+  },
+  logout: async (sessionId: string) => {
+    const response = await api.post("/logout", { sessionId });
     return response.data;
   },
   testToken: async (token: string, userId: string) => {

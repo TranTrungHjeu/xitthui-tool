@@ -14,7 +14,12 @@ export const teacherService = {
         pageIndex,
         itemsPerPage,
       });
-      return response.data;
+      return response.data as {
+        success: boolean;
+        data: any[];
+        pagination: { total: number };
+        error?: string;
+      };
     } catch (error) {
       console.error("Error fetching teachers:", error);
       throw error;

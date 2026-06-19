@@ -20,8 +20,11 @@ const classRoutes = require("./routes/classRoutes");
 const sessionRoutes = require("./routes/sessionRoutes");
 const teacherRoutes = require("./routes/teacherRoutes");
 const zaloRoutes = require("./routes/zaloRoutes");
+const spreadsheetRoutes = require("./routes/spreadsheetRoutes");
 const { startScheduler } = require("./services/zaloScheduler");
 const { startPolling } = require("./services/zaloPolling");
+const NotificationScheduler = require("./services/notificationScheduler");
+const StudentScheduler = require("./services/studentScheduler");
 
 // ---- 1. Express API Server Setup ----
 const app = express();
@@ -55,6 +58,7 @@ app.use("/", classRoutes);
 app.use("/", sessionRoutes);
 app.use("/", teacherRoutes);
 app.use("/zalo", zaloRoutes); // Dashboard APIs & Webhook
+app.use("/spreadsheet", spreadsheetRoutes);
 
 // Global Error Handler - Prevents server from crashing on unhandled errors
 app.use((err, req, res, next) => {
@@ -76,6 +80,12 @@ async function startApp() {
       startPolling();
       // Start Zalo reminder scheduler (sends proactive reminders)
       startScheduler();
+
+      // Start Notification Background Sync
+      NotificationScheduler.start();
+
+      // Start Student Background Sync
+      StudentScheduler.start();
     });
   } catch (error) {
     console.error("Failed to start API server:", error);

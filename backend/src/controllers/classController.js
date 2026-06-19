@@ -1,5 +1,9 @@
 const LMSClient = require("../services/lmsClient");
 const ClassCacheService = require("../services/classCache");
+const FirestoreNotification = require("../storage/firestoreNotification");
+const NotificationScheduler = require("../services/notificationScheduler");
+const FirestoreStudent = require("../storage/firestoreStudent");
+const StudentScheduler = require("../services/studentScheduler");
 const { VertexAI } = require("@google-cloud/vertexai");
 
 const vertexAI = new VertexAI({
@@ -30,8 +34,10 @@ exports.getClasses = async (req, res) => {
       status = "all",
     } = req.body;
 
+    const isTE = Array.isArray(roles) && roles.includes("TE");
+
     if (!token) return res.status(400).json({ error: "Token is required" });
-    if (!teacherId)
+    if (!isTE && !teacherId)
       return res.status(400).json({ error: "Teacher ID is required" });
 
     // Lấy toàn bộ danh sách lớp (sử dụng cache)
@@ -483,12 +489,18 @@ exports.getClassesNotifications = async (req, res) => {
     }
     const { teacherId, centreIds, roles, statusIn, email } = req.body;
 
+    const isTE = Array.isArray(roles) && roles.includes("TE");
+
+    const parsedCentreIds = Array.isArray(centreIds)
+      ? centreIds.map((c) => (typeof c === "object" ? c.id : c))
+      : centreIds;
+
     if (!token) return res.status(400).json({ error: "Token is required" });
-    if (!teacherId)
+    if (!isTE && !teacherId)
       return res.status(400).json({ error: "Teacher ID is required" });
 
     // Kiểm tra cache trước
-    const centresKey = (centreIds || []).sort().join("-");
+    const centresKey = (parsedCentreIds || []).sort().join("-");
     const rolesKey = (roles || []).sort().join("-");
     const statusKey = statusIn ? statusIn.sort().join(",") : "DEFAULT";
     const cacheKey = `notif_${teacherId || "no_id"}_${centresKey}_${rolesKey}_${statusKey}`;
@@ -501,176 +513,162 @@ exports.getClassesNotifications = async (req, res) => {
       return res.json({ success: true, data: cachedData.data });
     }
 
-    // 1. Fetch running classes from cache/API
-    const allEnrichedClasses = await ClassCacheService.getEnrichedClasses(
-      token,
-      teacherId,
-      centreIds,
-      roles,
-      statusIn || ["OPEN", "RUNNING"],
-    );
-
-    // Filter to ensure only running classes
-    const runningClasses = allEnrichedClasses.filter((cls) =>
-      ["OPEN", "RUNNING"].includes(cls.status),
-    );
-
-    const classIds = runningClasses.map((c) => c.id);
-
-    if (classIds.length === 0) {
-      return res.json({ success: true, data: [] });
-    }
-
-    // 2. Fetch details for these classes (includes full slots and studentAttendance) - Sử dụng API tối ưu hoá payload & concurrency
-    const client = new LMSClient(token);
-    const detailedClasses = [];
-    const missingClassIds = [];
-
-    classIds.forEach((id) => {
-      const cached = classNotificationDetailsCache.get(id);
-      if (cached && cached.expiresAt > Date.now()) {
-        detailedClasses.push(cached.data);
-      } else {
-        missingClassIds.push(id);
-      }
-    });
-
-    if (missingClassIds.length > 0) {
-      const fetchedDetails =
-        await client.getClassesNotificationsDetails(missingClassIds);
-      fetchedDetails.forEach((cls) => {
-        if (cls && cls.id) {
-          classNotificationDetailsCache.set(cls.id, {
-            data: cls,
-            expiresAt: Date.now() + CLASS_NOTIF_DETAILS_TTL,
-          });
-          detailedClasses.push(cls);
-        }
-      });
-    }
-
-    // 3. Compute notifications
-    const now = new Date();
-    const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
-    const feedbackList = [];
-    const isTE = Array.isArray(roles) && roles.includes("TE");
-
-    const getTeacherNames = (teachersList, roleShortName) => {
-      if (!Array.isArray(teachersList)) return "N/A";
-      const matched = teachersList.filter(
-        (t) => t.role?.shortName === roleShortName && t.isActive !== false,
+    console.time("Fetch Notifications");
+    let tickets = [];
+    if (isTE) {
+      tickets = await FirestoreNotification.getTicketsForTE(parsedCentreIds);
+    } else {
+      // GIÁO VIÊN THƯỜNG -> GỌI REALTIME
+      const allEnrichedClasses = await ClassCacheService.getEnrichedClasses(
+        token,
+        teacherId,
+        parsedCentreIds,
+        roles,
+        ["OPEN", "RUNNING"],
       );
-      if (matched.length > 0) {
-        return matched
-          .map((t) => t.teacher?.fullName)
-          .filter(Boolean)
-          .join(", ");
-      }
-      return "N/A";
-    };
-
-    detailedClasses.forEach((cls) => {
-      if (!cls || !cls.slots || cls.slots.length === 0) return;
-
-      // Determine user's role in this class
-      const currentTeacher = cls.teachers?.find(
-        (t) =>
-          (t.teacher?.id && t.teacher.id === teacherId) ||
-          (t.teacher?.email && t.teacher.email === email),
+      const runningClasses = allEnrichedClasses.filter((cls) =>
+        ["OPEN", "RUNNING"].includes(cls.status),
       );
-      const role = currentTeacher?.role?.shortName || "";
+      const classIdsToFetch = runningClasses.map((c) => c.id);
 
-      cls.slots.forEach((slot) => {
-        if (!slot.date || !slot.endTime) return;
+      if (classIdsToFetch.length > 0) {
+        const client = new LMSClient(token);
+        const fetchedDetails =
+          await client.getClassesNotificationsDetails(classIdsToFetch);
 
-        let slotEndDateTime;
-        try {
-          if (typeof slot.date === "string" && slot.date.includes("/")) {
-            const [d, m, y] = slot.date.split("/").map(Number);
-            slotEndDateTime = new Date(y, m - 1, d);
-          } else {
-            slotEndDateTime = new Date(slot.date);
-          }
+        const now = new Date();
+        const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
 
-          if (isNaN(slotEndDateTime.getTime())) throw new Error("Invalid Date");
-
-          let hour = 0,
-            minute = 0;
-          if (slot.endTime.includes("T")) {
-            const dateObj = new Date(slot.endTime);
-            hour = dateObj.getHours();
-            minute = dateObj.getMinutes();
-          } else {
-            const timeParts = slot.endTime.split(":");
-            hour = parseInt(timeParts[0], 10) || 0;
-            minute = parseInt(timeParts[1], 10) || 0;
-          }
-          slotEndDateTime.setHours(hour, minute, 0, 0);
-        } catch (e) {
-          return;
-        }
-
-        const timeDiff = now.getTime() - slotEndDateTime.getTime();
-
-        if (timeDiff > 0) {
-          const studentsNeedingFeedback = (slot.studentAttendance || []).filter(
-            (sa) =>
-              (sa.status === "PRESENT" ||
-                sa.status === "ATTENDED" ||
-                sa.status === "LATE" ||
-                sa.status === "LATE_ARRIVED") &&
-              (!sa.comment || sa.comment.trim() === ""),
+        const getTeacherNames = (teachersList, roleShortName) => {
+          if (!Array.isArray(teachersList)) return "N/A";
+          const matched = teachersList.filter(
+            (t) => t.role?.shortName === roleShortName && t.isActive !== false,
           );
+          if (matched.length > 0) {
+            return matched
+              .map((t) => t.teacher?.fullName)
+              .filter(Boolean)
+              .join(", ");
+          }
+          return "N/A";
+        };
 
-          if (studentsNeedingFeedback.length > 0) {
-            const isLate = timeDiff > FORTY_EIGHT_HOURS;
-            let message = "";
+        for (const cls of fetchedDetails) {
+          if (!cls || !cls.id || !cls.slots || cls.slots.length === 0) continue;
 
-            let lecNameStr = null;
-            let taNameStr = null;
+          const classCacheInfo = runningClasses.find((c) => c.id === cls.id);
+          const className = classCacheInfo ? classCacheInfo.name : cls.name;
 
-            if (isTE) {
-              const teachersToUse =
-                slot.teachers && slot.teachers.length > 0
-                  ? slot.teachers
-                  : cls.teachers;
-              const taName = getTeacherNames(teachersToUse, "TA");
-              const lecName = getTeacherNames(teachersToUse, "LEC");
+          cls.slots.forEach((slot) => {
+            if (!slot.date || !slot.endTime) return;
 
-              if (lecName !== "N/A") lecNameStr = lecName;
-              if (taName !== "N/A") taNameStr = taName;
-
-              if (isLate) {
-                message = `Lớp ${cls.name} đã trễ nhận xét`;
+            let slotEndDateTime;
+            try {
+              if (typeof slot.date === "string" && slot.date.includes("/")) {
+                const [d, m, y] = slot.date.split("/").map(Number);
+                slotEndDateTime = new Date(y, m - 1, d);
               } else {
-                message = `Lớp ${cls.name} có ${studentsNeedingFeedback.length} học viên cần chấm điểm.`;
+                slotEndDateTime = new Date(slot.date);
               }
-            } else {
-              if (isLate) {
-                message = `Bạn đã trễ nhận xét buổi học lớp ${cls.name} (đã quá 48h).`;
+
+              if (isNaN(slotEndDateTime.getTime()))
+                throw new Error("Invalid Date");
+
+              let hour = 0,
+                minute = 0;
+              if (slot.endTime.includes("T")) {
+                const dateObj = new Date(slot.endTime);
+                hour = dateObj.getHours();
+                minute = dateObj.getMinutes();
               } else {
-                if (role === "TA") {
-                  message = `Bạn cần nhanh chóng nhận xét buổi học lớp ${cls.name} để theo kịp tiến độ.`;
-                } else if (role === "LEC") {
-                  message = `Bạn cần nhận xét hoặc báo TA nhận xét buổi học lớp ${cls.name}.`;
-                } else {
-                  message = `Bạn có ${studentsNeedingFeedback.length} học viên cần chấm điểm buổi học lớp ${cls.name}.`;
-                }
+                const timeParts = slot.endTime.split(":");
+                hour = parseInt(timeParts[0], 10) || 0;
+                minute = parseInt(timeParts[1], 10) || 0;
               }
+              slotEndDateTime.setHours(hour, minute, 0, 0);
+            } catch (e) {
+              return;
             }
 
-            feedbackList.push({
-              classId: cls.id,
-              className: cls.name,
-              date: slot.date,
-              studentCount: studentsNeedingFeedback.length,
-              isLate,
-              message,
-              lec: lecNameStr,
-              ta: taNameStr,
-            });
+            const timeDiff = now.getTime() - slotEndDateTime.getTime();
+
+            if (timeDiff > 0) {
+              const studentsNeedingFeedback = (
+                slot.studentAttendance || []
+              ).filter(
+                (sa) =>
+                  (sa.status === "PRESENT" ||
+                    sa.status === "ATTENDED" ||
+                    sa.status === "LATE" ||
+                    sa.status === "LATE_ARRIVED") &&
+                  (!sa.comment || sa.comment.trim() === ""),
+              );
+
+              if (studentsNeedingFeedback.length > 0) {
+                const isLate = timeDiff > FORTY_EIGHT_HOURS;
+
+                const teachersToUse =
+                  slot.teachers && slot.teachers.length > 0
+                    ? slot.teachers
+                    : cls.teachers;
+                const taName = getTeacherNames(teachersToUse, "TA");
+                const lecName = getTeacherNames(teachersToUse, "LEC");
+
+                // Thêm ticket cho realtime
+                tickets.push({
+                  classId: cls.id,
+                  className: className,
+                  date: slot.date,
+                  studentCount: studentsNeedingFeedback.length,
+                  isLate,
+                  lec: lecName !== "N/A" ? lecName : null,
+                  ta: taName !== "N/A" ? taName : null,
+                });
+              }
+            }
+          });
+        }
+      }
+    }
+    console.timeEnd("Fetch Notifications");
+
+    const feedbackList = [];
+
+    // Để tối ưu hiển thị message (tuỳ theo role đối với LEC/TA)
+    const isTeacherRoleTA = roles?.includes("TA");
+    const isTeacherRoleLEC = roles?.includes("LEC");
+
+    tickets.forEach((ticket) => {
+      let message = "";
+      if (isTE) {
+        if (ticket.isLate) {
+          message = `Lớp ${ticket.className} đã trễ nhận xét`;
+        } else {
+          message = `Lớp ${ticket.className} có ${ticket.studentCount} học viên cần chấm điểm.`;
+        }
+      } else {
+        if (ticket.isLate) {
+          message = `Bạn đã trễ nhận xét buổi học lớp ${ticket.className} (đã quá 48h).`;
+        } else {
+          if (isTeacherRoleTA) {
+            message = `Bạn cần nhanh chóng nhận xét buổi học lớp ${ticket.className} để theo kịp tiến độ.`;
+          } else if (isTeacherRoleLEC) {
+            message = `Bạn cần nhận xét hoặc báo TA nhận xét buổi học lớp ${ticket.className}.`;
+          } else {
+            message = `Bạn có ${ticket.studentCount} học viên cần chấm điểm buổi học lớp ${ticket.className}.`;
           }
         }
+      }
+
+      feedbackList.push({
+        classId: ticket.classId,
+        className: ticket.className,
+        date: ticket.date,
+        studentCount: ticket.studentCount,
+        isLate: ticket.isLate,
+        message,
+        lec: ticket.lec,
+        ta: ticket.ta,
       });
     });
 
@@ -689,7 +687,7 @@ exports.getClassesNotifications = async (req, res) => {
       return parseDate(b.date) - parseDate(a.date);
     });
 
-    // Lưu vào cache
+    // Lưu vào cache RAM
     notificationCache.set(cacheKey, {
       data: feedbackList,
       expiresAt: Date.now() + NOTIFICATION_CACHE_TTL,
@@ -699,5 +697,183 @@ exports.getClassesNotifications = async (req, res) => {
   } catch (err) {
     console.error("[Controller] getClassesNotifications failed:", err.message);
     res.status(500).json({ success: false, error: err.message, data: [] });
+  }
+};
+
+exports.syncNotifications = async (req, res) => {
+  try {
+    let token = req.body.token;
+    if (!token && req.headers.authorization) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+    const { roles } = req.body;
+    const isTE = Array.isArray(roles) && roles.includes("TE");
+
+    if (!token) return res.status(400).json({ error: "Token is required" });
+    if (!isTE)
+      return res
+        .status(403)
+        .json({ error: "Access denied. TE role required." });
+
+    console.log("[Controller] Manual notification sync triggered by TE");
+
+    // Chạy đồng bộ thông báo
+    await NotificationScheduler.syncAllNotifications();
+
+    // Xoá cache để lấy data mới
+    notificationCache.clear();
+
+    res.json({ success: true, message: "Đồng bộ thông báo thành công" });
+  } catch (err) {
+    console.error("[Controller] syncNotifications failed:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.sendNotificationEmails = async (req, res) => {
+  try {
+    let token = req.body.token;
+    if (!token && req.headers.authorization) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+    const { roles } = req.body;
+    const isTE = Array.isArray(roles) && roles.includes("TE");
+
+    if (!token) return res.status(400).json({ error: "Token is required" });
+    if (!isTE)
+      return res
+        .status(403)
+        .json({ error: "Access denied. TE role required." });
+
+    console.log("[Controller] Manual email notification triggered by TE");
+
+    // Chỉ gọi hàm gửi mail từ scheduler (đã viết sẵn logic nhóm và gửi)
+    await NotificationScheduler.sendReminderEmails();
+
+    res.json({ success: true, message: "Đã gửi email nhắc nhở thành công" });
+  } catch (err) {
+    console.error("[Controller] sendNotificationEmails failed:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getStudents = async (req, res) => {
+  try {
+    let token = req.body.token;
+    if (!token && req.headers.authorization) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+
+    const {
+      teacherId,
+      centreIds,
+      roles,
+      statusIn = ["RUNNING", "OPEN", "PRE_OPEN"],
+      page = 1,
+      limit = 20,
+      search = "",
+      centre = "all",
+      classId = "all", // Option to filter by a specific class
+    } = req.body;
+
+    const isTE = Array.isArray(roles) && roles.includes("TE");
+
+    if (!token) return res.status(400).json({ error: "Token is required" });
+    if (!isTE && !teacherId)
+      return res.status(400).json({ error: "Teacher ID is required" });
+
+    // 1. Get all students from Firestore by teacherId or centreIds
+    let allStudents = await FirestoreStudent.getStudentsForUser(
+      teacherId,
+      centreIds,
+      roles,
+    );
+
+    // 2. Filter by specific centre if selected
+    if (centre !== "all") {
+      allStudents = allStudents.filter((student) =>
+        student.classes.some((c) => c.centreId === centre),
+      );
+    }
+
+    // 3. Filter by specific classId if selected
+    if (classId !== "all") {
+      allStudents = allStudents.filter((student) =>
+        student.classes.some((c) => c.id === classId),
+      );
+    }
+
+    // 4. Filter by class status
+    if (statusIn && statusIn.length > 0) {
+      allStudents = allStudents.filter((student) =>
+        student.classes.some((c) => statusIn.includes(c.status)),
+      );
+    }
+
+    // 5. Apply search filter
+    if (search.trim()) {
+      const searchLower = search.toLowerCase();
+      allStudents = allStudents.filter((student) => {
+        const searchString =
+          `${student.fullName} ${student.email} ${student.phone}`.toLowerCase();
+        return searchString.includes(searchLower);
+      });
+    }
+
+    // 6. Sort students alphabetically
+    allStudents.sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+    // 7. Pagination
+    const total = allStudents.length;
+    const totalPages = Math.ceil(total / limit) || 1;
+    const validPage = Math.max(1, Math.min(page, Math.max(1, totalPages)));
+    const startIndex = (validPage - 1) * limit;
+    const endIndex = startIndex + limit;
+
+    const paginatedStudents = allStudents.slice(startIndex, endIndex);
+
+    res.json({
+      success: true,
+      data: paginatedStudents,
+      meta: {
+        total,
+        page: validPage,
+        limit,
+        totalPages,
+      },
+    });
+  } catch (err) {
+    console.error("[Controller] getStudents failed:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.syncStudents = async (req, res) => {
+  try {
+    let token = req.body.token;
+    if (!token && req.headers.authorization) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+    const { roles } = req.body;
+    const isTE = Array.isArray(roles) && roles.includes("TE");
+
+    if (!token) return res.status(400).json({ error: "Token is required" });
+    if (!isTE)
+      return res
+        .status(403)
+        .json({ error: "Access denied. TE role required." });
+
+    console.log("[Controller] Manual student sync triggered by TE");
+
+    // Return early to not block UI
+    res.json({ success: true, message: "Đồng bộ học viên đang chạy ngầm..." });
+
+    // Run sync in background
+    StudentScheduler.syncAllStudents();
+  } catch (err) {
+    console.error("[Controller] syncStudents failed:", err.message);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: err.message });
+    }
   }
 };

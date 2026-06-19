@@ -12,6 +12,11 @@ const aiLimiter = rateLimiter(
 
 router.post("/classes", classController.getClasses);
 router.post("/classes/notifications", classController.getClassesNotifications);
+router.post("/classes/sync-notifications", classController.syncNotifications);
+router.post(
+  "/classes/send-notification-emails",
+  classController.sendNotificationEmails,
+);
 router.post("/classes/detail", classController.getClassById);
 router.post("/classes/details", classController.getClassesDetails);
 router.post("/update-evaluation", classController.updateEvaluation);
@@ -22,5 +27,7 @@ router.post(
   aiLimiter,
   classController.getStudentAIReport,
 );
+router.post("/classes/students", classController.getStudents);
+router.post("/classes/sync-students", classController.syncStudents);
 
 module.exports = router;

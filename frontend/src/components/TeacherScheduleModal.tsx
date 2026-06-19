@@ -2,7 +2,13 @@
 
 import React, { useMemo } from "react";
 import { format, addDays, startOfWeek, parseISO, isSameDay } from "date-fns";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface Schedule {
   id: string;
@@ -14,7 +20,7 @@ interface Schedule {
   endTime: string;
   type: string;
   classSite?: {
-    class?: { name: string };
+    class?: { name: string; numberOfSessions?: number };
     centre?: { name: string };
   };
   officeHour?: {
@@ -38,7 +44,7 @@ interface TeacherScheduleModalProps {
 }
 
 const START_HOUR = 8; // 8 AM
-const END_HOUR = 22;  // 10 PM
+const END_HOUR = 22; // 10 PM
 const TOTAL_HOURS = END_HOUR - START_HOUR; // 14 hours
 const HOURS = Array.from({ length: TOTAL_HOURS }, (_, i) => i + START_HOUR);
 
@@ -75,7 +81,11 @@ export function TeacherScheduleModal({
 
   const getLocalDate = (sch: Schedule) => {
     try {
-      if (sch.startTime && sch.startTime.length > 10 && sch.startTime.includes("T")) {
+      if (
+        sch.startTime &&
+        sch.startTime.length > 10 &&
+        sch.startTime.includes("T")
+      ) {
         return new Date(sch.startTime);
       }
       if (sch.date) {
@@ -99,12 +109,12 @@ export function TeacherScheduleModal({
       .map((sch) => {
         const start = getLocalTimeParts(sch.startTime);
         const end = getLocalTimeParts(sch.endTime);
-        
+
         if (!start || !end) return null;
 
         const startHour = start.hours + start.minutes / 60;
         const endHour = end.hours + end.minutes / 60;
-        
+
         // Offset relative to START_HOUR as percentage
         const topPercent = ((startHour - START_HOUR) / TOTAL_HOURS) * 100;
         const heightPercent = ((endHour - startHour) / TOTAL_HOURS) * 100;
@@ -114,7 +124,24 @@ export function TeacherScheduleModal({
 
         return { ...sch, top, height, startHour, endHour };
       })
-      .filter(Boolean) as (Schedule & { top: number; height: number; startHour: number; endHour: number })[];
+      .filter(Boolean) as (Schedule & {
+      top: number;
+      height: number;
+      startHour: number;
+      endHour: number;
+    })[];
+  };
+
+  const getSessionLabel = (sch: Schedule): string => {
+    if (!sch.title) return "";
+    let info = sch.title;
+    if (sch.classSite?.class?.name) {
+      info = info.replace(sch.classSite.class.name, "");
+    }
+    info = info.replace(/^[\s-:]+|[\s-:]+$/g, "");
+    // Standardize "buổi X/Y" to "Buổi X"
+    info = info.replace(/buổi\s*(\d+)(?:\/\d+)?/i, "Buổi $1");
+    return info;
   };
 
   const getScheduleStyle = (type: string) => {
@@ -145,10 +172,12 @@ export function TeacherScheduleModal({
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
             <div>
               <DialogTitle className="text-base md:text-lg font-bold text-slate-800">
-                Lịch làm việc: {teacher?.fullName} {teacher?.code ? `(${teacher.code})` : ""}
+                Lịch làm việc: {teacher?.fullName}{" "}
+                {teacher?.code ? `(${teacher.code})` : ""}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Tuần: {format(days[0], "dd/MM/yyyy")} - {format(days[6], "dd/MM/yyyy")}
+                Tuần: {format(days[0], "dd/MM/yyyy")} -{" "}
+                {format(days[6], "dd/MM/yyyy")}
               </DialogDescription>
             </div>
             <div className="flex gap-3 text-[11px] font-medium text-slate-600 items-center">
@@ -176,7 +205,10 @@ export function TeacherScheduleModal({
               <div className="w-16 shrink-0 border-r border-slate-200"></div>
               <div className="flex-1 grid grid-cols-7">
                 {days.map((day, i) => (
-                  <div key={i} className="text-center py-2 border-r border-slate-200 last:border-r-0">
+                  <div
+                    key={i}
+                    className="text-center py-2 border-r border-slate-200 last:border-r-0"
+                  >
                     <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
                       {format(day, "EEE")}
                     </div>
@@ -198,7 +230,8 @@ export function TeacherScheduleModal({
                     className="relative text-[10px] text-slate-400 text-right pr-2 flex-1 flex items-start justify-end"
                   >
                     <span className="absolute -top-2.5 right-2">
-                      {hour % 12 === 0 ? 12 : hour % 12} {hour >= 12 ? "PM" : "AM"}
+                      {hour % 12 === 0 ? 12 : hour % 12}{" "}
+                      {hour >= 12 ? "PM" : "AM"}
                     </span>
                   </div>
                 ))}
@@ -224,16 +257,26 @@ export function TeacherScheduleModal({
                 <div className="grid grid-cols-7 h-full absolute inset-0">
                   {days.map((day, dayIndex) => {
                     const daySchedules = processSchedules(day);
-                    
+
                     return (
-                      <div key={dayIndex} className="border-r border-slate-200 last:border-r-0 relative h-full">
+                      <div
+                        key={dayIndex}
+                        className="border-r border-slate-200 last:border-r-0 relative h-full"
+                      >
                         {/* Render schedules for this day */}
                         {daySchedules.map((sch, i) => {
                           const startParts = getLocalTimeParts(sch.startTime);
                           const endParts = getLocalTimeParts(sch.endTime);
-                          const startStr = startParts ? formatTimeStr(startParts.hours, startParts.minutes) : "";
-                          const endStr = endParts ? formatTimeStr(endParts.hours, endParts.minutes) : "";
-                          
+                          const startStr = startParts
+                            ? formatTimeStr(
+                                startParts.hours,
+                                startParts.minutes,
+                              )
+                            : "";
+                          const endStr = endParts
+                            ? formatTimeStr(endParts.hours, endParts.minutes)
+                            : "";
+
                           return (
                             <div
                               key={sch.id || i}
@@ -248,10 +291,22 @@ export function TeacherScheduleModal({
                                 {startStr} - {endStr}
                               </div>
                               <div className="text-[10px] font-bold leading-tight line-clamp-2">
-                                {sch.classSite?.class?.name || (sch.type === "OFFICE_HOURS" ? "Office Hours" : sch.title || sch.type)}
+                                {sch.classSite?.class?.name ||
+                                  (sch.type === "OFFICE_HOURS"
+                                    ? "Office Hours"
+                                    : sch.title || sch.type)}
                               </div>
+                              {sch.type === "CLASS_SESSION" &&
+                                getSessionLabel(sch) && (
+                                  <div className="text-[9px] font-medium leading-none truncate opacity-90">
+                                    {getSessionLabel(sch)}
+                                  </div>
+                                )}
                               <div className="text-[9px] leading-none opacity-80 mt-auto truncate">
-                                {sch.classSite?.centre?.name || sch.officeHour?.centre?.name || sch.description || ""}
+                                {sch.classSite?.centre?.name ||
+                                  sch.officeHour?.centre?.name ||
+                                  sch.description ||
+                                  ""}
                               </div>
                             </div>
                           );
