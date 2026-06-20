@@ -8,13 +8,15 @@ const {
 } = require("../services/lmsAuth");
 const FirestoreZalo = require("../storage/firestoreZalo");
 const LMSClient = require("../services/lmsClient");
-const { getSessionExamType } = require("../utils/courseConfig");
+const ClassCacheService = require("../services/classCache");
+const { getSessionExamType, getCourseCategory } = require("../utils/courseConfig");
 
 const COMMANDS = {
   HELP: ["help", "h", "trợ giúp", "?"],
   BIND_GROUP: ["bind_group", "bg", "liên kết nhóm"],
   STATUS: ["status", "st", "trạng thái", "tinhtrang", "tình trạng"],
   REPORT: ["report", "rp", "báo cáo", "kiem tra", "kiểm tra", "danh sách lớp"],
+  CHECK_HOMEWORK: ["checkbaitap", "cbt", "homework", "bt", "bài tập", "baitap"],
 };
 
 function formatTime(isoString) {
@@ -47,20 +49,7 @@ function matchCommand(input, commandKeys) {
 }
 
 function getMainMenu() {
-  return (
-    "🤖 MÌNH LÀ TRỢ LÝ MINDX LMS BOT\n" +
-    "Hỗ trợ theo dõi tiến độ nhận xét học viên và lịch dạy tự động.\n\n" +
-    "📌 LỆNH HỆ THỐNG:\n" +
-    "▪️ bind_group (bg) ➜ Đặt nhóm này làm kênh nhận thông báo chính.\n" +
-    "▪️ report     (rp) ➜ Quét và gửi báo cáo tiến độ nhận xét hiện tại.\n" +
-    "▪️ status     (st) ➜ Kiểm tra trạng thái cấu hình và lịch nhắc nhở.\n\n" +
-    "👤 LỆNH CÁ NHÂN (Cần đăng nhập):\n" +
-    "▪️ login [email/username] [mật_khẩu] ➜ Đăng nhập tài khoản LMS của bạn.\n" +
-    "▪️ logout                      (lo) ➜ Đăng xuất khỏi tài khoản.\n" +
-    "▪️ lichday               (ld) ➜ Xem lịch giảng dạy trong 7 ngày tới.\n" +
-    "▪️ chuanhanxet          (cnx) ➜ Danh sách lớp bạn cần hoàn thành nhận xét.\n\n" +
-    "💡 Gõ lệnh trực tiếp để trợ lý hỗ trợ bạn nhé!"
-  );
+  return "📌 Các lệnh hỗ trợ:\n";
 }
 
 async function handleWebhook(event) {
@@ -79,13 +68,15 @@ async function handleWebhook(event) {
       `[ZaloBot] User ${userId} sent: "${text}" (event: ${eventName})`,
     );
 
+    const menuImageUrl =
+      "https://res.cloudinary.com/drmck7diu/image/upload/v1781969846/mindxsupportbotmenu_egrhty.webp";
+
     if (eventName === "follow") {
-      await zaloClient.sendText(
-        userId,
+      const followCaption =
         "👋 Chào mừng bạn đến với MindX LMS Bot!\n" +
-          "Hãy thêm mình vào nhóm lớp để mình có thể hỗ trợ nhắc nhở tiến độ tự động nhé.\n\n" +
-          getMainMenu(),
-      );
+        "Hãy thêm mình vào nhóm lớp để mình có thể hỗ trợ nhắc nhở tiến độ tự động nhé.\n\n" +
+        getMainMenu();
+      await zaloClient.sendPhoto(userId, menuImageUrl, followCaption);
       return;
     }
 
@@ -97,7 +88,7 @@ async function handleWebhook(event) {
     }
 
     if (matchCommand(text, COMMANDS.HELP)) {
-      await zaloClient.sendText(userId, getMainMenu());
+      await zaloClient.sendPhoto(userId, menuImageUrl, getMainMenu());
       return;
     }
 
@@ -105,12 +96,7 @@ async function handleWebhook(event) {
       const config = ZaloData.getGlobalConfig();
       config.targetChatId = userId; // userId here represents the chat/group ID
       ZaloData.saveGlobalConfig(config);
-      await zaloClient.sendText(
-        userId,
-        "✅ LIÊN KẾT KÊNH THÀNH CÔNG!\n\n" +
-          "Nhóm này đã được chọn làm kênh nhận thông báo chính thức.\n" +
-          "Báo cáo tự động sẽ được gửi theo lịch hoặc bất cứ khi nào bạn gõ lệnh [report].",
-      );
+      await zaloClient.sendText(userId, "LIÊN KẾT KÊNH THÀNH CÔNG!");
       return;
     }
 
@@ -143,10 +129,7 @@ async function handleWebhook(event) {
     }
 
     if (matchCommand(text, COMMANDS.REPORT)) {
-      await zaloClient.sendText(
-        userId,
-        "⏳ Đang truy vấn hệ thống LMS, vui lòng đợi trong giây lát...",
-      );
+      await zaloClient.sendText(userId, "Vui lòng đợi trong giây lát...");
       await sendGlobalReminder(userId);
       return;
     }
@@ -161,7 +144,7 @@ async function handleWebhook(event) {
       );
       await zaloClient.sendText(
         userId,
-        `⏳ Đang xác thực tài khoản ${username} với hệ thống MindX...`,
+        `Đang xác thực tài khoản ${username}...`,
       );
 
       try {
@@ -178,18 +161,19 @@ async function handleWebhook(event) {
         const fullName = authData.mindxUser.name || authData.mindxUser.username;
         await zaloClient.sendText(
           userId,
-          `✅ ĐĂNG NHẬP THÀNH CÔNG\n\n` +
+          `ĐĂNG NHẬP THÀNH CÔNG\n\n` +
             `Xin chào thầy/cô: ${fullName} 👋\n\n` +
             `Tài khoản đã được liên kết với MINDX LMS Bot.\n\n` +
             `📌 Các lệnh cá nhân:\n` +
             `• ld | lichday      → Xem lịch giảng dạy\n` +
-            `• cnx | chuanhanxet → Kiểm tra lớp cần nhận xét\n\n` +
+            `• cnx | chuanhanxet → Kiểm tra lớp cần nhận xét\n` +
+            `• cbt | checkbaitap → Kiểm tra bài tập chưa chấm\n\n` +
             `💡 Gõ một trong các lệnh trên để bắt đầu.`,
         );
       } catch (error) {
         await zaloClient.sendText(
           userId,
-          `❌ ĐĂNG NHẬP THẤT BẠI!\n\n` +
+          `ĐĂNG NHẬP THẤT BẠI!\n\n` +
             `Chi tiết lỗi: ${error.message}\n` +
             `Vui lòng kiểm tra kỹ lại email và mật khẩu của bạn.`,
         );
@@ -197,28 +181,28 @@ async function handleWebhook(event) {
       return;
     }
 
-    const normalizedText = text.toLowerCase();
+    const tokens = text.trim().split(/\s+/);
+    const cmdToken = tokens[0].toLowerCase();
+    const cmdArg = tokens.slice(1).join(" ").trim();
 
     // Xử lý lệnh đăng xuất: "logout" hoặc "lo"
-    if (normalizedText === "logout" || normalizedText === "lo") {
+    if (cmdToken === "logout" || cmdToken === "lo") {
       await FirestoreZalo.deleteUserSession(userId);
-      await zaloClient.sendText(
-        userId,
-        "👋 ĐĂNG XUẤT THÀNH CÔNG!\n\nThầy/cô đã đăng xuất khỏi tài khoản LMS trên Zalo. Hẹn gặp lại nhé!",
-      );
+      await zaloClient.sendText(userId, "ĐĂNG XUẤT THÀNH CÔNG!");
       return;
     }
 
-    // Xử lý lệnh cá nhân: lichday (ld), chuanhanxet (cnx)
-    const isScheduleCommand =
-      normalizedText === "lichday" || normalizedText === "ld";
-    const isFeedbackCommand =
-      normalizedText === "chuanhanxet" ||
-      normalizedText === "cnx" ||
-      normalizedText === "nonhanxet";
+    // Xử lý lệnh cá nhân: lichday (ld), chuanhanxet (cnx), checkbaitap (cbt)
+    const isScheduleCommand = cmdToken === "lichday" || cmdToken === "ld";
+    const isFeedbackCommand = cmdToken === "chuanhanxet" || cmdToken === "cnx";
+    const isHomeworkCommand = COMMANDS.CHECK_HOMEWORK.includes(cmdToken);
 
-    if (isScheduleCommand || isFeedbackCommand) {
-      const commandType = isScheduleCommand ? "lichday" : "chuanhanxet";
+    if (isScheduleCommand || isFeedbackCommand || isHomeworkCommand) {
+      let commandType = "";
+      if (isScheduleCommand) commandType = "lichday";
+      else if (isFeedbackCommand) commandType = "chuanhanxet";
+      else if (isHomeworkCommand) commandType = "checkbaitap";
+
       const session = await FirestoreZalo.getUserSession(userId);
       if (!session || !session.lmsToken) {
         await zaloClient.sendText(
@@ -229,28 +213,25 @@ async function handleWebhook(event) {
             `📝 Ví dụ:\nlogin teacher@mindx.edu.vn 123456\nhoặc: login teacher_username 123456\n\n` +
             `💡 Sau khi đăng nhập, bạn có thể sử dụng:\n` +
             `• ld  → Xem lịch dạy\n` +
-            `• cnx → Xem lớp cần nhận xét`,
+            `• cnx → Xem lớp cần nhận xét\n` +
+            `• cbt → Kiểm tra bài tập chưa chấm`,
         );
         return;
       }
 
       await zaloClient.sendText(
         userId,
-        "⏳ Đang tải dữ liệu cá nhân của thầy/cô...",
+        "Đang tải dữ liệu cá nhân của thầy/cô...",
       );
 
       // Call personal command handler
-      await handlePersonalCommand(userId, commandType, session);
+      await handlePersonalCommand(userId, commandType, session, cmdArg);
       return;
     }
 
     // Default: unknown command
-    await zaloClient.sendText(
-      userId,
-      `❓ Trợ lý chưa hiểu lệnh "${text}".\n\n` +
-        `Thầy/cô vui lòng tham khảo các lệnh được hỗ trợ dưới đây:\n\n` +
-        getMainMenu(),
-    );
+    const menuCaption = `Trợ lý chưa hiểu lệnh "${text}".\n\n` + getMainMenu();
+    await zaloClient.sendPhoto(userId, menuImageUrl, menuCaption);
   } catch (err) {
     console.error("[ZaloBot] handleWebhook error:", err.message);
   }
@@ -259,13 +240,48 @@ async function handleWebhook(event) {
 /**
  * Xử lý lệnh cá nhân của giáo viên đã đăng nhập
  */
-async function handlePersonalCommand(userId, command, session) {
+async function handlePersonalCommand(userId, command, session, commandArg = "") {
   try {
     let lmsToken = session.lmsToken;
     let lmsClient = new LMSClient(lmsToken);
 
-    // TODO: Implement refresh token logic if needed
-    // Simplified logic for MVP: Assume token is valid. If it throws 401, we will handle it below.
+    // Helper to execute operations with auto-token-refresh
+    const executeWithRetry = async (operation) => {
+      try {
+        return await operation(lmsClient);
+      } catch (e) {
+        const isAuthError = 
+          e.message?.includes("401") ||
+          e.message?.includes("Authentication failed") ||
+          e.response?.status === 401 ||
+          e.message?.includes("Unauthorized") ||
+          (e.response?.data?.errors && e.response.data.errors.some(err => 
+            err.message?.includes("Unauthorized") || 
+            err.message?.includes("Authentication failed") ||
+            err.message?.includes("401")
+          ));
+
+        if (isAuthError && session.lmsRefreshToken) {
+          try {
+            console.log("[ZaloBot] LMS token expired. Attempting refresh...");
+            const refreshed = await refreshLmsToken(session.lmsRefreshToken);
+            lmsToken = refreshed.idToken;
+            session.lmsToken = lmsToken;
+            if (refreshed.refreshToken) {
+              session.lmsRefreshToken = refreshed.refreshToken;
+            }
+            await FirestoreZalo.saveUserSession(userId, session);
+            lmsClient = new LMSClient(lmsToken);
+            console.log("[ZaloBot] LMS token refreshed successfully. Retrying operation...");
+            return await operation(lmsClient);
+          } catch (refreshErr) {
+            console.error("[ZaloBot] Failed to refresh token:", refreshErr.message);
+            throw e;
+          }
+        }
+        throw e;
+      }
+    };
 
     if (command === "lichday") {
       const now = new Date();
@@ -275,36 +291,9 @@ async function handlePersonalCommand(userId, command, session) {
       const dateGte = now.toISOString();
       const dateLte = end.toISOString();
 
-      let schedules = [];
-      try {
-        schedules = await lmsClient.getTeacherSchedules(
-          session.mindxUser.teacherId,
-          dateGte,
-          dateLte,
-        );
-      } catch (e) {
-        if (
-          e.message.includes("401") ||
-          e.message.includes("Authentication failed")
-        ) {
-          // Refresh token
-          const refreshed = await refreshLmsToken(session.lmsRefreshToken);
-          lmsToken = refreshed.idToken;
-          session.lmsToken = lmsToken;
-          if (refreshed.refreshToken)
-            session.lmsRefreshToken = refreshed.refreshToken;
-          await FirestoreZalo.saveUserSession(userId, session);
-
-          lmsClient = new LMSClient(lmsToken);
-          schedules = await lmsClient.getTeacherSchedules(
-            session.mindxUser.teacherId,
-            dateGte,
-            dateLte,
-          );
-        } else {
-          throw e;
-        }
-      }
+      const schedules = await executeWithRetry((client) =>
+        client.getTeacherSchedules(session.mindxUser.teacherId, dateGte, dateLte)
+      );
 
       if (!schedules || schedules.length === 0) {
         const fromStr = now.toLocaleDateString("vi-VN", {
@@ -335,7 +324,7 @@ async function handlePersonalCommand(userId, command, session) {
       await Promise.all(
         Array.from(uniqueClassIds).map(async (classId) => {
           try {
-            const details = await lmsClient.getClassById(classId);
+            const details = await executeWithRetry((client) => client.getClassById(classId));
             if (details) {
               classDetailsMap.set(classId, details);
             }
@@ -532,7 +521,7 @@ async function handlePersonalCommand(userId, command, session) {
             token: tokenToUse,
             teacherId: session.mindxUser.teacherId,
             centreIds: null, // Check all centres for personal
-            roles: session.mindxUser.appRoles,
+            roles: [], // Pass empty roles to bypass TE logic and fetch strictly this teacher's classes
             email: session.mindxUser.email,
             statusIn: ["OPEN", "RUNNING"],
           },
@@ -569,23 +558,9 @@ async function handlePersonalCommand(userId, command, session) {
         if (isAuthFailed) throw new Error("Authentication failed");
       };
 
-      try {
-        await runQuery(lmsToken);
-      } catch (e) {
-        if (e.message.includes("Authentication failed")) {
-          // Refresh token
-          const refreshed = await refreshLmsToken(session.lmsRefreshToken);
-          lmsToken = refreshed.idToken;
-          session.lmsToken = lmsToken;
-          if (refreshed.refreshToken)
-            session.lmsRefreshToken = refreshed.refreshToken;
-          await FirestoreZalo.saveUserSession(userId, session);
-
-          await runQuery(lmsToken);
-        } else {
-          throw e;
-        }
-      }
+      await executeWithRetry(async (client) => {
+        await runQuery(client.token);
+      });
 
       if (!feedbackList || feedbackList.length === 0) {
         await zaloClient.sendText(
@@ -599,6 +574,477 @@ async function handlePersonalCommand(userId, command, session) {
       feedbackList.forEach((item) => {
         msg += `🏫 Lớp: ${item.className}\n   ➜ Tiến độ: Cần nhận xét thêm ${item.studentCount} học viên${item.isLate ? `\n   🚨 CẢNH BÁO: Đã quá hạn 48 giờ!` : ""}\n\n`;
       });
+
+      await zaloClient.sendText(userId, msg);
+    } else if (command === "checkbaitap") {
+      const runningClasses = await executeWithRetry((client) =>
+        ClassCacheService.getEnrichedClasses(
+          client.token,
+          session.mindxUser.teacherId,
+          null, // centreIds
+          [], // roles
+          ["OPEN", "RUNNING"]
+        )
+      );
+
+      if (!runningClasses || runningClasses.length === 0) {
+        await zaloClient.sendText(
+          userId,
+          "🎉 Không tìm thấy lớp học đang hoạt động nào của thầy/cô.",
+        );
+        return;
+      }
+
+      // Filter out Robotics classes entirely
+      const homeworkClasses = runningClasses.filter(
+        (cls) => getCourseCategory(cls.name || cls.course?.shortName || "") !== "robotics"
+      );
+
+      if (homeworkClasses.length === 0) {
+        await zaloClient.sendText(
+          userId,
+          "🎉 Không tìm thấy lớp học có bài tập nào đang hoạt động.",
+        );
+        return;
+      }
+
+      if (!commandArg) {
+        // Fetch student submissions for each homework class and count ungraded & unsubmitted homework
+        const summaryPromises = homeworkClasses.map(async (cls) => {
+          try {
+            const submissionsData = await executeWithRetry((client) =>
+              client.getStudentSubmissionsByClass(cls.id)
+            );
+            const submissions = submissionsData.submissions || [];
+            const students = submissionsData.students || [];
+            const lessons = submissionsData.lessons || [];
+
+            // Active lessons
+            const activeLessons = lessons.filter((l) => l.isActive !== false);
+
+            let ungradedCount = 0;
+            let unsubmittedCount = 0;
+
+            students.forEach((student) => {
+              activeLessons.forEach((lesson) => {
+                const studentSubs = submissions.filter(
+                  (s) => s.studentUid === student.studentUid && s.lessonId === lesson.id
+                );
+
+                // Determine required components
+                const classLessonSubs = submissions.filter((s) => s.lessonId === lesson.id);
+                const classHasQuiz = classLessonSubs.some((s) => s.type === "QUIZ");
+                const classHasFile = classLessonSubs.some((s) => s.type !== "QUIZ");
+
+                const requiresQuiz = classHasQuiz || (!classHasQuiz && !classHasFile);
+                const requiresFile = classHasFile || (!classHasQuiz && !classHasFile);
+
+                let qDone = false;
+                let qUngraded = false;
+                if (requiresQuiz) {
+                  const qSub = studentSubs.find((s) => s.type === "QUIZ");
+                  if (qSub) {
+                    qDone = ["GRADED", "MARKED", "SUBMITTED", "RE_SUBMITTED"].includes(qSub.status) ||
+                            (qSub.score !== null && qSub.score !== undefined && qSub.score > 0);
+                    qUngraded = ["SUBMITTED", "RE_SUBMITTED"].includes(qSub.status);
+                  }
+                }
+
+                let fDone = false;
+                let fUngraded = false;
+                if (requiresFile) {
+                  const fSub = studentSubs.find((s) => s.type !== "QUIZ");
+                  if (fSub) {
+                    fDone = ["GRADED", "MARKED", "SUBMITTED", "RE_SUBMITTED"].includes(fSub.status) ||
+                            (fSub.score !== null && fSub.score !== undefined && fSub.score > 0);
+                    fUngraded = ["SUBMITTED", "RE_SUBMITTED"].includes(fSub.status);
+                  }
+                }
+
+                const isFullySubmitted = (!requiresQuiz || qDone) && (!requiresFile || fDone);
+
+                if (isFullySubmitted) {
+                  if ((requiresQuiz && qUngraded) || (requiresFile && fUngraded)) {
+                    ungradedCount++;
+                  }
+                } else {
+                  unsubmittedCount++;
+                }
+              });
+            });
+
+            return {
+              className: cls.name,
+              ungradedCount,
+              unsubmittedCount,
+            };
+          } catch (err) {
+            console.error(`[ZaloBot] Failed to get submissions for class ${cls.name}:`, err.message);
+            return {
+              className: cls.name,
+              ungradedCount: null,
+              unsubmittedCount: null,
+            };
+          }
+        });
+
+        const summaries = await Promise.all(summaryPromises);
+        let msg = "📝 *TIẾN ĐỘ BÀI TẬP VỀ NHÀ*\n";
+        msg += "━━━━━━━━━━━━━━━━━━━━\n\n";
+
+        const numberEmojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
+
+        summaries.forEach((s, idx) => {
+          const classEmoji = numberEmojis[idx] || `${idx + 1}.`;
+          if (s.ungradedCount === null) {
+            msg += `${classEmoji} 🏫 *Lớp*: ${s.className}\n   ⚠️ Lỗi khi tải dữ liệu bài tập\n\n`;
+          } else {
+            msg += `${classEmoji} 🏫 *Lớp*: ${s.className}\n`;
+            msg += `   ➜ 🟡 Chưa chấm: *${s.ungradedCount}* bài\n`;
+            msg += `   ➜ 🔴 Chưa nộp: *${s.unsubmittedCount}* bài\n\n`;
+          }
+        });
+
+        msg += "━━━━━━━━━━━━━━━━━━━━\n";
+        msg += `💡 *Mẹo*: Gõ "cbt <số_thứ_tự>" hoặc "cbt <tên_lớp>" để xem chi tiết bài chưa hoàn thành.\nVí dụ: cbt 1`;
+        await zaloClient.sendText(userId, msg);
+        return;
+      }
+
+      // Search for the matching class in homeworkClasses only
+      const queryTrimmed = commandArg.trim();
+      let matchedClass = null;
+
+      const targetIndex = parseInt(queryTrimmed, 10);
+      if (!isNaN(targetIndex) && targetIndex > 0) {
+        if (targetIndex <= homeworkClasses.length) {
+          matchedClass = homeworkClasses[targetIndex - 1];
+        } else {
+          await zaloClient.sendText(
+            userId,
+            `❌ Số thứ tự ${targetIndex} vượt quá danh sách lớp có bài tập (tối đa ${homeworkClasses.length} lớp).`,
+          );
+          return;
+        }
+      } else {
+        const queryLower = queryTrimmed.toLowerCase();
+        matchedClass = homeworkClasses.find(
+          (cls) =>
+            cls.name.toLowerCase().includes(queryLower) ||
+            cls.id.toLowerCase() === queryLower
+        );
+      }
+
+      if (!matchedClass) {
+        await zaloClient.sendText(
+          userId,
+          `❌ Không tìm thấy lớp học có bài tập nào khớp với từ khóa "${commandArg}".\n\nDanh sách lớp có bài tập:\n` +
+            homeworkClasses.map((cls) => `• ${cls.name}`).join("\n"),
+        );
+        return;
+      }
+
+      // Fetch class detail to get teacher information
+      let classData = null;
+      try {
+        classData = await executeWithRetry((client) => client.getClassById(matchedClass.id));
+      } catch (err) {
+        console.error(`[ZaloBot] Failed to get class details for ${matchedClass.name}:`, err.message);
+        await zaloClient.sendText(
+          userId,
+          `❌ Không thể tải thông tin chi tiết lớp ${matchedClass.name}. Vui lòng thử lại sau.`,
+        );
+        return;
+      }
+
+      // Fetch submissions
+      let submissionsData = null;
+      try {
+        submissionsData = await executeWithRetry((client) => client.getStudentSubmissionsByClass(matchedClass.id));
+      } catch (err) {
+        console.error(`[ZaloBot] Failed to get student submissions for ${matchedClass.name}:`, err.message);
+        await zaloClient.sendText(
+          userId,
+          `❌ Không thể tải dữ liệu bài nộp lớp ${matchedClass.name}. Vui lòng thử lại sau.`,
+        );
+        return;
+      }
+
+      // 1. Map studentUid to the teacher who graded their past homework
+      const studentToTeacherMap = new Map(); // studentUid -> teacherInfo (from classData.teachers)
+      
+      const classTeachers = classData.teachers || [];
+      const submissions = submissionsData.submissions || [];
+      const studentsList = submissionsData.students || [];
+      const lessonsList = submissionsData.lessons || [];
+
+      // Helper to find teacher in classTeachers by markedBy (which could be ID, username, code, email)
+      const findTeacherByMarkedBy = (markedBy) => {
+        if (!markedBy) return null;
+        const normalizedMarkedBy = markedBy.toLowerCase().trim();
+        return classTeachers.find((tAssignment) => {
+          const t = tAssignment.teacher;
+          if (!t) return false;
+          return (
+            (t.id && t.id.toLowerCase() === normalizedMarkedBy) ||
+            (t.username && t.username.toLowerCase() === normalizedMarkedBy) ||
+            (t.code && t.code.toLowerCase() === normalizedMarkedBy) ||
+            (t.email && t.email.toLowerCase() === normalizedMarkedBy)
+          );
+        });
+      };
+
+      submissions.forEach((sub) => {
+        const isGraded =
+          ["GRADED", "MARKED"].includes(sub.status) ||
+          (sub.score !== null && sub.score !== undefined && sub.score > 0) ||
+          (sub.markedBy && sub.markedBy.trim() !== "");
+
+        if (isGraded && sub.markedBy) {
+          const matchedTeacher = findTeacherByMarkedBy(sub.markedBy);
+          if (matchedTeacher) {
+            studentToTeacherMap.set(sub.studentUid, matchedTeacher);
+          }
+        }
+      });
+
+      const activeTAs = classTeachers.filter(
+        (t) => t.role?.shortName === "TA" && t.isActive !== false
+      );
+      const activeLECs = classTeachers.filter(
+        (t) => t.role?.shortName === "LEC" && t.isActive !== false
+      );
+
+      let defaultFallbackTeacher = null;
+      if (activeTAs.length === 1) {
+        defaultFallbackTeacher = activeTAs[0];
+      } else if (activeTAs.length === 0 && activeLECs.length === 1) {
+        defaultFallbackTeacher = activeLECs[0];
+      }
+
+      // Find all taught lesson IDs from past slots and existing submissions
+      const now = new Date();
+      const taughtLessonIds = new Set();
+      
+      // 1. From past slots
+      (classData.slots || []).forEach((slot) => {
+        const start = new Date(slot.startTime);
+        if (!isNaN(start.getTime()) && start < now && slot.learningLessonId) {
+          taughtLessonIds.add(slot.learningLessonId);
+        }
+      });
+      
+      // 2. From any existing submissions (in case slot time is missing or incorrect)
+      submissions.forEach((sub) => {
+        if (sub.lessonId) {
+          taughtLessonIds.add(sub.lessonId);
+        }
+      });
+
+      let activeLessons = lessonsList.filter((lesson) => taughtLessonIds.has(lesson.id));
+      if (activeLessons.length === 0) {
+        // Fallback to active lessons in lessonsList
+        activeLessons = lessonsList.filter((lesson) => lesson.isActive !== false);
+      }
+
+      // Grouping structure: teacherFullName -> Map<lessonName, Array<{ studentName, status, statusText }>>
+      const groupedReport = new Map();
+      let totalUngradedCount = 0;
+      let totalUnsubmittedCount = 0;
+
+      studentsList.forEach((student) => {
+        let responsibleTeacher = studentToTeacherMap.get(student.studentUid) || defaultFallbackTeacher;
+        
+        let teacherKey = "Chưa phân công";
+        if (responsibleTeacher && responsibleTeacher.teacher) {
+          const roleSuffix = responsibleTeacher.role?.shortName 
+            ? ` (${responsibleTeacher.role.shortName})` 
+            : "";
+          teacherKey = `${responsibleTeacher.teacher.fullName}${roleSuffix}`;
+        }
+
+        if (!groupedReport.has(teacherKey)) {
+          groupedReport.set(teacherKey, new Map());
+        }
+        const teacherMap = groupedReport.get(teacherKey);
+
+        activeLessons.forEach((lesson) => {
+          const studentSubs = submissions.filter(
+            (s) => s.studentUid === student.studentUid && s.lessonId === lesson.id
+          );
+
+          // Determine required components for this lesson based on type and name heuristics
+          const nameLower = lesson.name.toLowerCase();
+          const isCheckpoint = nameLower.includes("checkpoint") || 
+                               nameLower.includes("kiểm tra") || 
+                               nameLower.includes("test") || 
+                               nameLower.includes("demo") || 
+                               nameLower.includes("cuối khóa");
+
+          let requiresQuiz = false;
+          let requiresFile = false;
+
+          if (isCheckpoint) {
+            requiresFile = true;
+          } else if (lesson.type === "QUIZ") {
+            requiresQuiz = true;
+          } else {
+            // Standard homework usually requires both.
+            // Check if there are any submissions in the class for this lesson.
+            const classLessonSubs = submissions.filter((s) => s.lessonId === lesson.id);
+            const hasQuizSub = classLessonSubs.some((s) => s.type === "QUIZ");
+            const hasFileSub = classLessonSubs.some((s) => s.type !== "QUIZ");
+
+            if (hasQuizSub || hasFileSub) {
+              requiresQuiz = hasQuizSub;
+              requiresFile = hasFileSub;
+            } else {
+              // Fallback
+              requiresQuiz = true;
+              requiresFile = true;
+            }
+          }
+
+          let status = "UNSUBMITTED"; // UNSUBMITTED, UNGRADED, GRADED
+          let statusText = "Chưa nộp";
+
+          // Evaluate quiz status
+          let qDone = false;
+          let qUngraded = false;
+          let qReSubmitted = false;
+
+          if (requiresQuiz) {
+            const qSub = studentSubs.find((s) => s.type === "QUIZ");
+            if (qSub) {
+              qDone = ["GRADED", "MARKED", "SUBMITTED", "RE_SUBMITTED"].includes(qSub.status) ||
+                      (qSub.score !== null && qSub.score !== undefined && qSub.score > 0);
+              qUngraded = ["SUBMITTED", "RE_SUBMITTED"].includes(qSub.status);
+              qReSubmitted = qSub.status === "RE_SUBMITTED";
+            }
+          }
+
+          // Evaluate file status
+          let fDone = false;
+          let fUngraded = false;
+          let fReSubmitted = false;
+
+          if (requiresFile) {
+            const fSub = studentSubs.find((s) => s.type !== "QUIZ");
+            if (fSub) {
+              fDone = ["GRADED", "MARKED", "SUBMITTED", "RE_SUBMITTED"].includes(fSub.status) ||
+                      (fSub.score !== null && fSub.score !== undefined && fSub.score > 0);
+              fUngraded = ["SUBMITTED", "RE_SUBMITTED"].includes(fSub.status);
+              fReSubmitted = fSub.status === "RE_SUBMITTED";
+            }
+          }
+
+          // Check overall completion
+          const isFullySubmitted = (!requiresQuiz || qDone) && (!requiresFile || fDone);
+
+          if (isFullySubmitted) {
+            const hasPendingUngraded = (requiresQuiz && qUngraded) || (requiresFile && fUngraded);
+            if (hasPendingUngraded) {
+              status = "UNGRADED";
+              const isReSub = (requiresQuiz && qReSubmitted) || (requiresFile && fReSubmitted);
+              statusText = isReSub ? "Chưa chấm (Nộp lại)" : "Chưa chấm";
+              totalUngradedCount++;
+            } else {
+              status = "GRADED";
+            }
+          } else {
+            status = "UNSUBMITTED";
+            statusText = "Chưa nộp";
+            totalUnsubmittedCount++;
+          }
+
+          if (status !== "GRADED") {
+            const lessonName = lesson.name;
+            if (!teacherMap.has(lessonName)) {
+              teacherMap.set(lessonName, []);
+            }
+            teacherMap.get(lessonName).push({
+              studentName: student.displayName || student.fullName || "Học viên ẩn danh",
+              status,
+              statusText,
+            });
+          }
+        });
+      });
+
+      // Format response message using tree structure and grouped status lines
+      let msg = `📝 *TIẾN ĐỘ BÀI TẬP CHI TIẾT* - *${matchedClass.name}*\n`;
+      msg += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+      let hasAnyPending = false;
+
+      groupedReport.forEach((lessonsMap, teacherName) => {
+        const entries = Array.from(lessonsMap.entries()).filter(([_, students]) => students.length > 0);
+        if (entries.length === 0) return;
+
+        hasAnyPending = true;
+        let teacherEmoji = "👤";
+        if (teacherName.includes("(LEC)")) {
+          teacherEmoji = "👨‍🏫";
+        } else if (teacherName.includes("(TA)")) {
+          teacherEmoji = "🧑‍💻";
+        }
+        msg += `${teacherEmoji} *${teacherName}*\n`;
+
+        entries.forEach(([lessonName, students], lIdx) => {
+          const isLastLesson = lIdx === entries.length - 1;
+          const lessonPrefix = isLastLesson ? " └─ 📘 " : " ├─ 📘 ";
+          msg += `${lessonPrefix}*${lessonName}*\n`;
+
+          const unsubmitted = students.filter((s) => s.status === "UNSUBMITTED");
+          const ungraded = students.filter((s) => s.status === "UNGRADED");
+
+          const lines = [];
+          if (unsubmitted.length > 0) {
+            const namesStr = unsubmitted.map((s) => s.studentName).join(", ");
+            lines.push({
+              emoji: "🔴",
+              label: "Chưa nộp",
+              val: namesStr,
+            });
+          }
+          if (ungraded.length > 0) {
+            const namesStr = ungraded.map((s) => {
+              const suffix = s.statusText.includes("Nộp lại") || s.statusText.includes("nộp lại") ? " (Nộp lại)" : "";
+              return `${s.studentName}${suffix}`;
+            }).join(", ");
+            lines.push({
+              emoji: "🟡",
+              label: "Chưa chấm",
+              val: namesStr,
+            });
+          }
+
+          lines.forEach((line, lineIdx) => {
+            const isLastLine = lineIdx === lines.length - 1;
+            let linePrefix = "";
+            if (isLastLesson) {
+              linePrefix = isLastLine ? "    └─ " : "    ├─ ";
+            } else {
+              linePrefix = isLastLine ? " │  └─ " : " │  ├─ ";
+            }
+            msg += `${linePrefix}${line.emoji} *${line.label}*: ${line.val}\n`;
+          });
+        });
+        msg += "\n";
+      });
+
+      if (!hasAnyPending) {
+        await zaloClient.sendText(
+          userId,
+          `🎉 *Tuyệt vời!* Lớp *${matchedClass.name}* đã hoàn thành 100% việc làm và chấm bài tập về nhà.`,
+        );
+        return;
+      }
+
+      msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+      msg += `🔴 *Chưa nộp*: *${totalUnsubmittedCount}* bài\n`;
+      msg += `🟡 *Chưa chấm*: *${totalUngradedCount}* bài\n`;
+      msg += `👉 *Tổng số việc cần xử lý*: *${totalUnsubmittedCount + totalUngradedCount}* bài`;
 
       await zaloClient.sendText(userId, msg);
     }

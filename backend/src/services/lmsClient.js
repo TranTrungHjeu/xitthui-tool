@@ -160,8 +160,8 @@ class LMSClient {
       ];
 
       if (teacherId) {
-        payloadFields.push("teacher_equals: $teacherId");
-        signatureFields.push("$teacherId: String");
+        payloadFields.push("teacherSlots: $teacherSlot");
+        signatureFields.push("$teacherSlot: [String]");
       }
       if (centreIds && centreIds.length > 0) {
         payloadFields.push("centre_in: $centres");
@@ -246,7 +246,7 @@ class LMSClient {
 
       while (hasMore) {
         const variables = {
-          teacherId: teacherId || undefined,
+          teacherSlot: teacherId ? [teacherId] : undefined,
           centres: centreIds && centreIds.length > 0 ? centreIds : undefined,
           statusIn: statusIn && statusIn.length > 0 ? statusIn : undefined,
           pageIndex: currentPageIndex,
@@ -303,6 +303,9 @@ class LMSClient {
 
         const pageData = res.data.data.classes.data || [];
         const totalCount = res.data.data.classes.pagination?.total || 0;
+        console.log(
+          `[LMSClient] GetClasses page ${currentPageIndex}: got ${pageData.length} items. Total: ${totalCount}`,
+        );
         allData = allData.concat(pageData);
 
         if (
@@ -1054,11 +1057,7 @@ class LMSClient {
     }
   }
 
-  async getTeachers(
-    centers = ["6443460f94300678908f7974"],
-    pageIndex = 0,
-    itemsPerPage = 100,
-  ) {
+  async getTeachers(centers = [], pageIndex = 0, itemsPerPage = 100) {
     console.log("[LMSClient] getTeachers start. Centers:", centers);
     try {
       const query = `

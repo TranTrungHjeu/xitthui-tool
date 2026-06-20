@@ -69,13 +69,13 @@ class EmailService {
           <p>Vui lòng đăng nhập vào hệ thống LMS để hoàn thành việc đánh giá trong thời gian sớm nhất.</p>
           <br/>
           <p>Trân trọng,</p>
-          <p><strong>Hệ thống tự động XitthuiTool</strong></p>
+          <p><strong>Hệ thống tự động MindX Support Tools</strong></p>
           <p><em>Đây là email tự động, vui lòng không trả lời email này.</em></p>
         </div>
       `;
 
       const mailOptions = {
-        from: `"XitthuiTool - MindX" <${process.env.EMAIL_USER}>`,
+        from: `"MindX Support Tools" <${process.env.EMAIL_USER}>`,
         to: toEmail,
         subject: "[Quan trọng] Nhắc nhở hoàn thành đánh giá học viên",
         html: htmlContent,

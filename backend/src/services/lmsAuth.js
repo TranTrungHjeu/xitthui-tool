@@ -430,7 +430,14 @@ async function loginWithUsernameFlow(username, password) {
     const lmsAuth = await signInWithCustomToken(customToken);
     const lmsToken = lmsAuth.idToken;
     const lmsRefreshToken = lmsAuth.refreshToken;
-    const firebaseUid = lmsAuth.localId;
+    let firebaseUid = lmsAuth.localId;
+
+    if (!firebaseUid && lmsToken) {
+      const payloadBase64 = lmsToken.split(".")[1];
+      const payloadStr = Buffer.from(payloadBase64, "base64").toString("utf8");
+      const payload = JSON.parse(payloadStr);
+      firebaseUid = payload.sub || payload.user_id;
+    }
 
     console.log("[Auth] Step 3: Getting MindX user info...");
     const mindxUser = await getUserByFirebaseId(lmsToken, firebaseUid);

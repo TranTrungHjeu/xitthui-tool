@@ -45,17 +45,83 @@ class ZaloClient {
   }
 
   /**
+   * Split a long message into multiple chunks under the character limit, preserving line breaks.
+   */
+  splitMessage(text, limit = 1900) {
+    if (!text) return [""];
+    if (text.length <= limit) return [text];
+    
+    const chunks = [];
+    let currentChunk = "";
+    const lines = text.split("\n");
+    
+    for (const line of lines) {
+      if (line.length > limit) {
+        if (currentChunk) {
+          chunks.push(currentChunk.trim());
+          currentChunk = "";
+        }
+        let remainingLine = line;
+        while (remainingLine.length > limit) {
+          chunks.push(remainingLine.slice(0, limit));
+          remainingLine = remainingLine.slice(limit);
+        }
+        currentChunk = remainingLine + "\n";
+        continue;
+      }
+      
+      if ((currentChunk + line + "\n").length > limit) {
+        chunks.push(currentChunk.trim());
+        currentChunk = line + "\n";
+      } else {
+        currentChunk += line + "\n";
+      }
+    }
+    
+    if (currentChunk) {
+      chunks.push(currentChunk.trim());
+    }
+    
+    return chunks;
+  }
+
+  /**
    * Send text message to user
    */
   async sendText(chatId, text) {
     try {
-      const res = await axios.post(`${this.baseUrl}/sendMessage`, {
+      const chunks = this.splitMessage(text);
+      let lastRes = null;
+      for (const chunk of chunks) {
+        const res = await axios.post(`${this.baseUrl}/sendMessage`, {
+          chat_id: chatId,
+          text: chunk,
+        });
+        lastRes = res.data;
+        if (chunks.length > 1) {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
+      }
+      return lastRes;
+    } catch (err) {
+      console.error("[ZaloClient] sendMessage failed:", err.message);
+      return null;
+    }
+  }
+
+  /**
+   * Send photo message to user
+   */
+  async sendPhoto(chatId, photoUrl, caption = "") {
+    try {
+      const res = await axios.post(`${this.baseUrl}/sendPhoto`, {
         chat_id: chatId,
-        text: text,
+        photo: photoUrl,
+        caption: caption,
       });
       return res.data;
     } catch (err) {
-      console.error("[ZaloClient] sendMessage failed:", err.message);
+      console.error("[ZaloClient] sendPhoto failed:", err.message);
       return null;
     }
   }

@@ -1,4 +1,5 @@
 const LMSClient = require("../services/lmsClient");
+const { isLmsAuthError } = require("../utils/authError");
 const { getSessionExamType } = require("../utils/courseConfig");
 
 // In-memory visibility map for demonstration. Replace with persistent DB in prod.
@@ -126,7 +127,8 @@ exports.getTeacherSchedules = async (req, res) => {
     res.json({ success: true, data: allSchedules });
   } catch (err) {
     console.error("[Controller] getTeacherSchedules failed:", err.message);
-    res.status(200).json({
+    const statusCode = isLmsAuthError(err) ? 401 : 200;
+    res.status(statusCode).json({
       success: false,
       data: [],
       error: err.response?.data?.errors?.[0]?.message || err.message,
@@ -159,7 +161,8 @@ exports.getTeachers = async (req, res) => {
     });
   } catch (err) {
     console.error("[Controller] getTeachers failed:", err.message);
-    res.status(200).json({
+    const statusCode = isLmsAuthError(err) ? 401 : 200;
+    res.status(statusCode).json({
       success: false,
       data: [],
       pagination: { total: 0 },

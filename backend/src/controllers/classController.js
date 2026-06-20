@@ -1,4 +1,5 @@
 const LMSClient = require("../services/lmsClient");
+const { isLmsAuthError } = require("../utils/authError");
 const ClassCacheService = require("../services/classCache");
 const FirestoreNotification = require("../storage/firestoreNotification");
 const NotificationScheduler = require("../services/notificationScheduler");
@@ -77,7 +78,8 @@ exports.getClasses = async (req, res) => {
       JSON.stringify(err.response?.data || {}, null, 2),
     );
 
-    res.status(200).json({
+    const statusCode = isLmsAuthError(err) ? 401 : 200;
+    res.status(statusCode).json({
       success: false,
       data: [],
       error: err.response?.data?.errors?.[0]?.message || err.message,
@@ -137,7 +139,8 @@ exports.getClassById = async (req, res) => {
       JSON.stringify(err.response?.data || {}, null, 2),
     );
 
-    res.status(200).json({
+    const statusCode = isLmsAuthError(err) ? 401 : 200;
+    res.status(statusCode).json({
       success: false,
       data: null,
       error: err.response?.data?.errors?.[0]?.message || err.message,
@@ -192,7 +195,7 @@ exports.getClassesDetails = async (req, res) => {
 
     res.json({ success: true, data: results });
   } catch (err) {
-    const statusCode = err.response?.status || 500;
+    const statusCode = isLmsAuthError(err) ? 401 : (err.response?.status || 500);
     res.status(statusCode).json({
       success: false,
       error: err.response?.data?.errors?.[0]?.message || err.message,
@@ -222,8 +225,9 @@ exports.updateEvaluation = async (req, res) => {
 
     res.json({ success: true, data });
   } catch (err) {
+    const statusCode = isLmsAuthError(err) ? 401 : 500;
     res
-      .status(500)
+      .status(statusCode)
       .json({ success: false, error: err.response?.data || err.message });
   }
 };
@@ -245,7 +249,8 @@ exports.getCourseVersion = async (req, res) => {
     res.json({ success: true, data });
   } catch (err) {
     console.error("[Controller] getCourseVersion failed:", err.message);
-    res.status(200).json({
+    const statusCode = isLmsAuthError(err) ? 401 : 200;
+    res.status(statusCode).json({
       success: false,
       data: null,
       error: err.response?.data?.errors?.[0]?.message || err.message,
@@ -275,7 +280,8 @@ exports.getSubmissions = async (req, res) => {
       JSON.stringify(err.response?.data || {}, null, 2),
     );
 
-    res.status(200).json({
+    const statusCode = isLmsAuthError(err) ? 401 : 200;
+    res.status(statusCode).json({
       success: false,
       data: [],
       error: err.response?.data?.errors?.[0]?.message || err.message,
@@ -474,7 +480,8 @@ exports.getStudentAIReport = async (req, res) => {
     res.json({ success: true, data: aiResult });
   } catch (err) {
     console.error("[Controller] getStudentAIReport failed:", err.message);
-    res.status(200).json({
+    const statusCode = isLmsAuthError(err) ? 401 : 200;
+    res.status(statusCode).json({
       success: false,
       error: err.response?.data?.errors?.[0]?.message || err.message,
     });
@@ -696,7 +703,8 @@ exports.getClassesNotifications = async (req, res) => {
     res.json({ success: true, data: feedbackList });
   } catch (err) {
     console.error("[Controller] getClassesNotifications failed:", err.message);
-    res.status(500).json({ success: false, error: err.message, data: [] });
+    const statusCode = isLmsAuthError(err) ? 401 : 500;
+    res.status(statusCode).json({ success: false, error: err.message, data: [] });
   }
 };
 
@@ -726,7 +734,8 @@ exports.syncNotifications = async (req, res) => {
     res.json({ success: true, message: "Đồng bộ thông báo thành công" });
   } catch (err) {
     console.error("[Controller] syncNotifications failed:", err.message);
-    res.status(500).json({ success: false, error: err.message });
+    const statusCode = isLmsAuthError(err) ? 401 : 500;
+    res.status(statusCode).json({ success: false, error: err.message });
   }
 };
 
@@ -753,7 +762,8 @@ exports.sendNotificationEmails = async (req, res) => {
     res.json({ success: true, message: "Đã gửi email nhắc nhở thành công" });
   } catch (err) {
     console.error("[Controller] sendNotificationEmails failed:", err.message);
-    res.status(500).json({ success: false, error: err.message });
+    const statusCode = isLmsAuthError(err) ? 401 : 500;
+    res.status(statusCode).json({ success: false, error: err.message });
   }
 };
 
@@ -844,7 +854,8 @@ exports.getStudents = async (req, res) => {
     });
   } catch (err) {
     console.error("[Controller] getStudents failed:", err.message);
-    res.status(500).json({ success: false, error: err.message });
+    const statusCode = isLmsAuthError(err) ? 401 : 500;
+    res.status(statusCode).json({ success: false, error: err.message });
   }
 };
 
@@ -873,7 +884,8 @@ exports.syncStudents = async (req, res) => {
   } catch (err) {
     console.error("[Controller] syncStudents failed:", err.message);
     if (!res.headersSent) {
-      res.status(500).json({ success: false, error: err.message });
+      const statusCode = isLmsAuthError(err) ? 401 : 500;
+      res.status(statusCode).json({ success: false, error: err.message });
     }
   }
 };

@@ -100,7 +100,7 @@ function extractCourseCode(className) {
 
   for (const key of keys) {
     if (upperName.includes(key)) {
-      const regex = new RegExp(`(^|[-_ .])${key}([-_ .]|$)`);
+      const regex = new RegExp(`(^|[-_ .])${key}([-_ .\\d]|$)`);
       if (regex.test(upperName)) {
         return key;
       }
@@ -125,7 +125,12 @@ function getCourseCategory(courseCodeOrClassName) {
   }
 
   if (courseCodeOrClassName.toUpperCase().includes("XART")) return "art";
-  if (courseCodeOrClassName.toUpperCase().includes("RBT")) return "robotics";
+  if (
+    courseCodeOrClassName.toUpperCase().includes("RBT") ||
+    courseCodeOrClassName.toUpperCase().includes("ROB")
+  ) {
+    return "robotics";
+  }
 
   return "unknown";
 }
