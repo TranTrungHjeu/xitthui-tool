@@ -188,14 +188,13 @@ export default function DashboardLayout({
     { label: "Cài đặt", href: "/dashboard/settings", icon: Settings },
   ];
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     const sessionId = useAuthStore.getState().sessionId;
     if (sessionId) {
-      try {
-        await authService.logout(sessionId);
-      } catch (err) {
+      // Fire and forget so we don't block the UI if the request hangs or fails
+      authService.logout(sessionId).catch((err) => {
         console.error("Backend logout failed:", err);
-      }
+      });
     }
     logout();
     router.push("/login");

@@ -1,3 +1,4 @@
+process.env.FIRESTORE_PREFER_REST = "true";
 const admin = require("firebase-admin");
 const { getFirestore } = require("firebase-admin/firestore");
 const path = require("path");
