@@ -29,5 +29,7 @@ router.post(
 );
 router.post("/classes/students", classController.getStudents);
 router.post("/classes/sync-students", classController.syncStudents);
+router.get("/classes/download-attachment", classController.downloadAttachment);
 
 module.exports = router;
+

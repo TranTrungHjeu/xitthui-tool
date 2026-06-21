@@ -50,6 +50,7 @@ import {
   CalendarCheck,
   BarChart3,
   Users,
+  Paperclip,
 } from "lucide-react";
 import CatLoader from "../../../../components/CatLoader";
 import EvaluationDialog from "../../../../components/EvaluationDialog";
@@ -826,6 +827,46 @@ export default function ClassDetailsPage({
                               studentSubmission.status || badgeStatus;
                           }
 
+                          let attachmentUrls: string[] = [];
+                          if (studentSubmission?.content?.attachments) {
+                            const atts = studentSubmission.content.attachments;
+                            let list: any[] = [];
+                            if (Array.isArray(atts)) {
+                              list = atts;
+                            } else if (typeof atts === "string" && atts.trim() !== "") {
+                              try {
+                                const parsed = JSON.parse(atts);
+                                if (Array.isArray(parsed)) {
+                                  list = parsed;
+                                } else {
+                                  list = [atts];
+                                }
+                              } catch (e) {
+                                list = [atts];
+                              }
+                            }
+                            attachmentUrls = list
+                              .map((att: any) => {
+                                let url = "";
+                                if (typeof att === "string") {
+                                  url = att;
+                                } else if (att && typeof att === "object") {
+                                  url = att.url || att.link || att.path || att.downloadUrl || "";
+                                }
+                                
+                                if (url) {
+                                  // Check if it is a MindX bucket upload (contains uploads/ or /uploads/)
+                                  const isUpload = url.includes("/uploads/") || url.startsWith("uploads/") || url.startsWith("/uploads/");
+                                  if (isUpload) {
+                                    const apiBase = process.env.NEXT_PUBLIC_SERVER_API_URL || "http://localhost:4444";
+                                    return `${apiBase}/classes/download-attachment?key=${encodeURIComponent(url)}`;
+                                  }
+                                }
+                                return url;
+                              })
+                              .filter(Boolean);
+                          }
+
                           return (
                             <div
                               key={`${student.id}-${lesson.id}`}
@@ -846,6 +887,19 @@ export default function ClassDetailsPage({
                                       {studentSubmission.score}
                                     </div>
                                   )}
+                                {attachmentUrls.map((url, uIdx) => (
+                                  <a
+                                    key={uIdx}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-0.5 text-[9px] text-blue-600 hover:text-blue-800 hover:underline mt-1 bg-blue-50 px-1 py-0.5 rounded border border-blue-100"
+                                    title="Tải file bài tập"
+                                  >
+                                    <Paperclip className="w-2.5 h-2.5" />
+                                    Tải file
+                                  </a>
+                                ))}
                               </div>
                             </div>
                           );

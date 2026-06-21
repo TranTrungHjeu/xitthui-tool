@@ -1,3 +1,4 @@
+const axios = require("axios");
 const LMSClient = require("../services/lmsClient");
 const { isLmsAuthError } = require("../utils/authError");
 const ClassCacheService = require("../services/classCache");
@@ -272,6 +273,46 @@ exports.getSubmissions = async (req, res) => {
 
     const client = new LMSClient(token);
     const data = await client.getStudentSubmissionsByClass(classId);
+
+    // Normalize attachment URLs to be absolute
+    if (data && Array.isArray(data.submissions)) {
+      data.submissions.forEach(sub => {
+        if (sub.content && sub.content.attachments) {
+          let list = [];
+          const atts = sub.content.attachments;
+          if (Array.isArray(atts)) {
+            list = atts;
+          } else if (typeof atts === "string" && atts.trim() !== "") {
+            try {
+              list = JSON.parse(atts);
+            } catch (e) {
+              list = [atts];
+            }
+          } else if (atts) {
+            list = [atts];
+          }
+
+          const normalized = list.map(att => {
+            let url = "";
+            if (typeof att === "string") {
+              url = att;
+            } else if (att && typeof att === "object") {
+              url = att.url || att.link || att.path || att.downloadUrl || "";
+            }
+
+            if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+              const base = (process.env.MINDX_LMS_ASSETS_BASE_URL || "https://mindx-learning-materials.hn.ss.bfcplatform.vn").replace(/\/$/, "");
+              const cleanPath = url.startsWith("/") ? url : `/${url}`;
+              return `${base}${cleanPath}`;
+            }
+            return url;
+          }).filter(Boolean);
+
+          sub.content.attachments = normalized;
+        }
+      });
+    }
+
     res.json({ success: true, data });
   } catch (err) {
     console.error("[Controller] getSubmissions failed:", err.message);
@@ -887,5 +928,45 @@ exports.syncStudents = async (req, res) => {
       const statusCode = isLmsAuthError(err) ? 401 : 500;
       res.status(statusCode).json({ success: false, error: err.message });
     }
+  }
+};
+
+exports.downloadAttachment = async (req, res) => {
+  try {
+    let key = req.query.key || "";
+    if (!key) {
+      return res.status(400).send("Parameter 'key' is required.");
+    }
+
+    // Extract path starting with 'uploads/' if key is a full URL or starts with '/'
+    if (key.startsWith("http://") || key.startsWith("https://")) {
+      try {
+        const urlObj = new URL(key);
+        key = urlObj.pathname;
+      } catch (e) {
+        // use key as is
+      }
+    }
+
+    if (key.startsWith("/")) {
+      key = key.substring(1);
+    }
+
+    console.log(`[Controller] downloadAttachment: key = "${key}"`);
+
+    // Fetch the presigned URL from MindX resources API
+    const response = await axios.get("https://resources.mindx.edu.vn/api/v1/get-presigned-url", {
+      params: { key }
+    });
+
+    if (response.data && response.data.success && response.data.url) {
+      return res.redirect(response.data.url);
+    } else {
+      console.error("[Controller] Failed to get presigned URL:", response.data);
+      return res.status(500).send("Could not retrieve download link from MindX API.");
+    }
+  } catch (err) {
+    console.error("[Controller] downloadAttachment error:", err.message);
+    return res.status(500).send(`Error processing download: ${err.message}`);
   }
 };
