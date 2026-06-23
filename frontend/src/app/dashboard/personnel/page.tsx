@@ -13,7 +13,7 @@ import {
 } from "../../../components/ui/table";
 import { Input } from "../../../components/ui/input";
 import { Badge } from "../../../components/ui/badge";
-import { Loader2, Search, Users, Eye, EyeOff } from "lucide-react";
+import { Loader2, Search, Users, Eye, EyeOff, Info } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import CatLoader from "../../../components/CatLoader";
 import { useMinLoading } from "@/hooks/useMinLoading";
@@ -54,6 +54,7 @@ export default function PersonnelPage() {
     new Set(),
   );
   const [totalTeachers, setTotalTeachers] = useState(0);
+
 
   const showLoading = useMinLoading(isLoading, 1000);
 
@@ -192,7 +193,7 @@ export default function PersonnelPage() {
   }
 
   return (
-    <div className="p-6 md:p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -246,7 +247,8 @@ export default function PersonnelPage() {
       {/* Table */}
       {!showLoading && !error && (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow className="bg-slate-50 hover:bg-slate-50">
@@ -387,7 +389,7 @@ export default function PersonnelPage() {
                             className="text-slate-400 hover:text-primary"
                             title="Xem chi tiết"
                           >
-                            <Eye className="h-4 w-4" />
+                            <Info className="h-4 w-4" />
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -396,6 +398,120 @@ export default function PersonnelPage() {
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Mobile Cards View */}
+          <div className="block md:hidden p-4 space-y-4 bg-slate-50/50 min-h-full">
+            {filtered.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 font-medium bg-white rounded-xl border border-slate-200/60 p-6 shadow-sm">
+                {search ? "Không tìm thấy nhân sự nào phù hợp." : "Chưa có dữ liệu nhân sự."}
+              </div>
+            ) : (
+              displayedTeachers.map((teacher, index) => {
+                const isInactive = inactiveTeacherIds.has(teacher.id);
+                return (
+                  <div
+                    key={teacher.id}
+                    className={`bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 space-y-3 transition-all hover:shadow-md ${
+                      isInactive ? "opacity-60 bg-slate-50/40" : ""
+                    }`}
+                  >
+                    {/* Card Header: #, Code & Active toggle */}
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400 font-mono text-xs">#{index + 1}</span>
+                        {teacher.code && (
+                          <span className="font-mono text-[10.5px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-600">
+                            {teacher.code}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleTeacherActive(teacher.id)}
+                          className={`h-8 w-8 transition-colors ${
+                            isInactive
+                              ? "text-slate-300 hover:text-slate-500"
+                              : "text-slate-400 hover:text-green-600"
+                          }`}
+                          title={isInactive ? "Bật hiển thị" : "Tắt hiển thị"}
+                        >
+                          {isInactive ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setSelectedTeacher(teacher)}
+                          className="h-8 w-8 text-slate-400 hover:text-primary"
+                          title="Xem chi tiết"
+                        >
+                          <Info className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Card Body: Name, Username, Email, Phone, Gender */}
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-start gap-2">
+                        <span className="font-bold text-slate-800 text-[13.5px] leading-tight block">
+                          {teacher.fullName || "—"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 pt-1 text-[11px] text-slate-500 font-medium">
+                        <div>
+                          <span className="text-slate-400 block text-[9.5px] uppercase font-bold">Username</span>
+                          <span className="text-slate-700 font-semibold">{teacher.username || "—"}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[9.5px] uppercase font-bold">Giới tính</span>
+                          <span className="inline-block mt-0.5">
+                            <Badge
+                              variant={
+                                teacher.gender === "MALE" || teacher.gender === "male"
+                                  ? "default"
+                                  : "secondary"
+                              }
+                              className="text-[10px] px-1.5 py-0.5 leading-none shrink-0"
+                            >
+                              {formatGender(teacher.gender)}
+                            </Badge>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 pt-1 border-t border-slate-50 text-[11px]">
+                        {teacher.email && (
+                          <div className="flex items-center gap-1.5 text-slate-600">
+                            <span className="text-slate-400 w-12 text-[9.5px] uppercase font-bold">Email</span>
+                            <span className="truncate">{teacher.email}</span>
+                          </div>
+                        )}
+                        {teacher.personalEmail && (
+                          <div className="flex items-center gap-1.5 text-slate-500">
+                            <span className="text-slate-400 w-12 text-[9.5px] uppercase font-bold">Cá nhân</span>
+                            <span className="truncate">{teacher.personalEmail}</span>
+                          </div>
+                        )}
+                        {teacher.phoneNumber && (
+                          <div className="flex items-center gap-1.5 text-slate-600">
+                            <span className="text-slate-400 w-12 text-[9.5px] uppercase font-bold">SĐT</span>
+                            <span>{teacher.phoneNumber}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}

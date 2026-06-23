@@ -204,7 +204,7 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex h-screen bg-[#f8fafc]">
+    <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
       <Toaster position="top-right" expand={true} richColors />
       {/* Sidebar Desktop */}
       <aside
@@ -435,9 +435,10 @@ export default function DashboardLayout({
         </div>
       </aside>
 
-      {/* Mobile Menu */}
-      <div className="md:hidden flex flex-col w-full relative">
-        <header className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-100 shadow-sm sticky top-0 z-50">
+      {/* Main Container (Visible on both Mobile and Desktop) */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        {/* Header Mobile */}
+        <header className="md:hidden flex items-center justify-between px-6 py-3 bg-white border-b border-slate-100 shadow-sm sticky top-0 z-40 shrink-0">
           <div className="flex items-center gap-2">
             <Image
               src="/logo.png"
@@ -462,114 +463,149 @@ export default function DashboardLayout({
           </Button>
         </header>
 
+        {/* Mobile Menu Drawer Overlay */}
         {isMobileMenuOpen && (
-          <div className="fixed inset-0 top-[73px] bg-white z-[60] p-6 space-y-3 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
-            {navItems.map((item) => {
-              const isClassesMenu = item.href === "/dashboard/classes";
-              const isParentActive = pathname === item.href;
-              const isChildActive =
-                isClassesMenu && pathname.startsWith("/dashboard/classes/");
-              const isActive = isParentActive || isChildActive;
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[55] md:hidden"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+            {/* Drawer */}
+            <div className="fixed top-0 left-0 bottom-0 w-80 max-w-[85vw] bg-white z-[60] p-6 flex flex-col overflow-y-auto shadow-2xl animate-in slide-in-from-left duration-250 md:hidden">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between pb-6 border-b border-slate-100 mb-6 shrink-0">
+                <Image
+                  src="/logo.png"
+                  alt="Xitthui logo"
+                  width={100}
+                  height={100}
+                  style={{ width: "auto", height: "36px" }}
+                  priority
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-xl h-9 w-9 bg-slate-50 hover:bg-slate-100"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <X className="h-5 w-5 text-slate-500" />
+                </Button>
+              </div>
 
-              return (
-                <div key={item.href} className="space-y-1">
-                  <div className="flex items-center justify-between rounded-md">
-                    <Link
-                      href={item.href}
-                      onClick={() =>
-                        !isClassesMenu && setIsMobileMenuOpen(false)
-                      }
-                      className={`flex-1 flex items-center px-4 py-3 text-base font-medium rounded-md ${
-                        isActive
-                          ? "bg-slate-50 text-primary border-l-2 border-primary pl-2"
-                          : "text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      <item.icon
-                        className={`mr-3 h-6 w-6 ${isActive ? "text-primary" : "text-slate-400"}`}
-                      />
-                      {item.label}
-                    </Link>
-                    {isClassesMenu && classes.length > 0 && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setIsClassesExpanded(!isClassesExpanded);
-                        }}
-                        className="p-3 text-slate-500"
-                      >
-                        {isClassesExpanded ? (
-                          <ChevronDown className="h-5 w-5" />
-                        ) : (
-                          <ChevronRight className="h-5 w-5" />
-                        )}
-                      </button>
-                    )}
-                  </div>
+              {/* Navigation Items */}
+              <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+                {navItems.map((item) => {
+                  const isClassesMenu = item.href === "/dashboard/classes";
+                  const isParentActive = pathname === item.href;
+                  const isChildActive =
+                    isClassesMenu && pathname.startsWith("/dashboard/classes/");
+                  const isActive = isParentActive || isChildActive;
 
-                  {isClassesMenu && isClassesExpanded && classes.length > 0 && (
-                    <div className="pl-12 space-y-1 border-l ml-7 border-slate-200">
-                      {classes.map((cls) => {
-                        const classHref = `/dashboard/classes/${cls.id}`;
-                        const isClassActive = pathname === classHref;
-                        return (
-                          <Link
-                            key={cls.id}
-                            href={classHref}
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors truncate ${
-                              isClassActive
-                                ? "text-primary bg-primary/5 font-semibold"
-                                : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-                            }`}
+                  return (
+                    <div key={item.href} className="space-y-1">
+                      <div className="flex items-center justify-between rounded-xl">
+                        <Link
+                          href={item.href}
+                          onClick={() =>
+                            !isClassesMenu && setIsMobileMenuOpen(false)
+                          }
+                          className={`flex-1 flex items-center px-4 py-3 text-base font-semibold rounded-xl transition-all duration-200 ${
+                            isActive
+                              ? "bg-primary/5 text-primary pl-5 border-l-4 border-primary"
+                              : "text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          <item.icon
+                            className={`mr-3.5 h-5 w-5 ${isActive ? "text-primary" : "text-slate-400"}`}
+                          />
+                          {item.label}
+                        </Link>
+                        {isClassesMenu && classes.length > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setIsClassesExpanded(!isClassesExpanded);
+                            }}
+                            className="p-3 text-slate-500 hover:bg-slate-50 rounded-xl"
                           >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full mr-2 transition-colors ${
-                                isClassActive
-                                  ? "bg-primary"
-                                  : "bg-slate-300 group-hover:bg-slate-400"
-                              }`}
-                            />
-                            {cls.name}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                            {isClassesExpanded ? (
+                              <ChevronDown className="h-5 w-5" />
+                            ) : (
+                              <ChevronRight className="h-5 w-5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
 
-            <div className="pt-4 pb-3 px-4 mb-2 mt-4 bg-slate-50 rounded-xl border border-slate-100 shadow-sm">
-              <p className="text-sm font-bold text-slate-900 truncate">
-                {displayName}
-              </p>
-              <p className="text-xs text-slate-500 truncate mt-0.5">
-                {user?.email}
-              </p>
-              <div className="mt-2.5 flex">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
-                  {roleDisplay}
-                </span>
+                      {isClassesMenu && isClassesExpanded && classes.length > 0 && (
+                        <div className="pl-6 space-y-1.5 border-l ml-7 border-slate-100">
+                          {classes.map((cls) => {
+                            const classHref = `/dashboard/classes/${cls.id}`;
+                            const isClassActive = pathname === classHref;
+                            return (
+                              <Link
+                                key={cls.id}
+                                href={classHref}
+                                onClick={() => setIsMobileMenuOpen(false)}
+                                className={`group flex items-center px-4 py-2.5 text-[13px] font-semibold rounded-lg transition-colors truncate ${
+                                  isClassActive
+                                    ? "text-primary bg-primary/5 font-bold"
+                                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                                }`}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full mr-3.5 transition-colors ${
+                                    isClassActive
+                                      ? "bg-primary scale-110"
+                                      : "bg-slate-300 group-hover:bg-slate-400"
+                                  }`}
+                                />
+                                <span className="truncate">{cls.name}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Drawer Footer */}
+              <div className="pt-4 border-t border-slate-100 mt-auto shrink-0">
+                <div className="p-4 mb-3 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
+                  <p className="text-[13px] font-bold text-slate-900 truncate">
+                    {displayName}
+                  </p>
+                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                    {user?.email}
+                  </p>
+                  <div className="mt-2 flex">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                      {roleDisplay}
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50/50 py-3 rounded-xl text-sm font-semibold transition-colors duration-200"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="mr-3 h-5 w-5" />
+                  Đăng xuất
+                </Button>
               </div>
             </div>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-red-600 py-3"
-              onClick={handleLogout}
-            >
-              <LogOut className="mr-3 h-6 w-6" />
-              Đăng xuất
-            </Button>
-          </div>
+          </>
         )}
 
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        {/* Single Main Viewport */}
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
       </div>
-
-      {/* Main Content Desktop */}
-      <main className="hidden md:block flex-1 overflow-y-auto">{children}</main>
     </div>
   );
 }

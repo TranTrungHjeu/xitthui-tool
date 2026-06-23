@@ -615,7 +615,7 @@ export default function DashboardOverview() {
 
   return (
     <>
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
         <div className="flex justify-between items-end">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">
@@ -627,8 +627,8 @@ export default function DashboardOverview() {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-          <Card className="col-span-4">
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-7">
+          <Card className="col-span-1 lg:col-span-4">
             <CardHeader>
               <CardTitle>Lớp học sắp tới</CardTitle>
               <CardDescription>
@@ -719,8 +719,8 @@ export default function DashboardOverview() {
             </CardContent>
           </Card>
 
-          <Card className="col-span-3">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Card className="col-span-1 lg:col-span-3">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
               <div>
                 <CardTitle>Thông báo</CardTitle>
                 <CardDescription>Các hoạt động cần xử lý ngay</CardDescription>

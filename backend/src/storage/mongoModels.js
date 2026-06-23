@@ -170,6 +170,26 @@ const ScheduleSchema = new mongoose.Schema(
   { timestamps: { createdAt: false, updatedAt: true } }
 );
 
+// 9. Trial Booking Schema
+const TrialBookingSchema = new mongoose.Schema(
+  {
+    _id: { type: String, required: true }, // `${dateStr}_row_${rowIndex}` or `${dateStr}_slot_${normalizedTime}`
+    date: { type: String, required: true, index: true }, // YYYY-MM-DD
+    timeSlot: { type: String, required: true }, // e.g. "18:00" or "9H"
+    normalizedTime: { type: String, required: true }, // "HH:MM"
+    subject: { type: String, default: "N/A" },
+    type: { type: String, default: "N/A" },
+    roomLink: { type: String, default: "" },
+    students: { type: [String], default: [] },
+    rowIndex: { type: Number, default: null }, // sheet row number (if applicable)
+    teacherId: { type: String, default: null }, // assigned teacher ID
+    teacherCode: { type: String, default: null }, // assigned teacher code
+    teacherName: { type: String, default: null }, // assigned teacher name
+    updatedAt: { type: Date, default: Date.now }
+  },
+  { timestamps: { createdAt: false, updatedAt: true } }
+);
+
 module.exports = {
   Session: mongoose.model("Session", SessionSchema),
   ActiveToken: mongoose.model("ActiveToken", ActiveTokenSchema),
@@ -178,5 +198,6 @@ module.exports = {
   ZaloSession: mongoose.model("ZaloSession", ZaloSessionSchema),
   ZaloConfig: mongoose.model("ZaloConfig", ZaloConfigSchema),
   Class: mongoose.model("Class", ClassSchema),
-  Schedule: mongoose.model("Schedule", ScheduleSchema)
+  Schedule: mongoose.model("Schedule", ScheduleSchema),
+  TrialBooking: mongoose.model("TrialBooking", TrialBookingSchema)
 };

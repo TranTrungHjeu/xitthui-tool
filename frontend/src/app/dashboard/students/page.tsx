@@ -61,6 +61,16 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const showLoading = useMinLoading(loading, 1000);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const rawCentres = user?.teacherCentres || [];
   const centres = rawCentres.map((c: any) => {
@@ -332,202 +342,345 @@ export default function StudentsPage() {
         <div className="flex flex-col gap-4">
           <Card className="border-gray-200/60 shadow-sm dark:border-gray-800/60 flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-auto rounded-t-xl">
-              <Table>
-                <TableHeader className="bg-gray-50/80 dark:bg-gray-900/80 sticky top-0 z-10 backdrop-blur-sm">
-                  <TableRow className="border-gray-200/60 dark:border-gray-800/60">
-                    <TableHead className="w-[30%] min-w-[200px] font-semibold text-gray-700 dark:text-gray-300">
-                      Học viên
-                    </TableHead>
-                    <TableHead className="w-[35%] min-w-[220px] font-semibold text-gray-700 dark:text-gray-300">
-                      Lớp học
-                    </TableHead>
-                    <TableHead className="w-[17.5%] min-w-[120px] font-semibold text-gray-700 dark:text-gray-300">
-                      Chuyên cần
-                    </TableHead>
-                    <TableHead className="w-[17.5%] min-w-[120px] font-semibold text-gray-700 dark:text-gray-300">
-                      Bài tập
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="relative">
-                  {showLoading && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="h-64 text-center">
-                        <div className="flex flex-col items-center justify-center gap-3 text-gray-500">
-                          <CatLoader />
-                        </div>
-                      </TableCell>
+              {!isMobile ? (
+                <Table>
+                  <TableHeader className="bg-gray-50/80 dark:bg-gray-900/80 sticky top-0 z-10 backdrop-blur-sm">
+                    <TableRow className="border-gray-200/60 dark:border-gray-800/60">
+                      <TableHead className="w-[30%] min-w-[200px] font-semibold text-gray-700 dark:text-gray-300">
+                        Học viên
+                      </TableHead>
+                      <TableHead className="w-[35%] min-w-[220px] font-semibold text-gray-700 dark:text-gray-300">
+                        Lớp học
+                      </TableHead>
+                      <TableHead className="w-[17.5%] min-w-[120px] font-semibold text-gray-700 dark:text-gray-300">
+                        Chuyên cần
+                      </TableHead>
+                      <TableHead className="w-[17.5%] min-w-[120px] font-semibold text-gray-700 dark:text-gray-300">
+                        Bài tập
+                      </TableHead>
                     </TableRow>
-                  )}
+                  </TableHeader>
+                  <TableBody className="relative">
+                    {showLoading && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="h-64 text-center">
+                          <div className="flex flex-col items-center justify-center gap-3 text-gray-500">
+                            <CatLoader />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
 
-                  {!showLoading && students.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="h-64 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2 text-gray-500">
-                          <User className="h-8 w-8 text-gray-400 opacity-50" />
-                          <p className="text-sm font-medium">
-                            Không tìm thấy học viên nào
-                          </p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
+                    {!showLoading && students.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="h-64 text-center">
+                          <div className="flex flex-col items-center justify-center gap-2 text-gray-500">
+                            <User className="h-8 w-8 text-gray-400 opacity-50" />
+                            <p className="text-sm font-medium">
+                              Không tìm thấy học viên nào
+                            </p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
 
-                  {!showLoading && students.length > 0 && (
-                    <AnimatePresence mode="popLayout">
-                      {students.map((student, idx) => (
-                        <motion.tr
-                          key={student.id}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          transition={{
-                            duration: 0.2,
-                            delay: Math.min(idx * 0.02, 0.2),
-                          }}
-                          className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/50 border-gray-200/60 dark:border-gray-800/60 transition-colors"
-                        >
-                          <TableCell className="align-top py-4">
-                            <div className="flex items-center gap-3 pt-2">
-                              <div className="h-8 w-8 shrink-0 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center border border-blue-200 dark:border-blue-800">
-                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
-                                  {student.fullName.charAt(0).toUpperCase()}
-                                </span>
+                    {!showLoading && students.length > 0 && (
+                      <AnimatePresence mode="popLayout">
+                        {students.map((student, idx) => (
+                          <motion.tr
+                            key={student.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{
+                              duration: 0.2,
+                              delay: Math.min(idx * 0.02, 0.2),
+                            }}
+                            className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/50 border-gray-200/60 dark:border-gray-800/60 transition-colors"
+                          >
+                            <TableCell className="align-top py-4">
+                              <div className="flex items-center gap-3 pt-2">
+                                <div className="h-8 w-8 shrink-0 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center border border-blue-200 dark:border-blue-800">
+                                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                                    {student.fullName.charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                                <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                                  {student.fullName}
+                                </p>
                               </div>
-                              <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                                {student.fullName}
-                              </p>
-                            </div>
-                          </TableCell>
+                            </TableCell>
 
-                          {/* Lớp học */}
-                          <TableCell className="align-top py-4">
-                            <div className="flex flex-col">
-                              {student.classes.length > 0 ? (
-                                student.classes.map((cls) => {
-                                  const normalizedStatus = cls.status
-                                    ? cls.status
-                                        .toUpperCase()
-                                        .replace(/\s+/g, "_")
-                                    : "";
-                                  let colorStyle =
-                                    "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
+                            {/* Lớp học */}
+                            <TableCell className="align-top py-4">
+                              <div className="flex flex-col">
+                                {student.classes.length > 0 ? (
+                                  student.classes.map((cls) => {
+                                    const normalizedStatus = cls.status
+                                      ? cls.status
+                                          .toUpperCase()
+                                          .replace(/\s+/g, "_")
+                                      : "";
+                                    let colorStyle =
+                                      "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
 
-                                  if (
-                                    normalizedStatus === "RUNNING" ||
-                                    normalizedStatus === "OPEN"
-                                  ) {
-                                    colorStyle =
-                                      "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800";
-                                  } else if (
-                                    ["PRE_OPEN", "PREPARING", "NEW"].includes(
-                                      normalizedStatus,
-                                    )
-                                  ) {
-                                    colorStyle =
-                                      "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800";
-                                  } else if (
-                                    ["CLOSED", "ENDED", "FINISHED"].includes(
-                                      normalizedStatus,
-                                    )
-                                  ) {
-                                    colorStyle =
-                                      "bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-500 dark:border-gray-700";
-                                  }
+                                    if (
+                                      normalizedStatus === "RUNNING" ||
+                                      normalizedStatus === "OPEN"
+                                    ) {
+                                      colorStyle =
+                                        "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800";
+                                    } else if (
+                                      ["PRE_OPEN", "PREPARING", "NEW"].includes(
+                                        normalizedStatus,
+                                      )
+                                    ) {
+                                      colorStyle =
+                                        "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800";
+                                    } else if (
+                                      ["CLOSED", "ENDED", "FINISHED"].includes(
+                                        normalizedStatus,
+                                      )
+                                    ) {
+                                      colorStyle =
+                                        "bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-500 dark:border-gray-700";
+                                    }
 
-                                  return (
+                                    return (
+                                      <div
+                                        key={cls.id}
+                                        className="h-10 flex items-center border-b border-gray-100 dark:border-gray-800/40 last:border-0"
+                                      >
+                                        <Badge
+                                          variant="outline"
+                                          className={`font-semibold flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] ${colorStyle}`}
+                                          title={cls.status}
+                                        >
+                                          <GraduationCap className="h-3 w-3 opacity-70" />
+                                          <span>{cls.name}</span>
+                                        </Badge>
+                                      </div>
+                                    );
+                                  })
+                                ) : (
+                                  <div className="h-10 flex items-center text-sm text-gray-400 italic">
+                                    Không có lớp
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+
+                            {/* Chuyên cần */}
+                            <TableCell className="align-top py-4">
+                              <div className="flex flex-col">
+                                {student.classes.length > 0 ? (
+                                  student.classes.map((cls) => (
                                     <div
                                       key={cls.id}
-                                      className="h-10 flex items-center border-b border-gray-100 dark:border-gray-800/40 last:border-0"
+                                      className="h-10 flex items-center border-b border-gray-100 dark:border-gray-800/40 last:border-0 text-sm font-semibold"
                                     >
-                                      <Badge
-                                        variant="outline"
-                                        className={`font-semibold flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] ${colorStyle}`}
-                                        title={cls.status}
+                                      <span
+                                        className={
+                                          cls.attendanceRate !== null && cls.attendanceRate !== undefined
+                                            ? cls.attendanceRate >= 0.8
+                                              ? "text-green-600 dark:text-green-400"
+                                              : "text-amber-600 dark:text-amber-400"
+                                            : "text-gray-400"
+                                        }
                                       >
-                                        <GraduationCap className="h-3 w-3 opacity-70" />
-                                        <span>{cls.name}</span>
-                                      </Badge>
+                                        {cls.attendanceRate !== null && cls.attendanceRate !== undefined
+                                          ? `${(cls.attendanceRate * 100).toFixed(0)}%`
+                                          : "N/A"}
+                                      </span>
                                     </div>
-                                  );
-                                })
-                              ) : (
-                                <div className="h-10 flex items-center text-sm text-gray-400 italic">
-                                  Không có lớp
-                                </div>
+                                  ))
+                                ) : (
+                                  <div className="h-10 flex items-center text-sm text-gray-400">
+                                    -
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+
+                            {/* Bài tập */}
+                            <TableCell className="align-top py-4">
+                              <div className="flex flex-col">
+                                {student.classes.length > 0 ? (
+                                  student.classes.map((cls) => (
+                                    <div
+                                      key={cls.id}
+                                      className="h-10 flex items-center border-b border-gray-100 dark:border-gray-800/40 last:border-0 text-sm font-semibold"
+                                    >
+                                      <span
+                                        className={
+                                          cls.homeworkRate !== null && cls.homeworkRate !== undefined
+                                            ? cls.homeworkRate >= 0.8
+                                              ? "text-green-600 dark:text-green-400"
+                                              : "text-amber-600 dark:text-amber-400"
+                                            : "text-gray-400"
+                                        }
+                                      >
+                                        {cls.homeworkRate !== null && cls.homeworkRate !== undefined
+                                          ? `${(cls.homeworkRate * 100).toFixed(0)}%`
+                                          : "N/A"}
+                                      </span>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="h-10 flex items-center text-sm text-gray-400">
+                                    -
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                          </motion.tr>
+                        ))}
+                      </AnimatePresence>
+                    )}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="p-4 space-y-4 bg-slate-50/50 min-h-full">
+                  {showLoading && students.length === 0 ? (
+                    <div className="flex items-center justify-center py-20 bg-white rounded-xl border border-slate-200 shadow-sm">
+                      <CatLoader />
+                    </div>
+                  ) : students.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400 font-medium bg-white rounded-xl border border-slate-200/60 p-6 shadow-sm">
+                      Không có dữ liệu học viên.
+                    </div>
+                  ) : (
+                    students.map((student) => (
+                      <div
+                        key={student.id}
+                        className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 space-y-3.5 transition-all hover:shadow-md"
+                      >
+                        {/* Student Info Header */}
+                        <div className="flex items-start justify-between gap-3 pb-2 border-b border-slate-100">
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-[14px] text-slate-800 flex items-center gap-1.5 leading-tight">
+                              <User className="h-4 w-4 text-slate-400 shrink-0" />
+                              <span className="truncate">{student.fullName}</span>
+                            </h4>
+                            
+                            <div className="flex flex-col gap-1 mt-1 text-[11px] text-slate-500 font-medium">
+                              {student.email && (
+                                <span className="flex items-center gap-1.5">
+                                  <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                  <span className="truncate">{student.email}</span>
+                                </span>
+                              )}
+                              {student.phone && (
+                                <span className="flex items-center gap-1.5">
+                                  <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                  <span>{student.phone}</span>
+                                </span>
                               )}
                             </div>
-                          </TableCell>
+                          </div>
+                        </div>
 
-                          {/* Chuyên cần */}
-                          <TableCell className="align-top py-4">
-                            <div className="flex flex-col">
-                              {student.classes.length > 0 ? (
-                                student.classes.map((cls) => (
-                                  <div
-                                    key={cls.id}
-                                    className="h-10 flex items-center border-b border-gray-100 dark:border-gray-800/40 last:border-0 text-sm font-semibold"
-                                  >
-                                    <span
-                                      className={
+                        {/* Classes Roster */}
+                        <div className="space-y-2.5">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            Danh sách lớp học ({student.classes?.length || 0})
+                          </div>
+                          
+                          {student.classes?.length === 0 ? (
+                            <p className="text-xs italic text-slate-400">Không có lớp học nào</p>
+                          ) : (
+                            student.classes.map((cls, cIdx) => {
+                              const normalizedStatus = cls.status
+                                ? cls.status
+                                    .toUpperCase()
+                                    .replace(/\s+/g, "_")
+                                : "";
+                              let colorStyle =
+                                "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
+
+                              if (
+                                normalizedStatus === "RUNNING" ||
+                                normalizedStatus === "OPEN"
+                              ) {
+                                colorStyle =
+                                  "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800";
+                              } else if (
+                                ["PRE_OPEN", "PREPARING", "NEW"].includes(
+                                  normalizedStatus,
+                                )
+                              ) {
+                                colorStyle =
+                                  "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800";
+                              } else if (
+                                ["CLOSED", "ENDED", "FINISHED"].includes(
+                                  normalizedStatus,
+                                )
+                              ) {
+                                colorStyle =
+                                  "bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-500 dark:border-gray-700";
+                              }
+
+                              return (
+                                <div
+                                  key={cIdx}
+                                  className="p-3 rounded-lg border border-slate-100 bg-slate-50/40 text-xs space-y-2 hover:bg-slate-50 transition-colors"
+                                >
+                                  <div className="font-bold text-slate-800 flex items-center justify-between gap-1.5">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <GraduationCap className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                      <span className="truncate" title={cls.name}>{cls.name}</span>
+                                    </div>
+                                    <Badge
+                                      variant="outline"
+                                      className={`font-semibold shrink-0 px-2 py-0.5 text-[9.5px] ${colorStyle}`}
+                                    >
+                                      {cls.status}
+                                    </Badge>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                                    {/* Chuyên cần Badge */}
+                                    <div className="flex items-center gap-1.5 bg-white border border-slate-100 px-2 py-0.5 rounded shadow-sm">
+                                      <span className="font-semibold text-slate-500 text-[10px]">C.Cần:</span>
+                                      <span className={`text-[10px] font-bold ${
                                         cls.attendanceRate !== null && cls.attendanceRate !== undefined
                                           ? cls.attendanceRate >= 0.8
-                                            ? "text-green-600 dark:text-green-400"
-                                            : "text-amber-600 dark:text-amber-400"
-                                          : "text-gray-400"
-                                      }
-                                    >
-                                      {cls.attendanceRate !== null && cls.attendanceRate !== undefined
-                                        ? `${(cls.attendanceRate * 100).toFixed(0)}%`
-                                        : "N/A"}
-                                    </span>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="h-10 flex items-center text-sm text-gray-400">
-                                  -
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
+                                            ? "text-green-600"
+                                            : "text-amber-600"
+                                          : "text-slate-400"
+                                      }`}>
+                                        {cls.attendanceRate !== null && cls.attendanceRate !== undefined
+                                          ? `${(cls.attendanceRate * 100).toFixed(0)}%`
+                                          : "N/A"}
+                                      </span>
+                                    </div>
 
-                          {/* Bài tập */}
-                          <TableCell className="align-top py-4">
-                            <div className="flex flex-col">
-                              {student.classes.length > 0 ? (
-                                student.classes.map((cls) => (
-                                  <div
-                                    key={cls.id}
-                                    className="h-10 flex items-center border-b border-gray-100 dark:border-gray-800/40 last:border-0 text-sm font-semibold"
-                                  >
-                                    <span
-                                      className={
+                                    {/* Bài tập Badge */}
+                                    <div className="flex items-center gap-1.5 bg-white border border-slate-100 px-2 py-0.5 rounded shadow-sm">
+                                      <span className="font-semibold text-slate-500 text-[10px]">B.Tập:</span>
+                                      <span className={`text-[10px] font-bold ${
                                         cls.homeworkRate !== null && cls.homeworkRate !== undefined
                                           ? cls.homeworkRate >= 0.8
-                                            ? "text-green-600 dark:text-green-400"
-                                            : "text-amber-600 dark:text-amber-400"
-                                          : "text-gray-400"
-                                      }
-                                    >
-                                      {cls.homeworkRate !== null && cls.homeworkRate !== undefined
-                                        ? `${(cls.homeworkRate * 100).toFixed(0)}%`
-                                        : "N/A"}
-                                    </span>
+                                            ? "text-green-600"
+                                            : "text-amber-600"
+                                          : "text-slate-400"
+                                      }`}>
+                                        {cls.homeworkRate !== null && cls.homeworkRate !== undefined
+                                          ? `${(cls.homeworkRate * 100).toFixed(0)}%`
+                                          : "N/A"}
+                                      </span>
+                                    </div>
                                   </div>
-                                ))
-                              ) : (
-                                <div className="h-10 flex items-center text-sm text-gray-400">
-                                  -
                                 </div>
-                              )}
-                            </div>
-                          </TableCell>
-                        </motion.tr>
-                      ))}
-                    </AnimatePresence>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    ))
                   )}
-                </TableBody>
-              </Table>
+                </div>
+              )}
             </div>
 
             {/* Pagination */}

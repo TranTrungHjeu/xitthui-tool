@@ -1055,7 +1055,7 @@ class LMSClient {
         `[LMSClient] getTeacherSchedulesBatch general failure:`,
         err.message,
       );
-      return [];
+      throw err;
     }
   }
 

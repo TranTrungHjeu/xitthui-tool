@@ -149,7 +149,7 @@ exports.getTeacherSchedules = async (req, res) => {
       const { Class } = require("../storage/mongoModels");
       
       try {
-        const dbClasses = await Class.find({ _id: { $in: Array.from(uniqueClassIds) } }).lean();
+        const dbClasses = await Class.find({ _id: { $in: Array.from(uniqueClassIds) } }).select("name slots.index slots.startTime slots.endTime slots.date").lean();
         dbClasses.forEach(c => classDetailsMap.set(c._id, c));
       } catch (dbClassErr) {
         console.warn(`[Controller] MongoDB Class fetch failed: ${dbClassErr.message}`);
@@ -291,6 +291,8 @@ exports.getTeacherSchedules = async (req, res) => {
   }
 };
 
+const teachersCache = {};
+
 exports.getTeachers = async (req, res) => {
   console.log("[Controller] getTeachers request body:", req.body);
   try {
@@ -306,14 +308,28 @@ exports.getTeachers = async (req, res) => {
 
     if (!token) return res.status(400).json({ error: "Token is required" });
 
+    const cacheKey = `${JSON.stringify(centers)}_${pageIndex}_${itemsPerPage}`;
+    const cached = teachersCache[cacheKey];
+    if (cached && (Date.now() - cached.timestamp < 15 * 60 * 1000)) {
+      console.log(`[Controller] Serving teachers list from in-memory cache for key: ${cacheKey}`);
+      return res.json(cached.response);
+    }
+
     const client = new LMSClient(token);
     const result = await client.getTeachers(centers, pageIndex, itemsPerPage);
 
-    res.json({
+    const response = {
       success: true,
       data: result.data || [],
       pagination: result.pagination || { total: 0 },
-    });
+    };
+
+    teachersCache[cacheKey] = {
+      timestamp: Date.now(),
+      response
+    };
+
+    res.json(response);
   } catch (err) {
     console.error("[Controller] getTeachers failed:", err.message);
     const statusCode = isLmsAuthError(err) ? 401 : 200;

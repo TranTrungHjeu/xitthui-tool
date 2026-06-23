@@ -71,6 +71,16 @@ export default function ClassDetailsPage({
   const [classData, setClassData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeSlotIndex, setActiveSlotIndex] = useState<number>(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const showLoading = useMinLoading(isLoading, 1000);
   const [editingStudent, setEditingStudent] = useState<any>(null);
@@ -377,7 +387,8 @@ export default function ClassDetailsPage({
       </div>
 
       <Tabs defaultValue="sessions" className="space-y-6">
-        <TabsList className="inline-flex w-auto bg-slate-100/80 p-1 rounded-2xl shadow-sm border border-slate-200/50 backdrop-blur-sm">
+        <div className="w-full overflow-x-auto select-none no-scrollbar flex pb-1">
+          <TabsList className="inline-flex w-auto bg-slate-100/80 p-1 rounded-2xl shadow-sm border border-slate-200/50 backdrop-blur-sm whitespace-nowrap">
           <TabsTrigger
             value="sessions"
             className="flex items-center gap-2.5 px-6 py-3 text-sm font-bold rounded-xl transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-[0_4px_12px_rgba(0,0,0,0.08)] data-[state=inactive]:text-slate-500 data-[state=inactive]:hover:bg-white/50"
@@ -410,7 +421,8 @@ export default function ClassDetailsPage({
               Thống kê
             </TabsTrigger>
           )}
-        </TabsList>
+          </TabsList>
+        </div>
 
         <TabsContent value="sessions" className="space-y-4">
           <div className="flex flex-col gap-4">
@@ -512,77 +524,220 @@ export default function ClassDetailsPage({
                       </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="h-9 pl-4 text-xs">
-                              Học viên
-                            </TableHead>
-                            <TableHead className="h-9 text-xs">
-                              Trạng thái
-                            </TableHead>
-                            <TableHead className="h-9 text-xs">
-                              Nhận xét
-                            </TableHead>
-                            <TableHead className="h-9 pr-4 text-right text-xs">
-                              Thao tác
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {activeSlot.studentAttendance?.map((sa: any) => (
-                            <TableRow key={sa._id}>
-                              <TableCell className="pl-4 py-2.5 font-medium">
-                                <div className="text-sm">
-                                  {sa.student?.fullName || "N/A"}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <StatusBadge
-                                  type="attendance"
-                                  status={sa.status}
-                                  className="text-[10px]"
-                                />
-                              </TableCell>
-                              <TableCell className="max-w-xs py-2.5">
-                                {sa.comment ? (
-                                  <div
-                                    className="text-xs line-clamp-2 text-muted-foreground"
-                                    dangerouslySetInnerHTML={{
-                                      __html: sa.comment,
-                                    }}
-                                  />
-                                ) : (
-                                  <span className="text-xs italic text-slate-400">
-                                    Chưa có nhận xét
+                      {!isMobile ? (
+                        <div className="overflow-x-auto w-full">
+                          <Table className="min-w-[600px] md:min-w-full">
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="h-9 pl-4 text-xs">
+                                  Học viên
+                                </TableHead>
+                                <TableHead className="h-9 text-xs">
+                                  Trạng thái
+                                </TableHead>
+                                <TableHead className="h-9 text-xs">
+                                  Nhận xét
+                                </TableHead>
+                                <TableHead className="h-9 pr-4 text-right text-xs">
+                                  Thao tác
+                                </TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {activeSlot.studentAttendance?.map((sa: any) => (
+                                <TableRow key={sa._id}>
+                                  <TableCell className="pl-4 py-2.5 font-medium">
+                                    <div className="text-sm">
+                                      {sa.student?.fullName || "N/A"}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <StatusBadge
+                                      type="attendance"
+                                      status={sa.status}
+                                      className="text-[10px]"
+                                    />
+                                  </TableCell>
+                                  <TableCell className="max-w-xs py-2.5">
+                                    {sa.comment ? (
+                                      <div
+                                        className="text-xs line-clamp-2 text-muted-foreground"
+                                        dangerouslySetInnerHTML={{
+                                          __html: sa.comment,
+                                        }}
+                                      />
+                                    ) : (
+                                      <span className="text-xs italic text-slate-400">
+                                        Chưa có nhận xét
+                                      </span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="py-2.5 pr-4 text-right">
+                                    <div className="flex justify-end gap-2">
+                                      {sa.comment && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          onClick={() =>
+                                            copyToClipboard(sa.comment)
+                                          }
+                                          title="Copy nhận xét"
+                                        >
+                                          <Copy className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                      <Button
+                                        variant="outline"
+                                        size="icon-sm"
+                                        onClick={() => setEditingStudent(sa)}
+                                        title="Sửa nhận xét"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                      <Dialog>
+                                        <DialogTrigger asChild>
+                                          <Button variant="outline" size="sm">
+                                            Xem
+                                          </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="sm:max-w-3xl md:max-w-4xl lg:max-w-5xl w-[95vw] p-0 overflow-hidden flex flex-col max-h-[90vh] rounded-xl border border-slate-200 shadow-xl">
+                                          {/* Header with clean white/slate design */}
+                                          <div className="shrink-0 border-b border-slate-100 bg-slate-50/70 px-6 py-5">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                              <div className="flex items-center gap-3.5">
+                                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-base shadow-sm">
+                                                  {sa.student?.fullName
+                                                    ? sa.student.fullName
+                                                        .split(" ")
+                                                        .pop()
+                                                        ?.substring(0, 2)
+                                                        .toUpperCase()
+                                                    : "HV"}
+                                                </div>
+                                                <div>
+                                                  <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">
+                                                    {sa.student?.fullName}
+                                                  </DialogTitle>
+                                                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground font-medium">
+                                                    <span>
+                                                      Buổi {activeSlotIndex + 1}
+                                                    </span>
+                                                    <span className="text-slate-300">
+                                                      •
+                                                    </span>
+                                                    <span>
+                                                      {formatDate(activeSlot?.date)}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          {/* Content area with nice typography */}
+                                          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 min-h-[150px] bg-slate-50/30">
+                                            <div className="space-y-4">
+                                              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-[0_2px_12px_rgba(0,0,0,0.01)] space-y-3">
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                                  Nhận xét chi tiết
+                                                </h4>
+                                                <div
+                                                  className="text-sm text-slate-700 leading-relaxed prose max-w-none prose-slate"
+                                                  dangerouslySetInnerHTML={{
+                                                    __html:
+                                                      sa.comment ||
+                                                      '<span class="text-slate-400 italic font-medium">Chưa có nhận xét từ giáo viên</span>',
+                                                  }}
+                                                />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </DialogContent>
+                                      </Dialog>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <div className="p-4 space-y-4 bg-slate-50/50 min-h-full">
+                          {activeSlot.studentAttendance?.length === 0 ? (
+                            <div className="text-center py-12 text-slate-400 font-medium bg-white rounded-xl border border-slate-200/60 p-6 shadow-sm">
+                              Không có học viên nào tham gia buổi học này.
+                            </div>
+                          ) : (
+                            activeSlot.studentAttendance?.map((sa: any) => (
+                              <div
+                                key={sa._id}
+                                className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 space-y-3.5 transition-all hover:shadow-md"
+                              >
+                                {/* Header: Student name & Attendance status badge */}
+                                <div className="flex items-center justify-between pb-2 border-b border-slate-100 gap-2">
+                                  <span className="font-bold text-[14px] text-slate-800 truncate">
+                                    {sa.student?.fullName || "N/A"}
                                   </span>
-                                )}
-                              </TableCell>
-                              <TableCell className="py-2.5 pr-4 text-right">
-                                <div className="flex justify-end gap-2">
+                                  <StatusBadge
+                                    type="attendance"
+                                    status={sa.status}
+                                    className="text-[10px]"
+                                  />
+                                </div>
+
+                                {/* Body: Comment */}
+                                <div className="text-xs text-slate-600 bg-slate-50/50 border border-slate-100 rounded-lg p-3">
+                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                    Nhận xét buổi học
+                                  </div>
+                                  {sa.comment ? (
+                                    <div
+                                      className="prose max-w-none text-slate-700 leading-relaxed break-words"
+                                      dangerouslySetInnerHTML={{
+                                        __html: sa.comment,
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="italic text-slate-400 font-medium">Chưa có nhận xét</span>
+                                  )}
+                                </div>
+
+                                {/* Footer: Copy, Edit, View actions */}
+                                <div className="flex items-center justify-end gap-2.5 pt-1">
                                   {sa.comment && (
                                     <Button
-                                      variant="ghost"
-                                      size="icon-sm"
-                                      onClick={() =>
-                                        copyToClipboard(sa.comment)
-                                      }
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 gap-1.5 text-xs text-slate-600 border-slate-200/80 hover:bg-slate-50"
+                                      onClick={() => {
+                                        const cleanText = sa.comment.replace(/<[^>]*>/g, "");
+                                        navigator.clipboard.writeText(cleanText);
+                                      }}
                                       title="Copy nhận xét"
                                     >
-                                      <Copy className="h-3 w-3" />
+                                      <Copy className="h-3.5 w-3.5 text-slate-500" />
+                                      Sao chép
                                     </Button>
                                   )}
+                                  
                                   <Button
                                     variant="outline"
-                                    size="icon-sm"
+                                    size="sm"
+                                    className="h-8 gap-1.5 text-xs text-slate-600 border-slate-200/80 hover:bg-slate-50"
                                     onClick={() => setEditingStudent(sa)}
                                     title="Sửa nhận xét"
                                   >
-                                    <Pencil className="h-3 w-3" />
+                                    <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                                    Chỉnh sửa
                                   </Button>
+
                                   <Dialog>
                                     <DialogTrigger asChild>
-                                      <Button variant="outline" size="sm">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 gap-1.5 text-xs text-slate-600 border-slate-200/80 hover:bg-slate-50"
+                                      >
                                         Xem
                                       </Button>
                                     </DialogTrigger>
@@ -726,11 +881,11 @@ export default function ClassDetailsPage({
                                     </DialogContent>
                                   </Dialog>
                                 </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </div>

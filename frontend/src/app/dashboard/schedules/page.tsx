@@ -187,6 +187,18 @@ export default function SchedulesPage() {
     useState(true);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
+  
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileSelectedDate, setMobileSelectedDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const showLoading = useMinLoading(isLoading, 1000);
 
@@ -412,6 +424,15 @@ export default function SchedulesPage() {
     return new Set(centerSchedules.map((s) => s.teacherId));
   }, [centerSchedules]);
 
+  const teachersWithSchedulesOnSelectedMobileDate = useMemo(() => {
+    if (!mobileSelectedDate) return new Set();
+    const schedulesOnDate = centerSchedules.filter((s) => {
+      const localDate = getLocalDate(s);
+      return localDate === mobileSelectedDate;
+    });
+    return new Set(schedulesOnDate.map((s) => s.teacherId));
+  }, [centerSchedules, mobileSelectedDate]);
+
   const filteredTeachers = teachersList.filter((t) => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -422,15 +443,23 @@ export default function SchedulesPage() {
 
   const displayedTeachers = filteredTeachers.filter((t) => {
     if (hiddenTeacherIds.has(t.id)) return false;
-    if (hideTeachersWithoutSchedules && !teachersWithSchedules.has(t.id))
-      return false;
+    if (hideTeachersWithoutSchedules) {
+      if (isMobile) {
+        return teachersWithSchedulesOnSelectedMobileDate.has(t.id);
+      }
+      return teachersWithSchedules.has(t.id);
+    }
     return true;
   });
 
   const visibleTeachersCount = teachersList.filter((t) => {
     if (hiddenTeacherIds.has(t.id)) return false;
-    if (hideTeachersWithoutSchedules && !teachersWithSchedules.has(t.id))
-      return false;
+    if (hideTeachersWithoutSchedules) {
+      if (isMobile) {
+        return teachersWithSchedulesOnSelectedMobileDate.has(t.id);
+      }
+      return teachersWithSchedules.has(t.id);
+    }
     return true;
   }).length;
 
@@ -454,6 +483,37 @@ export default function SchedulesPage() {
     if (dateA !== dateB) return dateA.localeCompare(dateB);
     return timeA.localeCompare(timeB);
   });
+
+  const uniqueDates = useMemo(() => {
+    const dates = new Set<string>();
+    centerSchedules.forEach((sch) => {
+      const localDate = getLocalDate(sch);
+      if (localDate) {
+        dates.add(localDate);
+      }
+    });
+    return Array.from(dates).sort();
+  }, [centerSchedules]);
+
+  useEffect(() => {
+    if (uniqueDates.length > 0) {
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      if (uniqueDates.includes(todayStr)) {
+        setMobileSelectedDate(todayStr);
+      } else {
+        setMobileSelectedDate(uniqueDates[0]);
+      }
+    } else {
+      setMobileSelectedDate(null);
+    }
+  }, [uniqueDates]);
+
+  const displayedSlots = useMemo(() => {
+    if (isMobile && mobileSelectedDate) {
+      return sortedSlots.filter((slot) => slot.startsWith(mobileSelectedDate));
+    }
+    return sortedSlots;
+  }, [sortedSlots, isMobile, mobileSelectedDate]);
 
   const schedulesByTeacher: Record<string, Record<string, Schedule[]>> = {};
   relevantSchedules.forEach((sch) => {
@@ -773,6 +833,32 @@ export default function SchedulesPage() {
         </div>
       )}
 
+      {/* Mobile Day selector tabs */}
+      {isMobile && uniqueDates.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-2 select-none no-scrollbar shrink-0 px-1">
+          {uniqueDates.map((dateStr) => {
+            const dateObj = new Date(dateStr);
+            const dayLabel = format(dateObj, "EEEE", { locale: vi }); // e.g. Thứ Hai
+            const dayShort = dayLabel.replace("Thứ ", "T"); // e.g. T2, Chủ Nhật -> CN
+            const dateDisplay = format(dateObj, "dd/MM");
+            const isActive = mobileSelectedDate === dateStr;
+            return (
+              <button
+                key={dateStr}
+                onClick={() => setMobileSelectedDate(dateStr)}
+                className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap border shrink-0
+                  ${isActive 
+                    ? "bg-primary text-white border-primary shadow-sm scale-102" 
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  }`}
+              >
+                {dayShort === "Chủ nhật" ? "CN" : dayShort} ({dateDisplay})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden relative flex-1 flex flex-col">
         {showLoading && (
           <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm flex items-center justify-center min-h-[60vh]">
@@ -781,111 +867,209 @@ export default function SchedulesPage() {
         )}
 
         <div className="overflow-auto flex-1 custom-scrollbar">
-          <table className="w-max min-w-full border-collapse caption-bottom text-xs">
-            <TableHeader className="sticky top-0 z-40 shadow-sm">
-              <TableRow className="border-b-2 border-slate-300">
-                <TableHead className="sticky left-0 top-0 z-50 bg-slate-200 min-w-[140px] max-w-[170px] border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-slate-700 font-semibold text-[11px] py-1 px-1.5">
-                  Giáo viên
-                </TableHead>
-                {sortedSlots.map((slot) => (
-                  <TableHead
-                    key={slot}
-                    className={`sticky top-0 z-40 border-r border-slate-300 min-w-[85px] p-0.5 text-center ${getDayHeaderBg(slot)}`}
-                  >
-                    {formatSlotHeader(slot)}
+          {!isMobile ? (
+            <table className="w-max min-w-full border-collapse caption-bottom text-xs">
+              <TableHeader className="sticky top-0 z-40 shadow-sm">
+                <TableRow className="border-b-2 border-slate-300">
+                  <TableHead className="sticky left-0 top-0 z-50 bg-slate-200 min-w-[140px] max-w-[170px] border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-slate-700 font-semibold text-[11px] py-1 px-1.5">
+                    Giáo viên
                   </TableHead>
-                ))}
-                {sortedSlots.length === 0 && (
-                  <TableHead className="bg-slate-100">Lịch trình</TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-
-            <TableBody>
-              {displayedTeachers.length === 0 && !isLoading ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={sortedSlots.length + 1}
-                    className="text-center py-16 text-slate-400 bg-white"
-                  >
-                    {search
-                      ? "Không tìm thấy giáo viên nào."
-                      : teachersList.length > 0 &&
-                          hiddenTeacherIds.size === teachersList.length
-                        ? "Tất cả giáo viên đã bị ẩn. Vui lòng chọn hiển thị giáo viên."
-                        : "Không có dữ liệu giáo viên."}
-                  </TableCell>
+                  {displayedSlots.map((slot) => (
+                    <TableHead
+                      key={slot}
+                      className={`sticky top-0 z-40 border-r border-slate-300 min-w-[85px] p-0.5 text-center ${getDayHeaderBg(slot)}`}
+                    >
+                      {formatSlotHeader(slot)}
+                    </TableHead>
+                  ))}
+                  {displayedSlots.length === 0 && (
+                    <TableHead className="bg-slate-100">Lịch trình</TableHead>
+                  )}
                 </TableRow>
-              ) : (
-                displayedTeachers.map((teacher) => (
-                  <TableRow
-                    key={teacher.id}
-                    className="hover:bg-slate-50/50 group border-b border-slate-300"
-                  >
-                    <TableCell className="sticky left-0 z-30 bg-white group-hover:bg-slate-50 border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] font-medium text-slate-800 p-1 align-middle whitespace-nowrap text-[10px] leading-none">
-                      <button
-                        onClick={() => setSelectedTeacher(teacher)}
-                        className="text-blue-600 hover:text-blue-800 hover:underline underline-offset-2 cursor-pointer font-semibold transition-colors"
-                        title={`Xem lịch tuần của ${teacher.fullName}`}
-                      >
-                        {teacher.fullName}
-                      </button>
+              </TableHeader>
+
+              <TableBody>
+                {displayedTeachers.length === 0 && !isLoading ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={displayedSlots.length + 1}
+                      className="text-center py-16 text-slate-400 bg-white"
+                    >
+                      {search
+                        ? "Không tìm thấy giáo viên nào."
+                        : teachersList.length > 0 &&
+                            hiddenTeacherIds.size === teachersList.length
+                          ? "Tất cả giáo viên đã bị ẩn. Vui lòng chọn hiển thị giáo viên."
+                          : "Không có dữ liệu giáo viên."}
                     </TableCell>
-
-                    {sortedSlots.map((slot) => {
-                      const cellSchedules =
-                        schedulesByTeacher[teacher.id]?.[slot] || [];
-                      return (
-                        <TableCell
-                          key={slot}
-                          className={`border-r border-slate-300 p-0.5 align-top min-w-[85px] ${getDayCellBg(slot)}`}
-                        >
-                          {cellSchedules.length > 0 ? (
-                            <div className="space-y-0.5">
-                              {cellSchedules.map((sch, i) => (
-                                <Tooltip key={i} delayDuration={100}>
-                                  <TooltipTrigger asChild>
-                                    <div
-                                      className={`rounded border shadow-sm transition-all cursor-default overflow-hidden ${getScheduleStyle(sch)}`}
-                                    >
-                                      <div className="text-[9px] leading-none p-1 flex flex-col gap-1">
-                                        <span className="font-bold truncate text-[10px] block leading-none">
-                                          {sch.classSite?.class?.name ||
-                                            (sch.type === "OFFICE_HOURS"
-                                              ? "OFFICE"
-                                              : sch.type)}
-                                        </span>
-                                        {sch.type !== "OFFICE_HOURS" && (
-                                          <span className="truncate text-[9px] block opacity-90 leading-none">
-                                            {getSessionShortName(sch)}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent className="z-[100] max-w-[250px] p-2 bg-slate-800 text-white text-xs leading-relaxed shadow-lg whitespace-pre-line border-0">
-                                    {getScheduleTitle(sch)}
-                                  </TooltipContent>
-                                </Tooltip>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="min-h-[22px] w-full"></div>
-                          )}
-                        </TableCell>
-                      );
-                    })}
-
-                    {sortedSlots.length === 0 && (
-                      <TableCell className="text-center text-slate-400 py-8">
-                        Không có lịch dạy trong tuần này.
-                      </TableCell>
-                    )}
                   </TableRow>
-                ))
+                ) : (
+                  displayedTeachers.map((teacher) => (
+                    <TableRow
+                      key={teacher.id}
+                      className="hover:bg-slate-50/50 group border-b border-slate-300"
+                    >
+                      <TableCell className="sticky left-0 z-30 bg-white group-hover:bg-slate-50 border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] font-medium text-slate-800 p-1 align-middle whitespace-nowrap text-[10px] leading-none">
+                        <button
+                          onClick={() => setSelectedTeacher(teacher)}
+                          className="text-blue-600 hover:text-blue-800 hover:underline underline-offset-2 cursor-pointer font-semibold transition-colors"
+                          title={`Xem lịch tuần của ${teacher.fullName}`}
+                        >
+                          {teacher.fullName}
+                        </button>
+                      </TableCell>
+
+                      {displayedSlots.map((slot) => {
+                        const cellSchedules =
+                          schedulesByTeacher[teacher.id]?.[slot] || [];
+                        return (
+                          <TableCell
+                            key={slot}
+                            className={`border-r border-slate-300 p-0.5 align-top min-w-[85px] ${getDayCellBg(slot)}`}
+                          >
+                            {cellSchedules.length > 0 ? (
+                              <div className="space-y-0.5">
+                                {cellSchedules.map((sch, i) => (
+                                  <Tooltip key={i} delayDuration={100}>
+                                    <TooltipTrigger asChild>
+                                      <div
+                                        className={`rounded border shadow-sm transition-all cursor-default overflow-hidden ${getScheduleStyle(sch)}`}
+                                      >
+                                        <div className="text-[9px] leading-none p-1 flex flex-col gap-1">
+                                          <span className="font-bold truncate text-[10px] block leading-none">
+                                            {sch.classSite?.class?.name ||
+                                              (sch.type === "OFFICE_HOURS"
+                                                ? "OFFICE"
+                                                : sch.type)}
+                                          </span>
+                                          {sch.type !== "OFFICE_HOURS" && (
+                                            <span className="truncate text-[9px] block opacity-90 leading-none">
+                                              {getSessionShortName(sch)}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="z-[100] max-w-[250px] p-2 bg-slate-800 text-white text-xs leading-relaxed shadow-lg whitespace-pre-line border-0">
+                                      {getScheduleTitle(sch)}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="min-h-[22px] w-full"></div>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+
+                      {displayedSlots.length === 0 && (
+                        <TableCell className="text-center text-slate-400 py-8">
+                          Không có lịch dạy trong tuần này.
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </table>
+          ) : (
+            <div className="p-4 space-y-4 bg-slate-50/50 min-h-full">
+              {displayedTeachers.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 font-medium bg-white rounded-xl border border-slate-200/60 p-6 shadow-sm">
+                  {search ? "Không tìm thấy giáo viên nào." : "Không có lịch làm việc trong ngày này."}
+                </div>
+              ) : (
+                displayedTeachers.map((teacher) => {
+                  const teacherSchedulesOnDate = Object.entries(schedulesByTeacher[teacher.id] || {})
+                    .filter(([slotKey]) => slotKey.startsWith(mobileSelectedDate || ""))
+                    .flatMap(([_, schList]) => schList)
+                    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+                  if (hideTeachersWithoutSchedules && teacherSchedulesOnDate.length === 0) {
+                    return null;
+                  }
+
+                  return (
+                    <div
+                      key={teacher.id}
+                      className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 space-y-3 transition-all hover:shadow-md"
+                    >
+                      {/* Teacher Header */}
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                        <button
+                          onClick={() => setSelectedTeacher(teacher)}
+                          className="flex items-center gap-2 text-left font-bold text-[14px] text-blue-600 hover:underline cursor-pointer"
+                        >
+                          <div className="w-6.5 h-6.5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
+                            {teacher.fullName.charAt(0).toUpperCase()}
+                          </div>
+                          <span>{teacher.fullName}</span>
+                        </button>
+                        {teacher.code && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+                            {teacher.code}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Schedules List */}
+                      <div className="space-y-2">
+                        {teacherSchedulesOnDate.length === 0 ? (
+                          <p className="text-xs italic text-slate-400">Không có lịch làm việc</p>
+                        ) : (
+                          teacherSchedulesOnDate.map((sch, schIdx) => {
+                            const isCheckpoint = sch.title.toLowerCase().includes("checkpoint");
+                            const isDemo = sch.title.toLowerCase().includes("demo");
+                            
+                            let typeBadgeStyle = "bg-orange-50 text-orange-700 border-orange-200/60";
+                            if (isCheckpoint) typeBadgeStyle = "bg-purple-50 text-purple-700 border-purple-200/60";
+                            else if (isDemo) typeBadgeStyle = "bg-blue-50 text-blue-700 border-blue-200/60";
+                            else if (sch.type === "OFFICE_HOURS") typeBadgeStyle = "bg-yellow-50 text-yellow-800 border-yellow-200/60";
+
+                            return (
+                              <div
+                                key={schIdx}
+                                className={`p-3 rounded-lg border text-xs space-y-1.5 bg-white ${
+                                  isCheckpoint
+                                    ? "border-purple-100 hover:bg-purple-50/10"
+                                    : isDemo
+                                      ? "border-blue-100 hover:bg-blue-50/10"
+                                      : sch.type === "OFFICE_HOURS"
+                                        ? "border-yellow-100 hover:bg-yellow-50/10"
+                                        : "border-orange-100 hover:bg-orange-50/10"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-extrabold text-[12px] text-slate-800">
+                                    {sch.classSite?.class?.name || (sch.type === "OFFICE_HOURS" ? "Lịch trực VP" : sch.type)}
+                                  </span>
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${typeBadgeStyle}`}>
+                                    {sch.type === "OFFICE_HOURS" ? sch.officeHour?.type || "OFFICE" : getSessionShortName(sch)}
+                                  </span>
+                                </div>
+
+                                <div className="text-slate-500 font-semibold flex flex-wrap gap-x-3 gap-y-1 text-[11px] pt-0.5">
+                                  <span>Thời gian: {getLocalTime(sch.startTime)} - {getLocalTime(sch.endTime)}</span>
+                                  <span>Cơ sở: {sch.classSite?.centre?.name || sch.officeHour?.centre?.name || "—"}</span>
+                                </div>
+                                
+                                {sch.description && (
+                                  <div className="text-slate-400 italic text-[10px] pt-0.5 border-t border-slate-50">
+                                    Ghi chú: {sch.description}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
               )}
-            </TableBody>
-          </table>
+            </div>
+          )}
         </div>
 
         <div className="bg-slate-50 border-t border-slate-200 p-3 shrink-0 flex flex-wrap gap-4 sm:gap-6 text-[11px] sm:text-xs font-medium text-slate-600 items-center justify-center">
