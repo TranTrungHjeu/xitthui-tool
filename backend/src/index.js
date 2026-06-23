@@ -25,6 +25,8 @@ const { startScheduler } = require("./services/zaloScheduler");
 const { startPolling } = require("./services/zaloPolling");
 const NotificationScheduler = require("./services/notificationScheduler");
 const StudentScheduler = require("./services/studentScheduler");
+const { ScheduleScheduler } = require("./services/scheduleScheduler");
+const { connectMongoDB } = require("./config/mongodb");
 
 // ---- 1. Express API Server Setup ----
 const app = express();
@@ -72,20 +74,29 @@ app.use((err, req, res, next) => {
 // ---- 2. Unified Startup Logic ----
 async function startApp() {
   try {
+    // 2.0 Connect to MongoDB first
+    await connectMongoDB();
+
     // 2.1 Start API Server
     // Lắng nghe trên "0.0.0.0" thay vì "127.0.0.1" để cho phép các kết nối từ bên ngoài Internet gọi vào API trên VPS
-    app.listen(PORT, "0.0.0.0", () => {
+    app.listen(PORT, "0.0.0.0", async () => {
       console.log(`API Server is running on PORT ${PORT}`);
       // Start Zalo Bot polling (reads messages from users)
       startPolling();
       // Start Zalo reminder scheduler (sends proactive reminders)
-      startScheduler();
+      await startScheduler();
 
       // Start Notification Background Sync
       NotificationScheduler.start();
 
       // Start Student Background Sync
       StudentScheduler.start();
+
+      // Start Class Background Sync
+      require("./services/classScheduler").start();
+
+      // Start Schedule Background Sync
+      ScheduleScheduler.start();
     });
   } catch (error) {
     console.error("Failed to start API server:", error);

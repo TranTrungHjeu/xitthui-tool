@@ -46,11 +46,25 @@ function resolveUserRolesAndProfile(baseUser, roleInfos = []) {
     );
     roleInfos.forEach((r) => {
       // NOTE: Cho phép nhận diện Teacher kể cả khi isActive là false tạm thời để xem log
-      if (r.role?.name === "Teacher" /* && r.info?.isActive */) {
-        appRoles.add(ROLES.TEACHER);
-        // Cập nhật profile tốt nhất từ info của Teacher (vì có thể baseUser bị rỗng)
-        if (r.info.fullName) finalFullName = r.info.fullName;
-        if (Array.isArray(r.info.centres) && r.info.centres.length > 0) {
+      const roleName = r.role?.name;
+      const isTeacherRole = roleName === "Teacher";
+      const isTeRole =
+        roleName === "TE" ||
+        roleName === "TeacherExperience" ||
+        roleName === "AcademicOperations" ||
+        roleName === "AcademicManagement";
+
+      if (isTeacherRole || isTeRole) {
+        if (isTeacherRole) {
+          appRoles.add(ROLES.TEACHER);
+        }
+        if (isTeRole) {
+          appRoles.add(ROLES.TE);
+        }
+
+        // Cập nhật profile tốt nhất từ info (vì có thể baseUser bị rỗng)
+        if (r.info?.fullName) finalFullName = r.info.fullName;
+        if (r.info && Array.isArray(r.info.centres) && r.info.centres.length > 0) {
           teacherCentres = r.info.centres
             .map((c) => {
               const id = c._id || c.id || (typeof c === "string" ? c : null);
@@ -62,7 +76,9 @@ function resolveUserRolesAndProfile(baseUser, roleInfos = []) {
             })
             .filter((c) => c.id);
         }
-        teacherId = r.info._id || r.info.id || teacherId;
+        if (r.info) {
+          teacherId = r.info._id || r.info.id || teacherId;
+        }
       }
     });
     console.log("[RoleResolver] Resolved teacherId:", teacherId);

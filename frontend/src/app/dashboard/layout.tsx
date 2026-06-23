@@ -137,7 +137,10 @@ export default function DashboardLayout({
           user?.teacherId || "",
           user?.teacherCentres?.map((c: any) => c.id || c),
           user?.appRoles,
-          { statusIn: ["RUNNING", "IN_PROGRESS", "ĐANG_DIỄN_RA"] },
+          {
+            statusIn: ["RUNNING", "IN_PROGRESS", "ĐANG_DIỄN_RA"],
+            limit: 1000,
+          },
         );
         if (!isCancelled) {
           setStoredClasses(data?.data || []);
@@ -217,9 +220,13 @@ export default function DashboardLayout({
             height={isSidebarCollapsed ? 40 : 200}
             className={`transition-all duration-300 ${
               isSidebarCollapsed
-                ? "w-10 h-10 object-contain"
-                : "hover:scale-105 w-full h-auto max-w-[180px]"
+                ? "object-contain"
+                : "hover:scale-105 max-w-[180px]"
             }`}
+            style={{
+              width: isSidebarCollapsed ? "40px" : "100%",
+              height: "auto",
+            }}
             priority
           />
           <Button

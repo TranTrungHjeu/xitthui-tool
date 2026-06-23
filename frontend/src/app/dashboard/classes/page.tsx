@@ -19,13 +19,15 @@ import CatLoader from "@/components/CatLoader";
 import { useMinLoading } from "@/hooks/useMinLoading";
 import {
   Search,
-  CalendarPlus,
   RotateCcw,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   Loader2,
+  Bot,
+  Code2,
+  Palette,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatDate, formatTime } from "@/lib/date";
@@ -38,6 +40,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface EnrichedClassData extends ClassData {
   computed: {
@@ -47,7 +54,90 @@ interface EnrichedClassData extends ClassData {
     timeRange: string;
     weekdays: string;
     searchString: string;
+    category?: "coding" | "robotics" | "art" | "unknown";
+    currentSessionIndex?: number;
   };
+}
+
+function getFrontCourseCategory(
+  clsName: string,
+  courseName?: string,
+): "coding" | "robotics" | "art" | "unknown" {
+  const name = `${clsName || ""} ${courseName || ""}`.toUpperCase();
+  if (name.includes("XART")) return "art";
+  if (name.includes("ROB") || name.includes("RBT")) return "robotics";
+
+  const codingPrefixes = [
+    "SB",
+    "SA",
+    "SI",
+    "GB",
+    "GA",
+    "GI",
+    "PTB",
+    "PTA",
+    "PTI",
+    "JSB",
+    "JSA",
+    "JSI",
+    "CSB",
+    "CSA",
+    "CSI",
+    "NG",
+    "NEXT GEN",
+    "NEXTGEN",
+  ];
+  const roboticsPrefixes = [
+    "KIROB",
+    "PREB",
+    "PREA",
+    "PREI",
+    "ARMB",
+    "ARMA",
+    "ARMI",
+    "SEMIB",
+    "SEMIA",
+    "SEMII",
+    "AUTOA",
+  ];
+  const artPrefixes = [
+    "KAB",
+    "KAA",
+    "KAI",
+    "VAB",
+    "VAA",
+    "VAI",
+    "VCB",
+    "VCA",
+    "VCI",
+    "GDB",
+    "GDA",
+    "GDI",
+    "MDB",
+    "MDA",
+    "MDI",
+    "DAB",
+    "DAA",
+    "DAI",
+    "IDB",
+    "IDA",
+    "IDI",
+  ];
+
+  for (const prefix of roboticsPrefixes) {
+    const regex = new RegExp(`(^|[-_ .])${prefix}([-_ .\\d]|$)`);
+    if (regex.test(name)) return "robotics";
+  }
+  for (const prefix of artPrefixes) {
+    const regex = new RegExp(`(^|[-_ .])${prefix}([-_ .\\d]|$)`);
+    if (regex.test(name)) return "art";
+  }
+  for (const prefix of codingPrefixes) {
+    const regex = new RegExp(`(^|[-_ .])${prefix}([-_ .\\d]|$)`);
+    if (regex.test(name)) return "coding";
+  }
+
+  return "unknown";
 }
 
 function parseDateTime(dateVal: any, timeVal: any): Date | null {
@@ -89,58 +179,7 @@ function getTeacherByRole(cls: any, roleShortName: string) {
   return "-";
 }
 
-function getRealTeacherByRole(cls: any, roleShortName: string) {
-  const countTeachersFromSlots = (slotsToCount: any[]) => {
-    const map = new Map<string, { name: string; count: number }>();
-    slotsToCount.forEach((slot: any) => {
-      if (Array.isArray(slot.teachers)) {
-        slot.teachers.forEach((tAssignment: any) => {
-          if (tAssignment.role?.shortName === roleShortName) {
-            const teacher = tAssignment.teacher;
-            if (teacher) {
-              const id = teacher.id || teacher._id || teacher.fullName;
-              const current = map.get(id) || {
-                name: teacher.fullName,
-                count: 0,
-              };
-              map.set(id, { ...current, count: current.count + 1 });
-            }
-          }
-        });
-      }
-    });
-    return map;
-  };
 
-  const getTopTeacher = (map: Map<string, { name: string; count: number }>) => {
-    if (map.size === 0) return null;
-    const sorted = Array.from(map.values()).sort((a, b) => b.count - a.count);
-    return sorted[0]?.name;
-  };
-
-  if (Array.isArray(cls.slots)) {
-    const now = new Date().getTime();
-
-    // 1. Ưu tiên đếm trên các slot đã diễn ra (past slots)
-    const pastSlots = cls.slots.filter((slot: any) => {
-      if (!slot.date || !slot.endTime) return false;
-      const endDateTime = parseDateTime(slot.date, slot.endTime);
-      return endDateTime && endDateTime.getTime() <= now;
-    });
-
-    const pastMap = countTeachersFromSlots(pastSlots);
-    const topPast = getTopTeacher(pastMap);
-    if (topPast) return topPast;
-
-    // 2. Nếu chưa có slot nào diễn ra hoặc chưa gán GV, đếm trên toàn bộ slots
-    const allMap = countTeachersFromSlots(cls.slots);
-    const topAll = getTopTeacher(allMap);
-    if (topAll) return topAll;
-  }
-
-  // 3. Fallback dùng cấu hình mặc định
-  return getTeacherByRole(cls, roleShortName);
-}
 
 function getClassTimeRange(cls: any) {
   const slots = cls.slots || [];
@@ -198,61 +237,20 @@ function isTeacherInRole(cls: any, roleShortName: string, teacherId?: string) {
   );
 }
 
-function buildGoogleCalendarUrl(cls: EnrichedClassData, realSlots?: any[]) {
-  const slotsToUse = realSlots || cls.slots || [];
-  const slots = [...slotsToUse]
-    .filter((item: any) => item.date && item.startTime && item.endTime)
-    .sort(
-      (a: any, b: any) =>
-        new Date(a.date).getTime() - new Date(b.date).getTime(),
-    );
+function getFrontCurrentSessionIndex(slots?: any[]): number {
+  if (!slots || slots.length === 0) return 0;
+  const now = new Date().getTime();
 
-  const firstSlot = slots[0];
-  if (!firstSlot) return null;
-
-  const start = parseDateTime(firstSlot.date, firstSlot.startTime);
-  const end = parseDateTime(firstSlot.date, firstSlot.endTime);
-
-  if (!start || !end) return null;
-
-  const formatGoogleDate = (date: Date) =>
-    date.toISOString().replace(/[-:]/g, "").replace(".000Z", "Z");
-
-  const details = [
-    `Lớp: ${cls.name}`,
-    `Khóa học: ${cls.course?.shortName || cls.course?.name || "N/A"}`,
-    `Lịch dạy: ${cls.computed?.weekdays || "N/A"} | ${cls.computed?.timeRange || "N/A"}`,
-    `LEC: ${cls.computed?.lecName || "N/A"}`,
-    `TA: ${cls.computed?.taName || "N/A"}`,
-    `Tổng số buổi: ${slotsToUse.length || 0} buổi`,
-  ].join("\n");
-
-  const title = `${cls.name} - ${cls.course?.shortName || "Lớp học"}`;
-
-  const params = new URLSearchParams({
-    action: "TEMPLATE",
-    text: title,
-    dates: `${formatGoogleDate(start)}/${formatGoogleDate(end)}`,
-    details,
+  let pastCount = 0;
+  slots.forEach((slot: any) => {
+    if (!slot.date || !slot.endTime) return;
+    const endDateTime = parseDateTime(slot.date, slot.endTime);
+    if (endDateTime && endDateTime.getTime() <= now) {
+      pastCount++;
+    }
   });
 
-  // Add Recurrence Rule (RRULE) for Google Calendar so that it automatically schedules weekly
-  const weekdayIndexes = cls.computed.weekdayIndexes;
-  if (weekdayIndexes.length > 0 && cls.endDate) {
-    const RRULE_DAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
-    const byDayStr = weekdayIndexes.map((idx) => RRULE_DAYS[idx]).join(",");
-
-    const untilDate = new Date(cls.endDate);
-    untilDate.setHours(23, 59, 59, 999);
-    const untilStr = formatGoogleDate(untilDate);
-
-    params.append(
-      "recur",
-      `RRULE:FREQ=WEEKLY;UNTIL=${untilStr};BYDAY=${byDayStr}`,
-    );
-  }
-
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+  return pastCount;
 }
 
 export default function ClassesPage() {
@@ -275,21 +273,11 @@ export default function ClassesPage() {
   const [weekdayFilter, setWeekdayFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("RUNNING");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const deferredCategory = useDeferredValue(categoryFilter);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
-
-  // State lưu trữ dữ liệu chi tiết tải bất đồng bộ (Lazy load)
-  const [detailedClasses, setDetailedClasses] = useState<
-    Record<string, ClassData>
-  >({});
-  const [loadingDetails, setLoadingDetails] = useState<Record<string, boolean>>(
-    {},
-  );
-
-  // Sử dụng Refs để quản lý trạng thái fetch tránh bị loop dependency
-  const fetchedClassIdsRef = useRef<Set<string>>(new Set());
-  const fetchingClassIdsRef = useRef<Set<string>>(new Set());
+  const ITEMS_PER_PAGE = 1000;
 
   // Lấy danh sách các cơ sở từ profile user
   const availableCentres = useMemo(() => {
@@ -396,6 +384,7 @@ export default function ClassesPage() {
             weekday: deferredWeekday,
             role: deferredRole,
             userName: user.fullName || "",
+            category: deferredCategory,
           },
         );
 
@@ -412,6 +401,13 @@ export default function ClassesPage() {
         // Tối ưu: Tính toán sẵn dữ liệu để hiển thị UI
         const enriched: EnrichedClassData[] = data.map((cls) => {
           if ((cls as any).computed) {
+            const comp = (cls as any).computed;
+            if (!comp.category) {
+              comp.category = getFrontCourseCategory(cls.name || "", cls.course?.name || "");
+            }
+            if (comp.currentSessionIndex === undefined) {
+              comp.currentSessionIndex = getFrontCurrentSessionIndex(cls.slots);
+            }
             return cls as EnrichedClassData;
           }
 
@@ -425,6 +421,9 @@ export default function ClassesPage() {
           const searchString =
             `${cls.name} ${cls.course?.name || ""} ${cls.course?.shortName || ""} ${lecName} ${taName}`.toLowerCase();
 
+          const category = getFrontCourseCategory(cls.name || "", cls.course?.name || "");
+          const currentSessionIndex = getFrontCurrentSessionIndex(cls.slots);
+
           return {
             ...cls,
             computed: {
@@ -434,6 +433,8 @@ export default function ClassesPage() {
               timeRange,
               weekdays,
               searchString,
+              category,
+              currentSessionIndex,
             },
           };
         });
@@ -472,6 +473,7 @@ export default function ClassesPage() {
     user?.appRoles,
     user?.fullName,
     user,
+    deferredCategory,
   ]);
 
   // Server đã filter và phân trang, ta chỉ cần alias lại các biến để code cũ hoạt động
@@ -486,87 +488,7 @@ export default function ClassesPage() {
     }
   }, [totalPages, currentPage]);
 
-  // Lazy load chi tiết (slots và teachers thực tế) của các lớp hiển thị trên trang hiện tại
-  useEffect(() => {
-    if (paginatedClasses.length === 0 || !token) return;
 
-    const fetchDetailsForCurrentPage = async () => {
-      const idsToFetch = paginatedClasses
-        .map((cls) => cls.id)
-        .filter(
-          (id) =>
-            !fetchedClassIdsRef.current.has(id) &&
-            !fetchingClassIdsRef.current.has(id),
-        );
-
-      if (idsToFetch.length === 0) return;
-
-      // Đánh dấu là đang fetch để tránh call trùng
-      idsToFetch.forEach((id) => fetchingClassIdsRef.current.add(id));
-
-      setLoadingDetails((prev) => {
-        const next = { ...prev };
-        idsToFetch.forEach((id) => {
-          next[id] = true;
-        });
-        return next;
-      });
-
-      try {
-        // Fetch chi tiết hàng loạt các lớp
-        const details = await classService.getClassesDetails(token, idsToFetch);
-
-        if (details && Array.isArray(details)) {
-          setDetailedClasses((prev) => {
-            const next = { ...prev };
-            details.forEach((detail) => {
-              if (detail && detail.id) {
-                next[detail.id] = detail;
-                fetchedClassIdsRef.current.add(detail.id);
-              }
-            });
-            return next;
-          });
-        }
-      } catch (err) {
-        console.error(
-          `Failed to fetch details for classes: ${idsToFetch.join(", ")}`,
-          err,
-        );
-      } finally {
-        idsToFetch.forEach((id) => {
-          fetchingClassIdsRef.current.delete(id);
-        });
-
-        // Đảm bảo những ID nào bị lỗi hoặc không trả về sẽ được dùng dữ liệu gốc (tránh kẹt loading vĩnh viễn)
-        setDetailedClasses((prev) => {
-          const next = { ...prev };
-          let changed = false;
-          idsToFetch.forEach((id) => {
-            if (!next[id]) {
-              const originalCls = paginatedClasses.find((c) => c.id === id);
-              if (originalCls) {
-                next[id] = originalCls;
-                fetchedClassIdsRef.current.add(id);
-                changed = true;
-              }
-            }
-          });
-          return changed ? next : prev;
-        });
-
-        setLoadingDetails((prev) => {
-          const next = { ...prev };
-          idsToFetch.forEach((id) => {
-            delete next[id];
-          });
-          return next;
-        });
-      }
-    };
-
-    fetchDetailsForCurrentPage();
-  }, [paginatedClasses, token]);
 
   // Reset về trang 1 khi thay đổi bộ lọc
   useEffect(() => {
@@ -577,6 +499,7 @@ export default function ClassesPage() {
     deferredStatus,
     deferredRole,
     deferredCentre,
+    deferredCategory,
   ]);
 
   const resetFilters = () => {
@@ -584,6 +507,7 @@ export default function ClassesPage() {
     setWeekdayFilter("all");
     setStatusFilter("RUNNING");
     setRoleFilter("all");
+    setCategoryFilter("all");
     const tdmCentre = availableCentres.find((c) =>
       c.name.toLowerCase().includes("thủ dầu một"),
     );
@@ -615,7 +539,7 @@ export default function ClassesPage() {
 
         <Card>
           <CardContent className="p-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
               <Select
                 value={centreFilter === "default_tdm" ? "all" : centreFilter}
                 onValueChange={setCentreFilter}
@@ -630,6 +554,19 @@ export default function ClassesPage() {
                       {c.name}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+
+              {/* Category Filter */}
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Bộ môn" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả bộ môn</SelectItem>
+                  <SelectItem value="coding">Lập trình (Coding)</SelectItem>
+                  <SelectItem value="robotics">Robotics</SelectItem>
+                  <SelectItem value="art">Mỹ thuật (Art)</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -748,14 +685,11 @@ export default function ClassesPage() {
       </div>
 
       <Card>
-        <CardContent className="p-0 overflow-x-auto relative min-h-[500px]">
+        <CardContent className={`p-0 overflow-x-auto relative ${showLoading && classes.length === 0 ? "min-h-[400px]" : ""}`}>
           {/* Overlay Loading giữ nguyên bảng cũ */}
           {showLoading && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-[2px]">
               <CatLoader />
-              <p className="text-sm font-medium text-muted-foreground mt-3">
-                Đang tải dữ liệu...
-              </p>
             </div>
           )}
 
@@ -764,6 +698,9 @@ export default function ClassesPage() {
               <TableRow>
                 <TableHead className="w-[200px] min-w-[200px] md:w-[250px] md:min-w-[250px]">
                   Tên lớp
+                </TableHead>
+                <TableHead className="w-[90px] min-w-[90px]">
+                  Buổi
                 </TableHead>
                 <TableHead className="w-[120px] min-w-[120px] md:w-[150px] md:min-w-[150px]">
                   Lịch dạy
@@ -783,7 +720,6 @@ export default function ClassesPage() {
                 <TableHead className="w-[130px] min-w-[130px]">
                   Trạng thái
                 </TableHead>
-                <TableHead className="w-[150px] min-w-[150px]">Lịch</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="[&_tr:last-child]:border-0 relative">
@@ -795,23 +731,8 @@ export default function ClassesPage() {
                 </TableRow>
               ) : (
                 paginatedClasses.map((cls) => {
-                  // Lấy thông tin chi tiết (đã tải bất đồng bộ)
-                  const isDetailLoaded = !!detailedClasses[cls.id];
-                  const currentClassData = detailedClasses[cls.id] || cls;
-
-                  const googleCalendarUrl = buildGoogleCalendarUrl(
-                    cls,
-                    currentClassData.slots,
-                  );
-
-                  // Tính toán Real LEC và TA nếu đã load được slots thực tế, nếu không hiển thị trạng thái đang tải
-                  const displayedLecName = isDetailLoaded
-                    ? getRealTeacherByRole(currentClassData, "LEC")
-                    : "";
-
-                  const displayedTaName = isDetailLoaded
-                    ? getRealTeacherByRole(currentClassData, "TA")
-                    : "";
+                  const displayedLecName = cls.computed.lecName || "-";
+                  const displayedTaName = cls.computed.taName || "-";
 
                   return (
                     <TableRow
@@ -832,6 +753,9 @@ export default function ClassesPage() {
                           </span>
                         </div>
                       </TableCell>
+                      <TableCell className="font-semibold text-indigo-600 dark:text-indigo-400">
+                        Buổi {cls.computed.currentSessionIndex || 0}
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="font-medium">
@@ -846,51 +770,54 @@ export default function ClassesPage() {
                       <TableCell>{formatDate(cls.endDate)}</TableCell>
                       <TableCell className="max-w-[150px] truncate text-xs relative">
                         <div className="flex items-center h-6 gap-1">
-                          {!isDetailLoaded ? (
-                            <div className="flex items-center gap-1 text-muted-foreground/70 animate-pulse">
-                              <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                              <span>Đang tính toán...</span>
-                            </div>
-                          ) : (
-                            <span className="font-semibold text-primary truncate block">
-                              {displayedLecName}
-                            </span>
-                          )}
+                          <span className="font-semibold text-primary truncate block">
+                            {displayedLecName}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell className="max-w-[150px] truncate text-xs">
                         <div className="flex items-center h-6 gap-1">
-                          {!isDetailLoaded ? (
-                            <div className="flex items-center gap-1 text-muted-foreground/70 animate-pulse">
-                              <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                              <span>Đang tính toán...</span>
-                            </div>
-                          ) : (
-                            <span className="font-semibold text-primary truncate block">
-                              {displayedTaName}
-                            </span>
-                          )}
+                          <span className="font-semibold text-primary truncate block">
+                            {displayedTaName}
+                          </span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="relative overflow-hidden pr-10">
                         <StatusBadge type="class" status={cls.status} />
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {googleCalendarUrl ? (
-                          <Button variant="outline" size="sm" asChild>
-                            <a
-                              href={googleCalendarUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <CalendarPlus className="mr-2 h-4 w-4" />
-                              Google Calendar
-                            </a>
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Không có slot
-                          </span>
+
+                        {cls.computed.category && cls.computed.category !== "unknown" && (
+                          <Tooltip delayDuration={150}>
+                            <TooltipTrigger asChild>
+                              <div className="absolute top-0 right-0 w-12 h-12 overflow-hidden pointer-events-auto cursor-pointer z-10 group/ribbon">
+                                <div
+                                  className={`absolute top-[-4px] right-[-24px] w-16 h-5 rotate-45 flex items-center justify-center shadow-sm transition-all duration-300 group-hover/ribbon:scale-110 group-hover/ribbon:brightness-110 ${
+                                    cls.computed.category === "robotics"
+                                      ? "bg-[#F97316]"
+                                      : cls.computed.category === "art"
+                                      ? "bg-[#8B5CF6]"
+                                      : "bg-[#2563EB]"
+                                  }`}
+                                >
+                                  {cls.computed.category === "robotics" && (
+                                    <Bot className="h-3 w-3 text-white -rotate-45" />
+                                  )}
+                                  {cls.computed.category === "art" && (
+                                    <Palette className="h-3 w-3 text-white -rotate-45" />
+                                  )}
+                                  {cls.computed.category === "coding" && (
+                                    <Code2 className="h-3 w-3 text-white -rotate-45" />
+                                  )}
+                                </div>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="bg-slate-800 text-white text-xs px-2 py-1 rounded shadow-md border-0">
+                              {cls.computed.category === "robotics"
+                                ? "Robotics Class"
+                                : cls.computed.category === "art"
+                                ? "Art Class"
+                                : "Coding Class"}
+                            </TooltipContent>
+                          </Tooltip>
                         )}
                       </TableCell>
                     </TableRow>
@@ -907,97 +834,8 @@ export default function ClassesPage() {
           >
             {filteredClasses.length > 0 && (
               <div className="flex flex-col md:flex-row items-center justify-between px-4 py-3 gap-4">
-                <div className="text-sm text-muted-foreground order-2 md:order-1">
-                  Hiển thị{" "}
-                  <span className="font-semibold">
-                    {Math.min(
-                      paginationMeta.total,
-                      (paginationMeta.page - 1) * paginationMeta.limit + 1,
-                    )}
-                    -
-                    {Math.min(
-                      paginationMeta.total,
-                      paginationMeta.page * paginationMeta.limit,
-                    )}
-                  </span>{" "}
-                  trên{" "}
-                  <span className="font-semibold">{paginationMeta.total}</span>{" "}
-                  lớp học.
-                </div>
-
-                <div className="flex items-center space-x-2 order-1 md:order-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronsLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.max(1, prev - 1))
-                    }
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(5, totalPages) }).map(
-                      (_, i) => {
-                        let pageNum = currentPage;
-                        if (totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1;
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i;
-                        } else {
-                          pageNum = currentPage - 2 + i;
-                        }
-
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant={
-                              currentPage === pageNum ? "default" : "outline"
-                            }
-                            size="icon"
-                            className="h-8 w-8 text-xs"
-                            onClick={() => setCurrentPage(pageNum)}
-                          >
-                            {pageNum}
-                          </Button>
-                        );
-                      },
-                    )}
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-                    }
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronsRight className="h-4 w-4" />
-                  </Button>
+                <div className="text-sm text-muted-foreground">
+                  Hiển thị tất cả <span className="font-semibold">{paginationMeta.total}</span> lớp học.
                 </div>
               </div>
             )}

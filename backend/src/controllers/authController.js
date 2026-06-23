@@ -1,8 +1,8 @@
 const { v4: uuidv4 } = require("uuid");
 const lmsAuth = require("../services/lmsAuth");
 const LMSClient = require("../services/lmsClient");
-const FirestoreNotification = require("../storage/firestoreNotification");
-const FirestoreSession = require("../storage/firestoreSession");
+const FirestoreNotification = require("../storage/notificationStorage");
+const FirestoreSession = require("../storage/sessionStorage");
 
 exports.login = async (req, res) => {
   let { email, password } = req.body;

@@ -17,6 +17,7 @@ export const classService = {
       weekday?: string;
       role?: string;
       userName?: string;
+      category?: string;
     },
   ): Promise<{ data: ClassData[]; meta: any }> => {
     const response = await api.post("/classes", {
@@ -32,6 +33,7 @@ export const classService = {
       weekday: options?.weekday,
       role: options?.role,
       userName: options?.userName,
+      category: options?.category,
     });
     return { data: response.data.data, meta: response.data.meta };
   },

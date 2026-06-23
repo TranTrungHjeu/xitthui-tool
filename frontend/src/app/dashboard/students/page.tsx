@@ -46,7 +46,13 @@ interface StudentData {
   fullName: string;
   email: string;
   phone: string;
-  classes: { id: string; name: string; status: string }[];
+  classes: { 
+    id: string; 
+    name: string; 
+    status: string;
+    attendanceRate?: number | null;
+    homeworkRate?: number | null;
+  }[];
 }
 
 export default function StudentsPage() {
@@ -329,26 +335,26 @@ export default function StudentsPage() {
               <Table>
                 <TableHeader className="bg-gray-50/80 dark:bg-gray-900/80 sticky top-0 z-10 backdrop-blur-sm">
                   <TableRow className="border-gray-200/60 dark:border-gray-800/60">
-                    <TableHead className="w-[30%] min-w-[250px] font-semibold text-gray-700 dark:text-gray-300">
+                    <TableHead className="w-[30%] min-w-[200px] font-semibold text-gray-700 dark:text-gray-300">
                       Học viên
                     </TableHead>
-                    <TableHead className="w-[30%] min-w-[250px] font-semibold text-gray-700 dark:text-gray-300">
-                      Thông tin liên hệ
+                    <TableHead className="w-[35%] min-w-[220px] font-semibold text-gray-700 dark:text-gray-300">
+                      Lớp học
                     </TableHead>
-                    <TableHead className="w-[40%] min-w-[300px] font-semibold text-gray-700 dark:text-gray-300">
-                      Các lớp đang học
+                    <TableHead className="w-[17.5%] min-w-[120px] font-semibold text-gray-700 dark:text-gray-300">
+                      Chuyên cần
+                    </TableHead>
+                    <TableHead className="w-[17.5%] min-w-[120px] font-semibold text-gray-700 dark:text-gray-300">
+                      Bài tập
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody className="relative">
                   {showLoading && (
                     <TableRow>
-                      <TableCell colSpan={3} className="h-64 text-center">
+                      <TableCell colSpan={4} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-3 text-gray-500">
                           <CatLoader />
-                          <p className="text-sm font-medium">
-                            Đang tải dữ liệu...
-                          </p>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -356,7 +362,7 @@ export default function StudentsPage() {
 
                   {!showLoading && students.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} className="h-64 text-center">
+                      <TableCell colSpan={4} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-2 text-gray-500">
                           <User className="h-8 w-8 text-gray-400 opacity-50" />
                           <p className="text-sm font-medium">
@@ -382,52 +388,21 @@ export default function StudentsPage() {
                           className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/50 border-gray-200/60 dark:border-gray-800/60 transition-colors"
                         >
                           <TableCell className="align-top py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 shrink-0 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center border border-blue-200 dark:border-blue-800">
-                                <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                            <div className="flex items-center gap-3 pt-2">
+                              <div className="h-8 w-8 shrink-0 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center border border-blue-200 dark:border-blue-800">
+                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
                                   {student.fullName.charAt(0).toUpperCase()}
                                 </span>
                               </div>
-                              <div className="space-y-1">
-                                <p className="font-semibold text-gray-900 dark:text-gray-100">
-                                  {student.fullName}
-                                </p>
-                                <p className="text-xs text-gray-500 font-mono">
-                                  ID: {student.id.substring(0, 8)}...
-                                </p>
-                              </div>
+                              <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                                {student.fullName}
+                              </p>
                             </div>
                           </TableCell>
 
+                          {/* Lớp học */}
                           <TableCell className="align-top py-4">
-                            <div className="space-y-2">
-                              {student.email && (
-                                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                                  <Mail className="h-3.5 w-3.5" />
-                                  <span
-                                    className="truncate max-w-[200px]"
-                                    title={student.email}
-                                  >
-                                    {student.email}
-                                  </span>
-                                </div>
-                              )}
-                              {student.phone && (
-                                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                                  <Phone className="h-3.5 w-3.5" />
-                                  <span>{student.phone}</span>
-                                </div>
-                              )}
-                              {!student.email && !student.phone && (
-                                <span className="text-sm text-gray-400 italic">
-                                  Chưa cập nhật
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-
-                          <TableCell className="align-top py-4">
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-col">
                               {student.classes.length > 0 ? (
                                 student.classes.map((cls) => {
                                   const normalizedStatus = cls.status
@@ -436,46 +411,114 @@ export default function StudentsPage() {
                                         .replace(/\s+/g, "_")
                                     : "";
                                   let colorStyle =
-                                    "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700";
+                                    "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
 
                                   if (
                                     normalizedStatus === "RUNNING" ||
                                     normalizedStatus === "OPEN"
                                   ) {
                                     colorStyle =
-                                      "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800 hover:bg-green-200 dark:hover:bg-green-900/50";
+                                      "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800";
                                   } else if (
                                     ["PRE_OPEN", "PREPARING", "NEW"].includes(
                                       normalizedStatus,
                                     )
                                   ) {
                                     colorStyle =
-                                      "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900/50";
+                                      "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800";
                                   } else if (
                                     ["CLOSED", "ENDED", "FINISHED"].includes(
                                       normalizedStatus,
                                     )
                                   ) {
                                     colorStyle =
-                                      "bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-500 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700";
+                                      "bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-500 dark:border-gray-700";
                                   }
 
                                   return (
-                                    <Badge
+                                    <div
                                       key={cls.id}
-                                      variant="outline"
-                                      className={`font-normal flex items-center gap-1.5 px-2.5 py-1 ${colorStyle}`}
-                                      title={cls.status}
+                                      className="h-10 flex items-center border-b border-gray-100 dark:border-gray-800/40 last:border-0"
                                     >
-                                      <GraduationCap className="h-3.5 w-3.5 opacity-70" />
-                                      {cls.name}
-                                    </Badge>
+                                      <Badge
+                                        variant="outline"
+                                        className={`font-semibold flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] ${colorStyle}`}
+                                        title={cls.status}
+                                      >
+                                        <GraduationCap className="h-3 w-3 opacity-70" />
+                                        <span>{cls.name}</span>
+                                      </Badge>
+                                    </div>
                                   );
                                 })
                               ) : (
-                                <span className="text-sm text-gray-400 italic">
+                                <div className="h-10 flex items-center text-sm text-gray-400 italic">
                                   Không có lớp
-                                </span>
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          {/* Chuyên cần */}
+                          <TableCell className="align-top py-4">
+                            <div className="flex flex-col">
+                              {student.classes.length > 0 ? (
+                                student.classes.map((cls) => (
+                                  <div
+                                    key={cls.id}
+                                    className="h-10 flex items-center border-b border-gray-100 dark:border-gray-800/40 last:border-0 text-sm font-semibold"
+                                  >
+                                    <span
+                                      className={
+                                        cls.attendanceRate !== null && cls.attendanceRate !== undefined
+                                          ? cls.attendanceRate >= 0.8
+                                            ? "text-green-600 dark:text-green-400"
+                                            : "text-amber-600 dark:text-amber-400"
+                                          : "text-gray-400"
+                                      }
+                                    >
+                                      {cls.attendanceRate !== null && cls.attendanceRate !== undefined
+                                        ? `${(cls.attendanceRate * 100).toFixed(0)}%`
+                                        : "N/A"}
+                                    </span>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="h-10 flex items-center text-sm text-gray-400">
+                                  -
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          {/* Bài tập */}
+                          <TableCell className="align-top py-4">
+                            <div className="flex flex-col">
+                              {student.classes.length > 0 ? (
+                                student.classes.map((cls) => (
+                                  <div
+                                    key={cls.id}
+                                    className="h-10 flex items-center border-b border-gray-100 dark:border-gray-800/40 last:border-0 text-sm font-semibold"
+                                  >
+                                    <span
+                                      className={
+                                        cls.homeworkRate !== null && cls.homeworkRate !== undefined
+                                          ? cls.homeworkRate >= 0.8
+                                            ? "text-green-600 dark:text-green-400"
+                                            : "text-amber-600 dark:text-amber-400"
+                                          : "text-gray-400"
+                                      }
+                                    >
+                                      {cls.homeworkRate !== null && cls.homeworkRate !== undefined
+                                        ? `${(cls.homeworkRate * 100).toFixed(0)}%`
+                                        : "N/A"}
+                                    </span>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="h-10 flex items-center text-sm text-gray-400">
+                                  -
+                                </div>
                               )}
                             </div>
                           </TableCell>

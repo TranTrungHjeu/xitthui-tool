@@ -2,11 +2,18 @@ const axios = require("axios");
 const LMSClient = require("../services/lmsClient");
 const { isLmsAuthError } = require("../utils/authError");
 const ClassCacheService = require("../services/classCache");
-const FirestoreNotification = require("../storage/firestoreNotification");
+const FirestoreNotification = require("../storage/notificationStorage");
 const NotificationScheduler = require("../services/notificationScheduler");
-const FirestoreStudent = require("../storage/firestoreStudent");
+const FirestoreStudent = require("../storage/studentStorage");
 const StudentScheduler = require("../services/studentScheduler");
 const { VertexAI } = require("@google-cloud/vertexai");
+const {
+  getClassWeekdayIndexes,
+  getRealTeacherByRole,
+  getClassTimeRange,
+  getClassWeekdays,
+  getCurrentSessionIndex,
+} = require("../utils/classHelpers");
 
 const vertexAI = new VertexAI({
   project: process.env.VERTEX_AI_PROJECT_ID || "your-google-cloud-project-id",
@@ -34,6 +41,7 @@ exports.getClasses = async (req, res) => {
       role = "all",
       userName = "",
       status = "all",
+      category = "all",
     } = req.body;
 
     const isTE = Array.isArray(roles) && roles.includes("TE");
@@ -64,6 +72,7 @@ exports.getClasses = async (req, res) => {
         userName,
         teacherId,
         status,
+        category,
       },
     );
 
@@ -112,6 +121,8 @@ exports.getClassById = async (req, res) => {
       return res.status(400).json({ error: "Class ID is required" });
 
     const now = Date.now();
+    
+    // 1. Try to get from in-memory cache first
     if (!noCache) {
       const cached = classDetailsCache.get(classId);
       if (cached && cached.expiresAt > now) {
@@ -120,19 +131,104 @@ exports.getClassById = async (req, res) => {
         );
         return res.json({ success: true, data: cached.data });
       }
+
+      // 2. Try to get from MongoDB second
+      const { Class } = require("../storage/mongoModels");
+      try {
+        const dbClass = await Class.findById(classId).lean();
+        // Check if detailed information (like students roster) is already synced
+        if (dbClass && dbClass.students !== undefined) {
+          console.log(`[MongoDB] Trả về class details từ MongoDB cho lớp: ${classId}`);
+          const formattedClass = {
+            ...dbClass,
+            id: dbClass._id,
+          };
+          classDetailsCache.set(classId, {
+            data: formattedClass,
+            expiresAt: Date.now() + CLASS_DETAILS_TTL,
+          });
+          return res.json({ success: true, data: formattedClass });
+        }
+      } catch (dbErr) {
+        console.warn(`[MongoDB] Failed to find class details: ${dbErr.message}`);
+      }
     }
 
+    // 3. Fallback: Fetch from LMS
     const client = new LMSClient(token);
     const data = await client.getClassById(classId);
 
     if (data && data.id) {
+      // Save this detailed class to MongoDB for future queries
+      const { Class } = require("../storage/mongoModels");
+      const { getCourseCategory } = require("../utils/courseConfig");
+      
+      const weekdayIndexes = getClassWeekdayIndexes(data);
+      const lecName = getRealTeacherByRole(data, "LEC") || "-";
+      const taName = getRealTeacherByRole(data, "TA") || "-";
+      const timeRange = getClassTimeRange(data);
+      const weekdays = getClassWeekdays(data);
+      const category = getCourseCategory(data.name || data.course?.name || "");
+      const currentSessionIndex = getCurrentSessionIndex(data);
+      const searchString = [
+        data.name,
+        data.course?.shortName,
+        data.centre?.name,
+        data.centre?.shortName,
+        lecName,
+        taName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const doc = {
+        name: data.name,
+        status: data.status,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        course: data.course,
+        centre: data.centre,
+        teachers: data.teachers,
+        slots: data.slots,
+        students: data.students || [],
+        computed: {
+          weekdayIndexes,
+          lecName,
+          taName,
+          timeRange,
+          weekdays,
+          searchString,
+          category,
+          currentSessionIndex
+        },
+        updatedAt: new Date()
+      };
+
+      try {
+        await Class.updateOne(
+          { _id: data.id },
+          { $set: doc },
+          { upsert: true }
+        );
+        console.log(`[MongoDB] Saved detailed class ${data.id} to MongoDB`);
+      } catch (saveErr) {
+        console.error(`[MongoDB] Failed to save detailed class ${data.id}:`, saveErr.message);
+      }
+
+      const formattedClass = {
+        ...doc,
+        id: data.id,
+      };
+
       classDetailsCache.set(data.id, {
-        data,
+        data: formattedClass,
         expiresAt: Date.now() + CLASS_DETAILS_TTL,
       });
+      res.json({ success: true, data: formattedClass });
+    } else {
+      res.json({ success: true, data });
     }
-
-    res.json({ success: true, data });
   } catch (err) {
     console.error("[Controller] getClassById failed:", err.message);
     console.error(
@@ -167,6 +263,7 @@ exports.getClassesDetails = async (req, res) => {
     const now = Date.now();
 
     if (!noCache) {
+      // 1. Try to get from in-memory cache first
       classIds.forEach((id) => {
         const cached = classDetailsCache.get(id);
         if (cached && cached.expiresAt > now) {
@@ -175,23 +272,117 @@ exports.getClassesDetails = async (req, res) => {
           missingIds.push(id);
         }
       });
+
+      // 2. Try to get from MongoDB second
+      if (missingIds.length > 0) {
+        const { Class } = require("../storage/mongoModels");
+        try {
+          const dbClasses = await Class.find({ _id: { $in: missingIds } }).lean();
+          const dbClassesMap = new Map(dbClasses.map(c => [c._id, c]));
+          const stillMissing = [];
+          
+          missingIds.forEach((id) => {
+            const dbClass = dbClassesMap.get(id);
+            if (dbClass && dbClass.students !== undefined) {
+              const formattedClass = {
+                ...dbClass,
+                id: dbClass._id,
+              };
+              classDetailsCache.set(id, {
+                data: formattedClass,
+                expiresAt: Date.now() + CLASS_DETAILS_TTL,
+              });
+              results.push(formattedClass);
+            } else {
+              stillMissing.push(id);
+            }
+          });
+
+          missingIds.length = 0;
+          missingIds.push(...stillMissing);
+        } catch (dbErr) {
+          console.warn(`[MongoDB] Failed to find multiple class details: ${dbErr.message}`);
+        }
+      }
     } else {
       missingIds.push(...classIds);
     }
 
+    // 3. Fallback: Fetch from LMS for whatever is still missing
     if (missingIds.length > 0) {
       const client = new LMSClient(token);
       const fetchedData = await client.getClassesDetails(missingIds);
 
-      fetchedData.forEach((item) => {
+      const { Class } = require("../storage/mongoModels");
+      const { getCourseCategory } = require("../utils/courseConfig");
+
+      for (const item of fetchedData) {
         if (item && item.id) {
+          const weekdayIndexes = getClassWeekdayIndexes(item);
+          const lecName = getRealTeacherByRole(item, "LEC") || "-";
+          const taName = getRealTeacherByRole(item, "TA") || "-";
+          const timeRange = getClassTimeRange(item);
+          const weekdays = getClassWeekdays(item);
+          const category = getCourseCategory(item.name || item.course?.name || "");
+          const currentSessionIndex = getCurrentSessionIndex(item);
+          const searchString = [
+            item.name,
+            item.course?.shortName,
+            item.centre?.name,
+            item.centre?.shortName,
+            lecName,
+            taName,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+
+          const doc = {
+            name: item.name,
+            status: item.status,
+            startDate: item.startDate,
+            endDate: item.endDate,
+            course: item.course,
+            centre: item.centre,
+            teachers: item.teachers,
+            slots: item.slots,
+            students: item.students || [],
+            computed: {
+              weekdayIndexes,
+              lecName,
+              taName,
+              timeRange,
+              weekdays,
+              searchString,
+              category,
+              currentSessionIndex
+            },
+            updatedAt: new Date()
+          };
+
+          try {
+            await Class.updateOne(
+              { _id: item.id },
+              { $set: doc },
+              { upsert: true }
+            );
+            console.log(`[MongoDB] Saved detailed class ${item.id} to MongoDB`);
+          } catch (saveErr) {
+            console.error(`[MongoDB] Failed to save detailed class ${item.id}:`, saveErr.message);
+          }
+
+          const formattedClass = {
+            ...doc,
+            id: item.id,
+          };
+
           classDetailsCache.set(item.id, {
-            data: item,
+            data: formattedClass,
             expiresAt: Date.now() + CLASS_DETAILS_TTL,
           });
-          results.push(item);
+          results.push(formattedClass);
         }
-      });
+      }
     }
 
     res.json({ success: true, data: results });
@@ -661,16 +852,21 @@ exports.getClassesNotifications = async (req, res) => {
                     : cls.teachers;
                 const taName = getTeacherNames(teachersToUse, "TA");
                 const lecName = getTeacherNames(teachersToUse, "LEC");
+                const teName = getTeacherNames(teachersToUse, "TE");
 
                 // Thêm ticket cho realtime
                 tickets.push({
                   classId: cls.id,
                   className: className,
                   date: slot.date,
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                  sessionIndex: slot.index,
                   studentCount: studentsNeedingFeedback.length,
                   isLate,
                   lec: lecName !== "N/A" ? lecName : null,
                   ta: taName !== "N/A" ? taName : null,
+                  te: teName !== "N/A" ? teName : null,
                 });
               }
             }
@@ -712,11 +908,15 @@ exports.getClassesNotifications = async (req, res) => {
         classId: ticket.classId,
         className: ticket.className,
         date: ticket.date,
+        startTime: ticket.startTime,
+        endTime: ticket.endTime,
+        sessionIndex: ticket.sessionIndex,
         studentCount: ticket.studentCount,
         isLate: ticket.isLate,
         message,
         lec: ticket.lec,
         ta: ticket.ta,
+        te: ticket.te,
       });
     });
 

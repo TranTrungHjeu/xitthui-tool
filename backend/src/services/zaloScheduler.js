@@ -1,16 +1,16 @@
 const cron = require("node-cron");
-const ZaloData = require("../storage/zaloData");
+const ZaloData = require("../storage/zaloStorage");
 const { sendGlobalReminder } = require("../controllers/zaloBotController");
 
 let activeTasks = [];
 
-function startScheduler() {
+async function startScheduler() {
   if (activeTasks.length > 0) {
     console.log("[ZaloScheduler] Global scheduler already running.");
     return;
   }
 
-  const config = ZaloData.getGlobalConfig();
+  const config = await ZaloData.getGlobalConfig();
   const times = config.reminderTimes || [];
 
   if (times.length === 0) {
@@ -52,9 +52,9 @@ function stopScheduler() {
   }
 }
 
-function restartScheduler() {
+async function restartScheduler() {
   stopScheduler();
-  startScheduler();
+  await startScheduler();
 }
 
 module.exports = { startScheduler, stopScheduler, restartScheduler };

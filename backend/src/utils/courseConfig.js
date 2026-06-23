@@ -83,6 +83,7 @@ const COURSE_DICTIONARY = {
   IDB: { code: "IDB", name: "Interaction Design Basic", category: "art" },
   IDA: { code: "IDA", name: "Interaction Design Advanced", category: "art" },
   IDI: { code: "IDI", name: "Interaction Design Intensive", category: "art" },
+  NG: { code: "NG", name: "Next Gen", category: "coding" },
 };
 
 /**
@@ -124,12 +125,18 @@ function getCourseCategory(courseCodeOrClassName) {
     return COURSE_DICTIONARY[code].category;
   }
 
-  if (courseCodeOrClassName.toUpperCase().includes("XART")) return "art";
+  const upperName = courseCodeOrClassName.toUpperCase();
+
+  if (upperName.includes("XART")) return "art";
   if (
-    courseCodeOrClassName.toUpperCase().includes("RBT") ||
-    courseCodeOrClassName.toUpperCase().includes("ROB")
+    upperName.includes("RBT") ||
+    upperName.includes("ROB")
   ) {
     return "robotics";
+  }
+
+  if (upperName.includes("NEXT GEN") || upperName.includes("NEXTGEN")) {
+    return "coding";
   }
 
   return "unknown";

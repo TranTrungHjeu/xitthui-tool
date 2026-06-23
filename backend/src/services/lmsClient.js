@@ -337,7 +337,9 @@ class LMSClient {
           status
           slots {
             date
+            startTime
             endTime
+            index
             studentAttendance {
               comment
               status

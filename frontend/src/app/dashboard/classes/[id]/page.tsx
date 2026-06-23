@@ -113,7 +113,7 @@ export default function ClassDetailsPage({
   };
 
   const fetchClassDetails = async () => {
-    if (!user?.teacherId) return;
+    if (!user) return;
 
     try {
       setIsLoading(true);

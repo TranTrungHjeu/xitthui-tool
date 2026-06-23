@@ -1,12 +1,12 @@
 const zaloClient = require("../services/zaloClient");
-const ZaloData = require("../storage/zaloData");
+const ZaloData = require("../storage/zaloStorage");
 const classController = require("./classController");
 const {
   refreshLmsToken,
   loginWithCredentials,
   loginWithUsernameFlow,
 } = require("../services/lmsAuth");
-const FirestoreZalo = require("../storage/firestoreZalo");
+const FirestoreZalo = require("../storage/zaloStorage");
 const LMSClient = require("../services/lmsClient");
 const ClassCacheService = require("../services/classCache");
 const { getSessionExamType, getCourseCategory } = require("../utils/courseConfig");
@@ -93,15 +93,15 @@ async function handleWebhook(event) {
     }
 
     if (matchCommand(text, COMMANDS.BIND_GROUP)) {
-      const config = ZaloData.getGlobalConfig();
+      const config = await ZaloData.getGlobalConfig();
       config.targetChatId = userId; // userId here represents the chat/group ID
-      ZaloData.saveGlobalConfig(config);
+      await ZaloData.saveGlobalConfig(config);
       await zaloClient.sendText(userId, "LIÊN KẾT KÊNH THÀNH CÔNG!");
       return;
     }
 
     if (matchCommand(text, COMMANDS.STATUS)) {
-      const globalConfig = ZaloData.getGlobalConfig();
+      const globalConfig = await ZaloData.getGlobalConfig();
       let msg = "⚙️ TRẠNG THÁI HỆ THỐNG BOT\n\n";
 
       if (globalConfig.targetChatId === userId) {
@@ -1063,7 +1063,7 @@ async function handlePersonalCommand(userId, command, session, commandArg = "") 
  */
 async function sendGlobalReminder(overrideChatId = null) {
   try {
-    const config = ZaloData.getGlobalConfig();
+    const config = await ZaloData.getGlobalConfig();
     const { targetChatId, lmsToken, mindxUser } = config;
 
     const finalChatId = overrideChatId || targetChatId;
@@ -1175,7 +1175,7 @@ async function sendGlobalReminder(overrideChatId = null) {
           config.lmsToken = refreshed.idToken;
           config.lmsRefreshToken =
             refreshed.refreshToken || config.lmsRefreshToken;
-          ZaloData.saveGlobalConfig(config);
+          await ZaloData.saveGlobalConfig(config);
 
           // Chạy lại query với token mới
           await runQuery(refreshed.idToken);
@@ -1238,8 +1238,8 @@ async function sendGlobalReminder(overrideChatId = null) {
 
 // === Web APIs for Dashboard Configuration ===
 
-const getGlobalBotSettings = (req, res) => {
-  const config = ZaloData.getGlobalConfig();
+const getGlobalBotSettings = async (req, res) => {
+  const config = await ZaloData.getGlobalConfig();
   res.json({
     success: true,
     data: {
@@ -1251,9 +1251,9 @@ const getGlobalBotSettings = (req, res) => {
   });
 };
 
-const updateGlobalBotSettings = (req, res) => {
+const updateGlobalBotSettings = async (req, res) => {
   const { reminderTimes, linkCurrentUser } = req.body;
-  const config = ZaloData.getGlobalConfig();
+  const config = await ZaloData.getGlobalConfig();
 
   if (reminderTimes !== undefined) {
     config.reminderTimes = reminderTimes;
@@ -1266,11 +1266,11 @@ const updateGlobalBotSettings = (req, res) => {
     config.mindxUser = req.body.mindxUser || null;
   }
 
-  ZaloData.saveGlobalConfig(config);
+  await ZaloData.saveGlobalConfig(config);
 
   // Restart scheduler to pick up new times
   const zaloScheduler = require("../services/zaloScheduler");
-  zaloScheduler.restartScheduler();
+  await zaloScheduler.restartScheduler();
 
   res.json({ success: true, message: "Settings updated successfully" });
 };

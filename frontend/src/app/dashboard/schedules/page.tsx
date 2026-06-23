@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { teacherService } from "../../../services/teacherService";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -597,15 +596,15 @@ export default function SchedulesPage() {
   const weekStr = `${format(startOfWeek(selectedDate, { weekStartsOn: 1 }), "dd/MM/yyyy")} - ${format(endOfWeek(selectedDate, { weekStartsOn: 1 }), "dd/MM/yyyy")}`;
 
   return (
-    <div className="p-6 md:p-8 space-y-6 h-[calc(100vh-80px)] flex flex-col">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <CalendarClock className="h-5 w-5 text-primary" />
+    <div className="p-2 md:p-3 space-y-2 h-[calc(100vh-76px)] md:h-[calc(100vh-16px)] overflow-hidden flex flex-col">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <CalendarClock className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Lịch làm việc</h1>
-            <p className="text-sm text-slate-500">
+            <h1 className="text-lg font-bold text-slate-900 leading-none">Lịch làm việc</h1>
+            <p className="text-xs text-slate-500 mt-0.5">
               {isLoading
                 ? "Đang tải..."
                 : `Tuần: ${weekStr} (${relevantSchedules.length} lịch)`}
@@ -782,16 +781,16 @@ export default function SchedulesPage() {
         )}
 
         <div className="overflow-auto flex-1 custom-scrollbar">
-          <Table className="w-max min-w-full border-collapse">
+          <table className="w-max min-w-full border-collapse caption-bottom text-xs">
             <TableHeader className="sticky top-0 z-40 shadow-sm">
               <TableRow className="border-b-2 border-slate-300">
-                <TableHead className="sticky left-0 top-0 z-50 bg-slate-200 min-w-[130px] max-w-[160px] border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-slate-700 font-semibold text-[11px] py-1 px-1.5">
+                <TableHead className="sticky left-0 top-0 z-50 bg-slate-200 min-w-[140px] max-w-[170px] border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-slate-700 font-semibold text-[11px] py-1 px-1.5">
                   Giáo viên
                 </TableHead>
                 {sortedSlots.map((slot) => (
                   <TableHead
                     key={slot}
-                    className={`sticky top-0 z-40 border-r border-slate-300 min-w-[64px] p-0.5 text-center ${getDayHeaderBg(slot)}`}
+                    className={`sticky top-0 z-40 border-r border-slate-300 min-w-[85px] p-0.5 text-center ${getDayHeaderBg(slot)}`}
                   >
                     {formatSlotHeader(slot)}
                   </TableHead>
@@ -839,7 +838,7 @@ export default function SchedulesPage() {
                       return (
                         <TableCell
                           key={slot}
-                          className={`border-r border-slate-300 p-0.5 align-top min-w-[72px] ${getDayCellBg(slot)}`}
+                          className={`border-r border-slate-300 p-0.5 align-top min-w-[85px] ${getDayCellBg(slot)}`}
                         >
                           {cellSchedules.length > 0 ? (
                             <div className="space-y-0.5">
@@ -886,7 +885,7 @@ export default function SchedulesPage() {
                 ))
               )}
             </TableBody>
-          </Table>
+          </table>
         </div>
 
         <div className="bg-slate-50 border-t border-slate-200 p-3 shrink-0 flex flex-wrap gap-4 sm:gap-6 text-[11px] sm:text-xs font-medium text-slate-600 items-center justify-center">

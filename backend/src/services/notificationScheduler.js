@@ -1,5 +1,5 @@
 const cron = require("node-cron");
-const FirestoreNotification = require("../storage/firestoreNotification");
+const FirestoreNotification = require("../storage/notificationStorage");
 const LMSClient = require("./lmsClient");
 const ClassCacheService = require("./classCache");
 const config = require("../config/index");
@@ -224,9 +224,11 @@ class NotificationScheduler {
                     : cls.teachers;
                 const taData = getTeacherNamesAndEmails(teachersToUse, "TA");
                 const lecData = getTeacherNamesAndEmails(teachersToUse, "LEC");
+                const teData = getTeacherNamesAndEmails(teachersToUse, "TE");
 
                 const taName = taData.name;
                 const lecName = lecData.name;
+                const teName = teData.name;
 
                 // Chuẩn bị dữ liệu gửi email
                 const notificationInfo = {
@@ -253,6 +255,7 @@ class NotificationScheduler {
 
                 addEmailNotifications(taData.emails, taName);
                 addEmailNotifications(lecData.emails, lecName);
+                addEmailNotifications(teData.emails, teName);
 
                 // Lấy danh sách ID các giáo viên để filter
                 const teacherIdsForSlot = teachersToUse
@@ -263,10 +266,14 @@ class NotificationScheduler {
                   classId: cls.id,
                   className: cls.name,
                   date: slot.date,
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                  sessionIndex: slot.index,
                   studentCount: studentsNeedingFeedback.length,
                   isLate,
                   lec: lecName !== "N/A" ? lecName : null,
                   ta: taName !== "N/A" ? taName : null,
+                  te: teName !== "N/A" ? teName : null,
                   teacherIds: teacherIdsForSlot,
                   centreIds: classCentres[cls.id] || [],
                 });
