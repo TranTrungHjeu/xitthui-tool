@@ -158,74 +158,7 @@ exports.getTeacherSchedules = async (req, res) => {
       // Identify missing classes not cached in MongoDB
       const missingClassIds = Array.from(uniqueClassIds).filter(id => !classDetailsMap.has(id));
       if (missingClassIds.length > 0) {
-        console.log(`[Controller] Fetching ${missingClassIds.length} missing classes from LMS...`);
-        const client = new LMSClient(token);
-        await Promise.all(
-          missingClassIds.map(async (classId) => {
-            try {
-              const details = await client.getClassById(classId);
-              if (details) {
-                classDetailsMap.set(classId, details);
-                
-                // Save it to MongoDB Class collection
-                const { getCourseCategory } = require("../utils/courseConfig");
-                const {
-                  getClassWeekdayIndexes,
-                  getRealTeacherByRole,
-                  getClassTimeRange,
-                  getClassWeekdays,
-                  getCurrentSessionIndex,
-                } = require("../utils/classHelpers");
-                
-                const weekdayIndexes = getClassWeekdayIndexes(details);
-                const lecName = getRealTeacherByRole(details, "LEC") || "-";
-                const taName = getRealTeacherByRole(details, "TA") || "-";
-                const timeRange = getClassTimeRange(details);
-                const weekdays = getClassWeekdays(details);
-                const category = getCourseCategory(details.name || details.course?.name || "");
-                const currentSessionIndex = getCurrentSessionIndex(details);
-                const searchString = [
-                  details.name,
-                  details.course?.shortName,
-                  details.centre?.name,
-                  details.centre?.shortName,
-                  lecName,
-                  taName,
-                ]
-                  .filter(Boolean)
-                  .join(" ")
-                  .toLowerCase();
-
-                const doc = {
-                  name: details.name,
-                  status: details.status,
-                  startDate: details.startDate,
-                  endDate: details.endDate,
-                  course: details.course,
-                  centre: details.centre,
-                  teachers: details.teachers,
-                  slots: details.slots,
-                  students: details.students || [],
-                  computed: {
-                    weekdayIndexes,
-                    lecName,
-                    taName,
-                    timeRange,
-                    weekdays,
-                    searchString,
-                    category,
-                    currentSessionIndex
-                  },
-                  updatedAt: new Date()
-                };
-                
-                await Class.updateOne({ _id: details.id }, { $set: doc }, { upsert: true });
-              }
-            } catch (err) {
-              console.error(`[Controller] Failed to fetch class ${classId} detail:`, err.message);
-            }
-          })
-        );
+        console.log(`[Controller] Skipping fetching ${missingClassIds.length} missing classes from LMS to optimize response time.`);
       }
 
       // Map session index and format titles

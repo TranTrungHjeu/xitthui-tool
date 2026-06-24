@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { teacherService } from "../../../services/teacherService";
+import { isActualKhiemAccount } from "../../../lib/utils";
 import {
   TableBody,
   TableCell,
@@ -208,10 +209,24 @@ export default function SchedulesPage() {
       return ["6443460f94300678908f7974"];
     }
 
-    return centres
+    let resolvedCentres = centres
       .map((centre) => (typeof centre === "string" ? centre : centre.id))
       .filter(Boolean);
-  }, [user?.teacherCentres]);
+
+    // Limit to "Thủ Dầu Một" center if it is the master account of TE Khiêm
+    if (isActualKhiemAccount(user)) {
+      const tdmCentre = centres.find((c: any) => {
+        const name = typeof c === "object" ? c?.name || c?.shortName : String(c);
+        return (name || "").toLowerCase().includes("thủ dầu một");
+      });
+      if (tdmCentre) {
+        const id = typeof tdmCentre === "object" ? tdmCentre.id : tdmCentre;
+        resolvedCentres = [id];
+      }
+    }
+
+    return resolvedCentres;
+  }, [user]);
 
   useEffect(() => {
     const loadVisibilityPrefs = async () => {
@@ -300,7 +315,7 @@ export default function SchedulesPage() {
     }, 0);
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, teacherCentreIds]);
+  }, [token, teacherCentreIds, selectedDate]);
 
   const handleDateChange = (newDate: Date) => {
     setSelectedDate(newDate);
@@ -408,17 +423,19 @@ export default function SchedulesPage() {
 
   const centerSchedules = useMemo(() => {
     return schedules.filter((s) => {
-      if (s.type !== "CLASS_SESSION" && s.type !== "OFFICE_HOURS") return false;
-      const scheduleCentreId =
-        s.classSite?.centre?.id || s.officeHour?.centre?.id;
-      // If schedule doesn't have centre ID, we keep it just in case,
-      // otherwise ensure it matches user's centre IDs
-      if (scheduleCentreId && teacherCentreIds.length > 0) {
-        return teacherCentreIds.includes(scheduleCentreId);
-      }
-      return true;
+      return s.type === "CLASS_SESSION" || s.type === "OFFICE_HOURS";
     });
-  }, [schedules, teacherCentreIds]);
+  }, [schedules]);
+
+  const checkIsOtherCentre = (sch: Schedule) => {
+    const scheduleCentreId =
+      sch.classSite?.centre?.id || sch.officeHour?.centre?.id;
+    return (
+      !!scheduleCentreId &&
+      teacherCentreIds.length > 0 &&
+      !teacherCentreIds.includes(scheduleCentreId)
+    );
+  };
 
   const teachersWithSchedules = useMemo(() => {
     return new Set(centerSchedules.map((s) => s.teacherId));
@@ -606,6 +623,10 @@ export default function SchedulesPage() {
   };
 
   const getScheduleStyle = (sch: Schedule) => {
+    if (checkIsOtherCentre(sch)) {
+      return "bg-slate-100 text-slate-400 border-slate-200/80";
+    }
+
     const titleLower = (sch.title || "").toLowerCase();
 
     if (sch.type === "OFFICE_HOURS") {
@@ -929,32 +950,41 @@ export default function SchedulesPage() {
                           >
                             {cellSchedules.length > 0 ? (
                               <div className="space-y-0.5">
-                                {cellSchedules.map((sch, i) => (
-                                  <Tooltip key={i} delayDuration={100}>
-                                    <TooltipTrigger asChild>
-                                      <div
-                                        className={`rounded border shadow-sm transition-all cursor-default overflow-hidden ${getScheduleStyle(sch)}`}
-                                      >
-                                        <div className="text-[9px] leading-none p-1 flex flex-col gap-1">
-                                          <span className="font-bold truncate text-[10px] block leading-none">
-                                            {sch.classSite?.class?.name ||
-                                              (sch.type === "OFFICE_HOURS"
-                                                ? "OFFICE"
-                                                : sch.type)}
-                                          </span>
-                                          {sch.type !== "OFFICE_HOURS" && (
-                                            <span className="truncate text-[9px] block opacity-90 leading-none">
-                                              {getSessionShortName(sch)}
+                                {cellSchedules.map((sch, i) => {
+                                  const isOther = checkIsOtherCentre(sch);
+                                  return (
+                                    <Tooltip key={i} delayDuration={100}>
+                                      <TooltipTrigger asChild>
+                                        <div
+                                          className={`rounded border shadow-sm transition-all cursor-default overflow-hidden ${getScheduleStyle(sch)}`}
+                                        >
+                                          <div className="text-[9px] leading-none p-1 flex flex-col gap-1">
+                                            <span className="font-bold truncate text-[10px] block leading-none">
+                                              {sch.classSite?.class?.name ||
+                                                (sch.type === "OFFICE_HOURS"
+                                                  ? "OFFICE"
+                                                  : sch.type)}
                                             </span>
-                                          )}
+                                            {isOther ? (
+                                              <span className="truncate text-[8px] block text-slate-400 font-normal leading-none">
+                                                ({sch.classSite?.centre?.name || sch.officeHour?.centre?.name || "Cơ sở khác"})
+                                              </span>
+                                            ) : (
+                                              sch.type !== "OFFICE_HOURS" && (
+                                                <span className="truncate text-[9px] block opacity-90 leading-none">
+                                                  {getSessionShortName(sch)}
+                                                </span>
+                                              )
+                                            )}
+                                          </div>
                                         </div>
-                                      </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent className="z-[100] max-w-[250px] p-2 bg-slate-800 text-white text-xs leading-relaxed shadow-lg whitespace-pre-line border-0">
-                                      {getScheduleTitle(sch)}
-                                    </TooltipContent>
-                                  </Tooltip>
-                                ))}
+                                      </TooltipTrigger>
+                                      <TooltipContent className="z-[100] max-w-[250px] p-2 bg-slate-800 text-white text-xs leading-relaxed shadow-lg whitespace-pre-line border-0">
+                                        {getScheduleTitle(sch)}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                })}
                               </div>
                             ) : (
                               <div className="min-h-[22px] w-full"></div>
@@ -1021,9 +1051,11 @@ export default function SchedulesPage() {
                           teacherSchedulesOnDate.map((sch, schIdx) => {
                             const isCheckpoint = sch.title.toLowerCase().includes("checkpoint");
                             const isDemo = sch.title.toLowerCase().includes("demo");
+                            const isOther = checkIsOtherCentre(sch);
                             
                             let typeBadgeStyle = "bg-orange-50 text-orange-700 border-orange-200/60";
-                            if (isCheckpoint) typeBadgeStyle = "bg-purple-50 text-purple-700 border-purple-200/60";
+                            if (isOther) typeBadgeStyle = "bg-slate-50 text-slate-500 border-slate-200";
+                            else if (isCheckpoint) typeBadgeStyle = "bg-purple-50 text-purple-700 border-purple-200/60";
                             else if (isDemo) typeBadgeStyle = "bg-blue-50 text-blue-700 border-blue-200/60";
                             else if (sch.type === "OFFICE_HOURS") typeBadgeStyle = "bg-yellow-50 text-yellow-800 border-yellow-200/60";
 
@@ -1031,13 +1063,15 @@ export default function SchedulesPage() {
                               <div
                                 key={schIdx}
                                 className={`p-3 rounded-lg border text-xs space-y-1.5 bg-white ${
-                                  isCheckpoint
-                                    ? "border-purple-100 hover:bg-purple-50/10"
-                                    : isDemo
-                                      ? "border-blue-100 hover:bg-blue-50/10"
-                                      : sch.type === "OFFICE_HOURS"
-                                        ? "border-yellow-100 hover:bg-yellow-50/10"
-                                        : "border-orange-100 hover:bg-orange-50/10"
+                                  isOther
+                                    ? "border-slate-200 bg-slate-50/20 opacity-80"
+                                    : isCheckpoint
+                                      ? "border-purple-100 hover:bg-purple-50/10"
+                                      : isDemo
+                                        ? "border-blue-100 hover:bg-blue-50/10"
+                                        : sch.type === "OFFICE_HOURS"
+                                          ? "border-yellow-100 hover:bg-yellow-50/10"
+                                          : "border-orange-100 hover:bg-orange-50/10"
                                 }`}
                               >
                                 <div className="flex items-center justify-between">
@@ -1045,13 +1079,13 @@ export default function SchedulesPage() {
                                     {sch.classSite?.class?.name || (sch.type === "OFFICE_HOURS" ? "Lịch trực VP" : sch.type)}
                                   </span>
                                   <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${typeBadgeStyle}`}>
-                                    {sch.type === "OFFICE_HOURS" ? sch.officeHour?.type || "OFFICE" : getSessionShortName(sch)}
+                                    {isOther ? "Cơ sở khác" : (sch.type === "OFFICE_HOURS" ? sch.officeHour?.type || "OFFICE" : getSessionShortName(sch))}
                                   </span>
                                 </div>
 
                                 <div className="text-slate-500 font-semibold flex flex-wrap gap-x-3 gap-y-1 text-[11px] pt-0.5">
                                   <span>Thời gian: {getLocalTime(sch.startTime)} - {getLocalTime(sch.endTime)}</span>
-                                  <span>Cơ sở: {sch.classSite?.centre?.name || sch.officeHour?.centre?.name || "—"}</span>
+                                  <span>Cơ sở: {sch.classSite?.centre?.name || sch.officeHour?.centre?.name || "—"}{isOther && " (Dạy chéo)"}</span>
                                 </div>
                                 
                                 {sch.description && (

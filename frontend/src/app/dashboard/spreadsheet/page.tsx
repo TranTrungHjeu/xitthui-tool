@@ -22,7 +22,7 @@ import api from "../../../services/api";
 import { useMinLoading } from "@/hooks/useMinLoading";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { Input } from "../../../components/ui/input";
-import { formatSlotDateTime } from "@/lib/utils";
+import { formatSlotDateTime, isActualKhiemAccount } from "@/lib/utils";
 import {
   startOfMonth,
   subMonths,
@@ -257,10 +257,21 @@ export default function SpreadsheetPage() {
     if (!silent) setIsTrialsLoading(true);
     setTrialsError(null);
     try {
-      const userCentres = user?.teacherCentres
-        ?.map((c: any) => (typeof c === "object" ? c.id : c))
-        ?.filter(Boolean)
-        ?.join(",") || "6443460f94300678908f7974";
+      let centres: any[] = user?.teacherCentres || [];
+      if (isActualKhiemAccount(user)) {
+        const tdmCentre = centres.find((c: any) => {
+          const name = typeof c === "object" ? c?.name || c?.shortName : String(c);
+          return (name || "").toLowerCase().includes("thủ dầu một");
+        });
+        if (tdmCentre) {
+          centres = [tdmCentre];
+        }
+      }
+
+      const userCentres = centres
+        .map((c: any) => (typeof c === "object" ? c.id : c))
+        .filter(Boolean)
+        .join(",") || "6443460f94300678908f7974";
 
       const response = await api.get(
         `/spreadsheet/trial-availabilities?dateStr=${selectedDate}&centreIds=${userCentres}`,
