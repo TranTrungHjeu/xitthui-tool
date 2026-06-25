@@ -149,26 +149,67 @@ body {
 
 /* Custom scrollbar restoration for specific containers */
 .custom-scrollbar {
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(100, 116, 139, 0.3) transparent !important;
+  scrollbar-width: unset !important;
+  scrollbar-color: unset !important;
   -ms-overflow-style: auto !important;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
   display: block !important;
-  width: 6px !important;
-  height: 6px !important;
+  width: 0px !important; /* Hide vertical scrollbar globally */
+  height: 6px !important; /* Keep horizontal scrollbar height */
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
+/* Hide vertical scrollbar parts completely */
+.custom-scrollbar::-webkit-scrollbar-track:vertical,
+.custom-scrollbar::-webkit-scrollbar-thumb:vertical {
+  display: none !important;
+  width: 0px !important;
   background: transparent !important;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
+/* Style horizontal scrollbar parts */
+.custom-scrollbar::-webkit-scrollbar-track:horizontal {
+  background: transparent !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:horizontal {
   background-color: rgba(100, 116, 139, 0.3) !important;
   border-radius: 9999px !important;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+.custom-scrollbar::-webkit-scrollbar-thumb:horizontal:hover {
+  background-color: rgba(100, 116, 139, 0.5) !important;
+}
+
+/* Alias class for compatibility */
+.no-vertical-scrollbar {
+  scrollbar-width: unset !important;
+  scrollbar-color: unset !important;
+}
+
+.no-vertical-scrollbar::-webkit-scrollbar {
+  display: block !important;
+  width: 0px !important;
+  height: 6px !important;
+}
+
+.no-vertical-scrollbar::-webkit-scrollbar-track:vertical,
+.no-vertical-scrollbar::-webkit-scrollbar-thumb:vertical {
+  display: none !important;
+  width: 0px !important;
+  background: transparent !important;
+}
+
+.no-vertical-scrollbar::-webkit-scrollbar-track:horizontal {
+  background: transparent !important;
+}
+
+.no-vertical-scrollbar::-webkit-scrollbar-thumb:horizontal {
+  background-color: rgba(100, 116, 139, 0.3) !important;
+  border-radius: 9999px !important;
+}
+
+.no-vertical-scrollbar::-webkit-scrollbar-thumb:horizontal:hover {
   background-color: rgba(100, 116, 139, 0.5) !important;
 }

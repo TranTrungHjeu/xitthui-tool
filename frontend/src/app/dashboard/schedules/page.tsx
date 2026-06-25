@@ -53,6 +53,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "../../../components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "../../../components/ui/dialog";
 
 interface Schedule {
   id: string;
@@ -188,9 +195,47 @@ export default function SchedulesPage() {
     useState(true);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
+  const [viewingSchedule, setViewingSchedule] = useState<Schedule | null>(null);
   
+  // Highlight row/column selection for comparison
+  const [selectedHighlightTeacherId, setSelectedHighlightTeacherId] = useState<string | null>(null);
+  const [selectedHighlightSlot, setSelectedHighlightSlot] = useState<string | null>(null);
+
+  // Reset highlights on week change
+  useEffect(() => {
+    setSelectedHighlightTeacherId(null);
+    setSelectedHighlightSlot(null);
+  }, [selectedDate]);
+
+  const handleCellClick = (teacherId: string, slot: string) => {
+    if (selectedHighlightTeacherId === teacherId && selectedHighlightSlot === slot) {
+      setSelectedHighlightTeacherId(null);
+      setSelectedHighlightSlot(null);
+    } else {
+      setSelectedHighlightTeacherId(teacherId);
+      setSelectedHighlightSlot(slot);
+    }
+  };
+
+  const handleTeacherClick = (teacherId: string) => {
+    if (selectedHighlightTeacherId === teacherId && selectedHighlightSlot === null) {
+      setSelectedHighlightTeacherId(null);
+    } else {
+      setSelectedHighlightTeacherId(teacherId);
+      setSelectedHighlightSlot(null);
+    }
+  };
+
+  const handleHeaderClick = (slot: string) => {
+    if (selectedHighlightSlot === slot && selectedHighlightTeacherId === null) {
+      setSelectedHighlightSlot(null);
+    } else {
+      setSelectedHighlightSlot(slot);
+      setSelectedHighlightTeacherId(null);
+    }
+  };
+
   const [isMobile, setIsMobile] = useState(false);
-  const [mobileSelectedDate, setMobileSelectedDate] = useState<string | null>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -421,6 +466,52 @@ export default function SchedulesPage() {
     }
   };
 
+  const timeToMinutes = (timeStr: string): number => {
+    if (!timeStr) return 0;
+    try {
+      let hh = 0, mm = 0;
+      if (timeStr.includes("T")) {
+        const date = new Date(timeStr);
+        hh = date.getHours();
+        mm = date.getMinutes();
+      } else {
+        const parts = timeStr.split(":");
+        hh = parseInt(parts[0], 10) || 0;
+        mm = parseInt(parts[1], 10) || 0;
+      }
+      return hh * 60 + mm;
+    } catch {
+      return 0;
+    }
+  };
+
+  const getShortClassName = (name: string): string => {
+    if (!name) return "";
+    return name
+      .replace(/^(TDM|DA|TA|SG|OL|HN|BH|HP|QN|VTH|NT|HĐ|NX)-/i, "") // Remove center prefix
+      .replace(/^(C4K|ROB|ART)-/i, ""); // Remove division prefix
+  };
+
+  const getShortCentreName = (name: string): string => {
+    if (!name) return "";
+    const lower = name.toLowerCase();
+    if (lower.includes("thuận an")) return "TA";
+    if (lower.includes("thủ dầu một")) return "TDM";
+    if (lower.includes("dĩ an")) return "DA";
+    if (lower.includes("online")) return "OL";
+    if (lower.includes("song hành")) return "SH";
+    if (lower.includes("hà đông")) return "HĐ";
+    if (lower.includes("nguyễn trãi")) return "NT";
+    return name.split(/\s+/).map(w => w[0]).join("").toUpperCase();
+  };
+
+  const getShortTeacherName = (fullName: string): string => {
+    if (!fullName) return "";
+    const parts = fullName.trim().split(/\s+/);
+    if (parts.length <= 2) return fullName;
+    return parts.slice(-2).join(" ");
+  };
+
   const centerSchedules = useMemo(() => {
     return schedules.filter((s) => {
       return s.type === "CLASS_SESSION" || s.type === "OFFICE_HOURS";
@@ -441,15 +532,6 @@ export default function SchedulesPage() {
     return new Set(centerSchedules.map((s) => s.teacherId));
   }, [centerSchedules]);
 
-  const teachersWithSchedulesOnSelectedMobileDate = useMemo(() => {
-    if (!mobileSelectedDate) return new Set();
-    const schedulesOnDate = centerSchedules.filter((s) => {
-      const localDate = getLocalDate(s);
-      return localDate === mobileSelectedDate;
-    });
-    return new Set(schedulesOnDate.map((s) => s.teacherId));
-  }, [centerSchedules, mobileSelectedDate]);
-
   const filteredTeachers = teachersList.filter((t) => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -461,9 +543,6 @@ export default function SchedulesPage() {
   const displayedTeachers = filteredTeachers.filter((t) => {
     if (hiddenTeacherIds.has(t.id)) return false;
     if (hideTeachersWithoutSchedules) {
-      if (isMobile) {
-        return teachersWithSchedulesOnSelectedMobileDate.has(t.id);
-      }
       return teachersWithSchedules.has(t.id);
     }
     return true;
@@ -472,9 +551,6 @@ export default function SchedulesPage() {
   const visibleTeachersCount = teachersList.filter((t) => {
     if (hiddenTeacherIds.has(t.id)) return false;
     if (hideTeachersWithoutSchedules) {
-      if (isMobile) {
-        return teachersWithSchedulesOnSelectedMobileDate.has(t.id);
-      }
       return teachersWithSchedules.has(t.id);
     }
     return true;
@@ -501,36 +577,11 @@ export default function SchedulesPage() {
     return timeA.localeCompare(timeB);
   });
 
-  const uniqueDates = useMemo(() => {
-    const dates = new Set<string>();
-    centerSchedules.forEach((sch) => {
-      const localDate = getLocalDate(sch);
-      if (localDate) {
-        dates.add(localDate);
-      }
-    });
-    return Array.from(dates).sort();
-  }, [centerSchedules]);
 
-  useEffect(() => {
-    if (uniqueDates.length > 0) {
-      const todayStr = format(new Date(), "yyyy-MM-dd");
-      if (uniqueDates.includes(todayStr)) {
-        setMobileSelectedDate(todayStr);
-      } else {
-        setMobileSelectedDate(uniqueDates[0]);
-      }
-    } else {
-      setMobileSelectedDate(null);
-    }
-  }, [uniqueDates]);
 
   const displayedSlots = useMemo(() => {
-    if (isMobile && mobileSelectedDate) {
-      return sortedSlots.filter((slot) => slot.startsWith(mobileSelectedDate));
-    }
     return sortedSlots;
-  }, [sortedSlots, isMobile, mobileSelectedDate]);
+  }, [sortedSlots]);
 
   const schedulesByTeacher: Record<string, Record<string, Schedule[]>> = {};
   relevantSchedules.forEach((sch) => {
@@ -608,13 +659,15 @@ export default function SchedulesPage() {
         parseInt(parts[1]) - 1,
         parseInt(parts[2]),
       );
-      const shortDay = dayMap[dateObj.getDay()];
+      const dayLabel = dayMap[dateObj.getDay()];
+      const displayDay = dayLabel.replace("Thứ ", "T");
+      const dateDisplay = format(dateObj, "dd/MM");
       return (
-        <div className="flex flex-col items-center leading-none whitespace-nowrap">
-          <span className="font-semibold text-[9px] text-slate-800">
-            {shortDay}
+        <div className="flex flex-col items-center leading-none whitespace-nowrap gap-0.5">
+          <span className="font-semibold text-[8px] md:text-[9px] text-slate-800">
+            {displayDay} - {dateDisplay}
           </span>
-          <span className="text-[9px] text-slate-700 font-mono">{timeStr}</span>
+          <span className="text-[8px] md:text-[9px] text-slate-700 font-mono font-bold">{timeStr}</span>
         </div>
       );
     } catch {
@@ -674,53 +727,142 @@ export default function SchedulesPage() {
     return `${start} - ${end}\nCơ sở: ${centerName}\nGhi chú: ${sch.description || sch.officeHour?.type || "—"}`;
   };
 
-  const weekStr = `${format(startOfWeek(selectedDate, { weekStartsOn: 1 }), "dd/MM/yyyy")} - ${format(endOfWeek(selectedDate, { weekStartsOn: 1 }), "dd/MM/yyyy")}`;
+  const weekStr = `${format(startOfWeek(selectedDate, { weekStartsOn: 1 }), "dd/MM/yy")} - ${format(endOfWeek(selectedDate, { weekStartsOn: 1 }), "dd/MM/yy")}`;
 
   return (
-    <div className="p-2 md:p-3 space-y-2 h-[calc(100vh-76px)] md:h-[calc(100vh-16px)] overflow-hidden flex flex-col">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <CalendarClock className="h-4 w-4 text-primary" />
+    <div className="p-1.5 sm:p-3 space-y-1.5 h-[calc(100vh-76px)] md:h-[calc(100vh-16px)] overflow-hidden flex flex-col">
+      <div className="flex flex-col gap-1.5 shrink-0">
+        {/* Title and Action Buttons Row */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+              <CalendarClock className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 leading-none">Lịch làm việc</h1>
+              <p className="text-[10px] text-slate-500 mt-0.5 font-mono">
+                {isLoading ? "Đang tải..." : `Tuần: ${weekStr}`}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-900 leading-none">Lịch làm việc</h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {isLoading
-                ? "Đang tải..."
-                : `Tuần: ${weekStr} (${relevantSchedules.length} lịch)`}
-            </p>
+
+          <div className="flex items-center gap-1.5">
+            <Button
+              onClick={handleRefresh}
+              disabled={isLoading}
+              size="sm"
+              variant="outline"
+              className="h-8 px-2 text-[11px] font-semibold gap-1 bg-white active:scale-95 transition-all shrink-0"
+            >
+              <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Tải lại</span>
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 h-8 bg-white text-[11px] px-2 shrink-0"
+                >
+                  <Filter className="h-3 w-3 text-slate-500" />
+                  <span>Nhân sự ({visibleTeachersCount}/{teachersList.length})</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className="w-72 max-h-80 overflow-y-auto bg-white"
+                align="end"
+              >
+                <DropdownMenuLabel>Chọn nhân sự hiển thị</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-2">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 p-1 rounded">
+                    <input
+                      type="checkbox"
+                      checked={hideTeachersWithoutSchedules}
+                      onChange={(e) =>
+                        setHideTeachersWithoutSchedules(e.target.checked)
+                      }
+                      className="rounded border-slate-300 text-primary focus:ring-primary"
+                    />
+                    <span>Chỉ hiện GV có lịch (trong cơ sở)</span>
+                  </label>
+                </div>
+                <DropdownMenuSeparator />
+                <div className="flex items-center justify-between p-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8 flex-1"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      showAllTeachers();
+                    }}
+                  >
+                    Hiện tất cả
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8 flex-1"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      hideAllTeachers();
+                    }}
+                  >
+                    Ẩn tất cả
+                  </Button>
+                </div>
+                <DropdownMenuSeparator />
+                {teachersList.length === 0 ? (
+                  <div className="p-3 text-xs text-slate-400 text-center">
+                    Không có nhân sự nào
+                  </div>
+                ) : (
+                  teachersList.map((teacher) => (
+                    <DropdownMenuCheckboxItem
+                      key={teacher.id}
+                      checked={!hiddenTeacherIds.has(teacher.id)}
+                      onCheckedChange={() => toggleTeacherVisibility(teacher.id)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {teacher.fullName} {teacher.code ? `(${teacher.code})` : ""}
+                    </DropdownMenuCheckboxItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 items-end sm:items-center">
-          <div className="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm h-10 transition-all hover:border-slate-300">
+        {/* Date Navigator and Search Row */}
+        <div className="flex flex-col sm:flex-row gap-1.5 sm:gap-3 items-stretch sm:items-center">
+          {/* Week navigator */}
+          <div className="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm h-8.5 transition-all hover:border-slate-300 justify-between flex-1 sm:flex-none">
             <Button
               variant="ghost"
               size="icon"
-              className="h-full w-10 text-slate-500 hover:text-primary hover:bg-primary/5 rounded-none rounded-l-lg"
+              className="h-full w-8 text-slate-500 hover:text-primary hover:bg-primary/5 rounded-none rounded-l-lg"
               onClick={handlePrevWeek}
               title="Tuần trước"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
 
             <div
-              className="relative h-full border-x border-slate-200"
+              className="relative h-full border-x border-slate-200 flex-1 sm:flex-none"
               ref={datePickerRef}
             >
               <div
                 onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
-                className={`flex items-center justify-center gap-2 px-4 h-full hover:bg-slate-50 transition-colors cursor-pointer min-w-[150px] select-none ${isDatePickerOpen ? "bg-slate-50 ring-1 ring-primary/20" : ""}`}
+                className={`flex items-center justify-center gap-1.5 px-3 h-full hover:bg-slate-50 transition-colors cursor-pointer min-w-[110px] sm:min-w-[130px] select-none text-[11px] font-bold text-slate-700 ${isDatePickerOpen ? "bg-slate-50 ring-1 ring-primary/20" : ""}`}
               >
-                <Calendar className="h-4 w-4 text-primary shrink-0" />
-                <span className="text-sm font-semibold text-slate-700">
-                  {format(selectedDate, "dd/MM/yyyy")}
-                </span>
+                <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span>{format(selectedDate, "dd/MM/yyyy")}</span>
               </div>
 
               {isDatePickerOpen && (
-                <div className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 z-50">
+                <div className="absolute top-[calc(100%+6px)] left-1/2 -translate-x-1/2 z-50">
                   <CustomDatePicker
                     selectedDate={selectedDate}
                     onSelect={handleDateChange}
@@ -733,150 +875,40 @@ export default function SchedulesPage() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-full w-10 text-slate-500 hover:text-primary hover:bg-primary/5 rounded-none"
+              className="h-full w-8 text-slate-500 hover:text-primary hover:bg-primary/5 rounded-none"
               onClick={handleNextWeek}
               title="Tuần tiếp theo"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3.5 w-3.5" />
             </Button>
 
             <div className="h-full border-l border-slate-200">
               <Button
                 variant="ghost"
-                className="h-full px-4 text-xs font-semibold text-primary hover:bg-primary/10 rounded-none rounded-r-lg"
+                className="h-full px-2 text-[10px] font-extrabold text-primary hover:bg-primary/10 rounded-none rounded-r-lg"
                 onClick={handleToday}
               >
-                Hôm nay
+                H.Nay
               </Button>
             </div>
           </div>
 
-          <div className="relative w-full sm:w-48 lg:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          {/* Search bar */}
+          <div className="relative flex-1 sm:w-48 lg:w-64">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             <Input
               placeholder="Tìm theo tên giáo viên..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-10 bg-white"
+              className="pl-8 h-8 text-[11px] bg-white w-full"
             />
           </div>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                className="gap-2 h-10 bg-white shrink-0"
-              >
-                <Filter className="h-4 w-4 text-slate-500" />
-                Nhân sự ({visibleTeachersCount}/{teachersList.length})
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              className="w-72 max-h-80 overflow-y-auto bg-white"
-              align="end"
-            >
-              <DropdownMenuLabel>Chọn nhân sự hiển thị</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <div className="px-2 py-2">
-                <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 p-1 rounded">
-                  <input
-                    type="checkbox"
-                    checked={hideTeachersWithoutSchedules}
-                    onChange={(e) =>
-                      setHideTeachersWithoutSchedules(e.target.checked)
-                    }
-                    className="rounded border-slate-300 text-primary focus:ring-primary"
-                  />
-                  <span>Chỉ hiện GV có lịch (trong cơ sở)</span>
-                </label>
-              </div>
-              <DropdownMenuSeparator />
-              <div className="flex items-center justify-between p-2 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-8 flex-1"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    showAllTeachers();
-                  }}
-                >
-                  Hiện tất cả
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-8 flex-1"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    hideAllTeachers();
-                  }}
-                >
-                  Ẩn tất cả
-                </Button>
-              </div>
-              <DropdownMenuSeparator />
-              {teachersList.length === 0 ? (
-                <div className="p-3 text-xs text-slate-400 text-center">
-                  Không có nhân sự nào
-                </div>
-              ) : (
-                teachersList.map((teacher) => (
-                  <DropdownMenuCheckboxItem
-                    key={teacher.id}
-                    checked={!hiddenTeacherIds.has(teacher.id)}
-                    onCheckedChange={() => toggleTeacherVisibility(teacher.id)}
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    {teacher.fullName} {teacher.code ? `(${teacher.code})` : ""}
-                  </DropdownMenuCheckboxItem>
-                ))
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button
-            onClick={handleRefresh}
-            disabled={isLoading}
-            className="shrink-0 gap-2 h-10 px-6 font-semibold shadow-sm active:scale-95 transition-all"
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
-            />
-            Lấy dữ liệu
-          </Button>
         </div>
       </div>
 
       {error && (
-        <div className="p-4 text-sm text-white bg-destructive rounded-lg shrink-0">
+        <div className="p-2.5 text-xs text-white bg-destructive rounded-lg shrink-0">
           {error}
-        </div>
-      )}
-
-      {/* Mobile Day selector tabs */}
-      {isMobile && uniqueDates.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-2 select-none no-scrollbar shrink-0 px-1">
-          {uniqueDates.map((dateStr) => {
-            const dateObj = new Date(dateStr);
-            const dayLabel = format(dateObj, "EEEE", { locale: vi }); // e.g. Thứ Hai
-            const dayShort = dayLabel.replace("Thứ ", "T"); // e.g. T2, Chủ Nhật -> CN
-            const dateDisplay = format(dateObj, "dd/MM");
-            const isActive = mobileSelectedDate === dateStr;
-            return (
-              <button
-                key={dateStr}
-                onClick={() => setMobileSelectedDate(dateStr)}
-                className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap border shrink-0
-                  ${isActive 
-                    ? "bg-primary text-white border-primary shadow-sm scale-102" 
-                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                  }`}
-              >
-                {dayShort === "Chủ nhật" ? "CN" : dayShort} ({dateDisplay})
-              </button>
-            );
-          })}
         </div>
       )}
 
@@ -887,240 +919,171 @@ export default function SchedulesPage() {
           </div>
         )}
 
-        <div className="overflow-auto flex-1 custom-scrollbar">
-          {!isMobile ? (
-            <table className="w-max min-w-full border-collapse caption-bottom text-xs">
-              <TableHeader className="sticky top-0 z-40 shadow-sm">
-                <TableRow className="border-b-2 border-slate-300">
-                  <TableHead className="sticky left-0 top-0 z-50 bg-slate-200 min-w-[140px] max-w-[170px] border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-slate-700 font-semibold text-[11px] py-1 px-1.5">
-                    Giáo viên
+        <div className="overflow-auto flex-1 custom-scrollbar no-vertical-scrollbar">
+          <table className="w-max min-w-full border-collapse caption-bottom text-xs">
+            <TableHeader className="sticky top-0 z-40 shadow-sm">
+              <TableRow className="border-b-2 border-slate-300">
+                <TableHead
+                  onClick={() => {
+                    setSelectedHighlightTeacherId(null);
+                    setSelectedHighlightSlot(null);
+                  }}
+                  className="sticky left-0 top-0 z-50 bg-slate-200 min-w-[90px] max-w-[120px] md:min-w-[105px] md:max-w-[130px] border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-slate-700 font-semibold text-[10px] md:text-[11px] py-1 px-1.5 cursor-pointer select-none hover:bg-slate-300 transition-colors"
+                >
+                  Giáo viên
+                </TableHead>
+                {displayedSlots.map((slot) => (
+                  <TableHead
+                    key={slot}
+                    onClick={() => handleHeaderClick(slot)}
+                    className={`sticky top-0 z-40 border-r border-slate-300 min-w-[70px] md:min-w-[72px] p-0.5 text-center cursor-pointer select-none transition-colors hover:bg-slate-200/80 ${
+                      selectedHighlightSlot === slot 
+                        ? "ring-2 ring-inset ring-red-500 bg-red-200 text-red-950 font-bold" 
+                        : getDayHeaderBg(slot)
+                    }`}
+                  >
+                    {formatSlotHeader(slot)}
                   </TableHead>
-                  {displayedSlots.map((slot) => (
-                    <TableHead
-                      key={slot}
-                      className={`sticky top-0 z-40 border-r border-slate-300 min-w-[85px] p-0.5 text-center ${getDayHeaderBg(slot)}`}
-                    >
-                      {formatSlotHeader(slot)}
-                    </TableHead>
-                  ))}
-                  {displayedSlots.length === 0 && (
-                    <TableHead className="bg-slate-100">Lịch trình</TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                {displayedTeachers.length === 0 && !isLoading ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={displayedSlots.length + 1}
-                      className="text-center py-16 text-slate-400 bg-white"
-                    >
-                      {search
-                        ? "Không tìm thấy giáo viên nào."
-                        : teachersList.length > 0 &&
-                            hiddenTeacherIds.size === teachersList.length
-                          ? "Tất cả giáo viên đã bị ẩn. Vui lòng chọn hiển thị giáo viên."
-                          : "Không có dữ liệu giáo viên."}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  displayedTeachers.map((teacher) => (
-                    <TableRow
-                      key={teacher.id}
-                      className="hover:bg-slate-50/50 group border-b border-slate-300"
-                    >
-                      <TableCell className="sticky left-0 z-30 bg-white group-hover:bg-slate-50 border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] font-medium text-slate-800 p-1 align-middle whitespace-nowrap text-[10px] leading-none">
-                        <button
-                          onClick={() => setSelectedTeacher(teacher)}
-                          className="text-blue-600 hover:text-blue-800 hover:underline underline-offset-2 cursor-pointer font-semibold transition-colors"
-                          title={`Xem lịch tuần của ${teacher.fullName}`}
-                        >
-                          {teacher.fullName}
-                        </button>
-                      </TableCell>
-
-                      {displayedSlots.map((slot) => {
-                        const cellSchedules =
-                          schedulesByTeacher[teacher.id]?.[slot] || [];
-                        return (
-                          <TableCell
-                            key={slot}
-                            className={`border-r border-slate-300 p-0.5 align-top min-w-[85px] ${getDayCellBg(slot)}`}
-                          >
-                            {cellSchedules.length > 0 ? (
-                              <div className="space-y-0.5">
-                                {cellSchedules.map((sch, i) => {
-                                  const isOther = checkIsOtherCentre(sch);
-                                  return (
-                                    <Tooltip key={i} delayDuration={100}>
-                                      <TooltipTrigger asChild>
-                                        <div
-                                          className={`rounded border shadow-sm transition-all cursor-default overflow-hidden ${getScheduleStyle(sch)}`}
-                                        >
-                                          <div className="text-[9px] leading-none p-1 flex flex-col gap-1">
-                                            <span className="font-bold truncate text-[10px] block leading-none">
-                                              {sch.classSite?.class?.name ||
-                                                (sch.type === "OFFICE_HOURS"
-                                                  ? "OFFICE"
-                                                  : sch.type)}
-                                            </span>
-                                            {isOther ? (
-                                              <span className="truncate text-[8px] block text-slate-400 font-normal leading-none">
-                                                ({sch.classSite?.centre?.name || sch.officeHour?.centre?.name || "Cơ sở khác"})
-                                              </span>
-                                            ) : (
-                                              sch.type !== "OFFICE_HOURS" && (
-                                                <span className="truncate text-[9px] block opacity-90 leading-none">
-                                                  {getSessionShortName(sch)}
-                                                </span>
-                                              )
-                                            )}
-                                          </div>
-                                        </div>
-                                      </TooltipTrigger>
-                                      <TooltipContent className="z-[100] max-w-[250px] p-2 bg-slate-800 text-white text-xs leading-relaxed shadow-lg whitespace-pre-line border-0">
-                                        {getScheduleTitle(sch)}
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div className="min-h-[22px] w-full"></div>
-                            )}
-                          </TableCell>
-                        );
-                      })}
-
-                      {displayedSlots.length === 0 && (
-                        <TableCell className="text-center text-slate-400 py-8">
-                          Không có lịch dạy trong tuần này.
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))
+                ))}
+                {displayedSlots.length === 0 && (
+                  <TableHead className="bg-slate-100">Lịch trình</TableHead>
                 )}
-              </TableBody>
-            </table>
-          ) : (
-            <div className="p-4 space-y-4 bg-slate-50/50 min-h-full">
-              {displayedTeachers.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 font-medium bg-white rounded-xl border border-slate-200/60 p-6 shadow-sm">
-                  {search ? "Không tìm thấy giáo viên nào." : "Không có lịch làm việc trong ngày này."}
-                </div>
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {displayedTeachers.length === 0 && !isLoading ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={displayedSlots.length + 1}
+                    className="text-center py-16 text-slate-400 bg-white"
+                  >
+                    {search
+                      ? "Không tìm thấy giáo viên nào."
+                      : teachersList.length > 0 &&
+                          hiddenTeacherIds.size === teachersList.length
+                        ? "Tất cả giáo viên đã bị ẩn. Vui lòng chọn hiển thị giáo viên."
+                        : "Không có dữ liệu giáo viên."}
+                  </TableCell>
+                </TableRow>
               ) : (
-                displayedTeachers.map((teacher) => {
-                  const teacherSchedulesOnDate = Object.entries(schedulesByTeacher[teacher.id] || {})
-                    .filter(([slotKey]) => slotKey.startsWith(mobileSelectedDate || ""))
-                    .flatMap(([_, schList]) => schList)
-                    .sort((a, b) => a.startTime.localeCompare(b.startTime));
-
-                  if (hideTeachersWithoutSchedules && teacherSchedulesOnDate.length === 0) {
-                    return null;
-                  }
-
-                  return (
-                    <div
-                      key={teacher.id}
-                      className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 space-y-3 transition-all hover:shadow-md"
+                displayedTeachers.map((teacher) => (
+                  <TableRow
+                    key={teacher.id}
+                    className="hover:bg-slate-50/50 group border-b border-slate-300"
+                  >
+                    <TableCell
+                      onClick={() => handleTeacherClick(teacher.id)}
+                      className={`sticky left-0 z-30 group-hover:bg-slate-50 border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] font-medium text-slate-800 p-1 align-middle whitespace-nowrap text-[9px] md:text-[10px] leading-none min-w-[90px] max-w-[120px] md:min-w-[105px] md:max-w-[130px] overflow-hidden truncate cursor-pointer transition-colors ${
+                        selectedHighlightTeacherId === teacher.id
+                          ? "bg-red-200 text-red-950 font-bold ring-2 ring-inset ring-red-500"
+                          : "bg-white"
+                      }`}
                     >
-                      {/* Teacher Header */}
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                        <button
-                          onClick={() => setSelectedTeacher(teacher)}
-                          className="flex items-center gap-2 text-left font-bold text-[14px] text-blue-600 hover:underline cursor-pointer"
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedTeacher(teacher);
+                        }}
+                        className="text-blue-600 hover:text-blue-800 hover:underline underline-offset-2 cursor-pointer font-semibold transition-colors"
+                        title={`Xem lịch tuần của ${teacher.fullName}`}
+                      >
+                        {isMobile ? getShortTeacherName(teacher.fullName) : teacher.fullName}
+                      </button>
+                    </TableCell>
+
+                    {displayedSlots.map((slot) => {
+                      const cellSchedules =
+                        schedulesByTeacher[teacher.id]?.[slot] || [];
+                      return (
+                        <TableCell
+                          key={slot}
+                          onClick={() => handleCellClick(teacher.id, slot)}
+                          className={`border-r border-slate-300 p-0.25 md:p-0.5 align-top min-w-[70px] md:min-w-[72px] cursor-pointer transition-all ${
+                            selectedHighlightTeacherId === teacher.id && selectedHighlightSlot === slot
+                              ? "bg-red-200 text-red-950 font-bold ring-2 ring-inset ring-red-500 z-20"
+                              : selectedHighlightTeacherId === teacher.id
+                              ? "bg-red-100 text-red-950 font-bold"
+                              : selectedHighlightSlot === slot
+                              ? "bg-red-100 text-red-950 font-bold"
+                              : getDayCellBg(slot)
+                          }`}
                         >
-                          <div className="w-6.5 h-6.5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
-                            {teacher.fullName.charAt(0).toUpperCase()}
-                          </div>
-                          <span>{teacher.fullName}</span>
-                        </button>
-                        {teacher.code && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
-                            {teacher.code}
-                          </span>
-                        )}
-                      </div>
+                          {cellSchedules.length > 0 ? (
+                            <div className="space-y-0.5">
+                              {cellSchedules.map((sch, i) => {
+                                const isOther = checkIsOtherCentre(sch);
+                                return (
+                                  <Tooltip key={i} delayDuration={100}>
+                                    <TooltipTrigger asChild>
+                                      <div
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setViewingSchedule(sch);
+                                        }}
+                                        className={`rounded border shadow-sm transition-all cursor-pointer overflow-hidden p-0.5 md:p-1 ${getScheduleStyle(sch)}`}
+                                      >
+                                        <div className="text-[8.5px] md:text-[9px] leading-none p-0 md:p-1 flex flex-col gap-0.5 md:gap-1">
+                                          <span className="font-bold truncate text-[9px] md:text-[10px] block leading-none">
+                                            {sch.classSite?.class?.name
+                                              ? getShortClassName(sch.classSite.class.name)
+                                              : (sch.type === "OFFICE_HOURS" ? "OFFICE" : sch.type)}
+                                          </span>
+                                          {isOther ? (
+                                            <span className="truncate text-[7.5px] md:text-[8px] block text-slate-400 font-normal leading-none mt-0.5">
+                                              ({getShortCentreName(sch.classSite?.centre?.name || sch.officeHour?.centre?.name || "Cơ sở khác")})
+                                            </span>
+                                          ) : (
+                                            sch.type !== "OFFICE_HOURS" && (
+                                              <span className="truncate text-[7.5px] md:text-[9px] block opacity-90 leading-none mt-0.5">
+                                                {getSessionShortName(sch)}
+                                              </span>
+                                            )
+                                          )}
+                                        </div>
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="z-[100] max-w-[250px] p-2 bg-slate-800 text-white text-xs leading-relaxed shadow-lg whitespace-pre-line border-0">
+                                      {getScheduleTitle(sch)}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="min-h-[22px] w-full"></div>
+                          )}
+                        </TableCell>
+                      );
+                    })}
 
-                      {/* Schedules List */}
-                      <div className="space-y-2">
-                        {teacherSchedulesOnDate.length === 0 ? (
-                          <p className="text-xs italic text-slate-400">Không có lịch làm việc</p>
-                        ) : (
-                          teacherSchedulesOnDate.map((sch, schIdx) => {
-                            const isCheckpoint = sch.title.toLowerCase().includes("checkpoint");
-                            const isDemo = sch.title.toLowerCase().includes("demo");
-                            const isOther = checkIsOtherCentre(sch);
-                            
-                            let typeBadgeStyle = "bg-orange-50 text-orange-700 border-orange-200/60";
-                            if (isOther) typeBadgeStyle = "bg-slate-50 text-slate-500 border-slate-200";
-                            else if (isCheckpoint) typeBadgeStyle = "bg-purple-50 text-purple-700 border-purple-200/60";
-                            else if (isDemo) typeBadgeStyle = "bg-blue-50 text-blue-700 border-blue-200/60";
-                            else if (sch.type === "OFFICE_HOURS") typeBadgeStyle = "bg-yellow-50 text-yellow-800 border-yellow-200/60";
-
-                            return (
-                              <div
-                                key={schIdx}
-                                className={`p-3 rounded-lg border text-xs space-y-1.5 bg-white ${
-                                  isOther
-                                    ? "border-slate-200 bg-slate-50/20 opacity-80"
-                                    : isCheckpoint
-                                      ? "border-purple-100 hover:bg-purple-50/10"
-                                      : isDemo
-                                        ? "border-blue-100 hover:bg-blue-50/10"
-                                        : sch.type === "OFFICE_HOURS"
-                                          ? "border-yellow-100 hover:bg-yellow-50/10"
-                                          : "border-orange-100 hover:bg-orange-50/10"
-                                }`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="font-extrabold text-[12px] text-slate-800">
-                                    {sch.classSite?.class?.name || (sch.type === "OFFICE_HOURS" ? "Lịch trực VP" : sch.type)}
-                                  </span>
-                                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${typeBadgeStyle}`}>
-                                    {isOther ? "Cơ sở khác" : (sch.type === "OFFICE_HOURS" ? sch.officeHour?.type || "OFFICE" : getSessionShortName(sch))}
-                                  </span>
-                                </div>
-
-                                <div className="text-slate-500 font-semibold flex flex-wrap gap-x-3 gap-y-1 text-[11px] pt-0.5">
-                                  <span>Thời gian: {getLocalTime(sch.startTime)} - {getLocalTime(sch.endTime)}</span>
-                                  <span>Cơ sở: {sch.classSite?.centre?.name || sch.officeHour?.centre?.name || "—"}{isOther && " (Dạy chéo)"}</span>
-                                </div>
-                                
-                                {sch.description && (
-                                  <div className="text-slate-400 italic text-[10px] pt-0.5 border-t border-slate-50">
-                                    Ghi chú: {sch.description}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
+                    {displayedSlots.length === 0 && (
+                      <TableCell className="text-center text-slate-400 py-8">
+                        Không có lịch dạy trong tuần này.
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))
               )}
-            </div>
-          )}
+            </TableBody>
+          </table>
         </div>
 
-        <div className="bg-slate-50 border-t border-slate-200 p-3 shrink-0 flex flex-wrap gap-4 sm:gap-6 text-[11px] sm:text-xs font-medium text-slate-600 items-center justify-center">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-orange-400 border border-orange-500"></div>
+        <div className="bg-slate-50 border-t border-slate-200 p-1.5 shrink-0 flex flex-wrap gap-2.5 sm:gap-6 text-[10px] sm:text-xs font-semibold text-slate-500 items-center justify-center">
+          <div className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded-sm bg-orange-400 border border-orange-500"></div>
             Lớp học
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-purple-200 border border-purple-300"></div>
+          <div className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded-sm bg-purple-200 border border-purple-300"></div>
             Checkpoint
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-blue-200 border border-blue-300"></div>
+          <div className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded-sm bg-blue-200 border border-blue-300"></div>
             Demo
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-yellow-300 border border-yellow-400"></div>
+          <div className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded-sm bg-yellow-300 border border-yellow-400"></div>
             Office Hours
           </div>
         </div>
@@ -1137,6 +1100,83 @@ export default function SchedulesPage() {
         }
         weekStart={selectedDate}
       />
+
+      {/* Schedule Detail Dialog */}
+      <Dialog
+        open={!!viewingSchedule}
+        onOpenChange={(open) => {
+          if (!open) setViewingSchedule(null);
+        }}
+      >
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900">
+              Chi tiết lịch làm việc
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Thông tin chi tiết về ca dạy/lịch trực của giáo viên.
+            </DialogDescription>
+          </DialogHeader>
+
+          {viewingSchedule && (
+            <div className="space-y-4 mt-2 text-xs">
+              {/* Header block with color indicator */}
+              <div className={`p-3 rounded-xl border ${getScheduleStyle(viewingSchedule)}`}>
+                <p className="font-extrabold text-sm">
+                  {viewingSchedule.classSite?.class?.name || 
+                    (viewingSchedule.type === "OFFICE_HOURS" ? "Lịch trực văn phòng" : viewingSchedule.type)}
+                </p>
+                <p className="text-[10px] opacity-90 mt-0.5 font-bold">
+                  {viewingSchedule.type === "OFFICE_HOURS" 
+                    ? viewingSchedule.officeHour?.type || "OFFICE" 
+                    : getSessionShortName(viewingSchedule)}
+                </p>
+              </div>
+
+              {/* Detail fields */}
+              <div className="space-y-3 border-t border-slate-100 pt-3">
+                <div className="flex justify-between items-start gap-4">
+                  <span className="text-slate-400 font-medium">Giáo viên:</span>
+                  <span className="text-slate-800 font-bold text-right">
+                    {teachersList.find(t => t.id === viewingSchedule.teacherId)?.fullName || "—"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-medium">Thời gian:</span>
+                  <span className="text-slate-800 font-semibold font-mono">
+                    {getLocalTime(viewingSchedule.startTime)} - {getLocalTime(viewingSchedule.endTime)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-medium">Ngày dạy:</span>
+                  <span className="text-slate-800 font-semibold">
+                    {format(new Date(getLocalDate(viewingSchedule)), "dd/MM/yyyy")}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-start gap-4">
+                  <span className="text-slate-400 font-medium">Cơ sở:</span>
+                  <span className="text-slate-800 font-semibold text-right">
+                    {viewingSchedule.classSite?.centre?.name || viewingSchedule.officeHour?.centre?.name || "—"}
+                    {checkIsOtherCentre(viewingSchedule) && " (Dạy chéo)"}
+                  </span>
+                </div>
+
+                {viewingSchedule.description && (
+                  <div className="space-y-1 pt-2 border-t border-slate-50">
+                    <p className="text-slate-400 font-medium">Ghi chú / Nội dung:</p>
+                    <p className="text-slate-700 bg-slate-50 p-2 rounded border border-slate-100/50 whitespace-pre-wrap leading-normal">
+                      {viewingSchedule.description}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

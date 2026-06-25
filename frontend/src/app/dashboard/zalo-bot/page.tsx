@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { zaloService, ZaloConfig } from "../../../services/zaloService";
@@ -16,7 +16,15 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle,
+  User,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../../components/ui/select";
 import { toast } from "sonner";
 import CatLoader from "@/components/CatLoader";
 import { useMinLoading } from "@/hooks/useMinLoading";
@@ -32,8 +40,12 @@ export default function ZaloBotSettingsPage() {
 
   const showLoading = useMinLoading(loading, 500);
   const [triggering, setTriggering] = useState(false);
-  const [newTime, setNewTime] = useState("");
+  const [hour, setHour] = useState("08");
+  const [minute, setMinute] = useState("00");
   const [reminderTimes, setReminderTimes] = useState<string[]>([]);
+
+  const hoursArray = useMemo(() => Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0")), []);
+  const minutesArray = useMemo(() => Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, "0")), []);
 
   const isKhiem = isKhiemAccount(user);
 
@@ -70,12 +82,12 @@ export default function ZaloBotSettingsPage() {
 
   if (user && !isKhiem) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6">
-        <AlertCircle className="w-16 h-16 text-red-500 animate-pulse" />
-        <h1 className="text-2xl font-bold text-slate-800">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6 animate-in fade-in duration-500">
+        <AlertCircle className="w-12 h-12 text-red-500 animate-pulse" />
+        <h1 className="text-base font-bold text-slate-800">
           Không có quyền truy cập
         </h1>
-        <p className="text-slate-500">
+        <p className="text-xs text-slate-500">
           Trang này chỉ dành cho tài khoản quản trị hệ thống.
         </p>
       </div>
@@ -83,14 +95,13 @@ export default function ZaloBotSettingsPage() {
   }
 
   const handleAddTime = () => {
-    if (!newTime) return;
-    if (reminderTimes.includes(newTime)) {
+    const timeStr = `${hour}:${minute}`;
+    if (reminderTimes.includes(timeStr)) {
       toast.warning("Giờ nhắc nhở này đã tồn tại.");
       return;
     }
-    const sorted = [...reminderTimes, newTime].sort();
+    const sorted = [...reminderTimes, timeStr].sort();
     setReminderTimes(sorted);
-    setNewTime("");
   };
 
   const handleRemoveTime = (index: number) => {
@@ -167,180 +178,231 @@ export default function ZaloBotSettingsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-8">
-      <div className="flex items-center gap-4">
-        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-2xl">
-          <Bot className="w-8 h-8" />
-        </div>
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-            Cấu hình Zalo Bot
-          </h1>
-          <p className="text-slate-500">
-            Quản lý lịch thông báo và tài khoản LMS liên kết cho Zalo Group
-          </p>
+    <div className="p-1.5 sm:p-3 space-y-1.5 h-[calc(100vh-76px)] md:h-[calc(100vh-16px)] overflow-hidden flex flex-col animate-in fade-in duration-500">
+      {/* Title Header */}
+      <div className="flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Bot className="h-3.5 w-3.5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-sm sm:text-base font-bold text-slate-900 leading-none">
+              Cấu hình Zalo Bot
+            </h1>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left column: Bot status */}
-        <div className="md:col-span-1 space-y-6">
-          <Card className="p-6 space-y-4">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 border-b pb-2">
-              Trạng thái Bot
-            </h2>
-
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs text-slate-400 uppercase font-semibold">
-                  Nhóm Chat Zalo
-                </p>
-                {config?.targetChatId ? (
-                  <div className="flex items-center gap-1.5 mt-1 text-emerald-600 dark:text-emerald-400 font-medium text-sm">
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Đã liên kết</span>
-                  </div>
-                ) : (
-                  <p className="text-sm text-amber-500 mt-1 font-medium">
-                    Chưa liên kết nhóm (Gõ 'bind_group' trong Zalo)
-                  </p>
-                )}
-                {config?.targetChatId && (
-                  <code className="block mt-1 text-[11px] bg-slate-100 dark:bg-slate-800 p-1 rounded text-slate-600 dark:text-slate-400 font-mono truncate">
-                    ID: {config.targetChatId}
-                  </code>
-                )}
+      {/* Main card view */}
+      <div className="flex-1 border border-slate-200 bg-slate-50/40 shadow-sm overflow-auto rounded-xl p-3 sm:p-5 flex flex-col gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 items-start">
+          {/* Left column: Bot status & actions */}
+          <div className="space-y-4 sm:space-y-6 md:col-span-1">
+            {/* Status Card */}
+            <Card className="p-4 sm:p-5 bg-white border border-slate-200 rounded-xl shadow-sm space-y-4">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center">
+                  <Bot className="h-3 w-3 text-primary" />
+                </div>
+                <h2 className="text-xs sm:text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  Trạng thái Bot
+                </h2>
               </div>
 
-              <div>
-                <p className="text-xs text-slate-400 uppercase font-semibold">
-                  Tài khoản LMS liên kết
-                </p>
-                {config?.isLmsConfigured ? (
-                  <div className="mt-1 space-y-1">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                      Đã cấu hình
-                    </span>
-                    {config.mindxUsername && (
-                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        👤 {config.mindxUsername}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
-                    Chưa cấu hình
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+                    Nhóm Chat Zalo
                   </span>
-                )}
+                  {config?.targetChatId ? (
+                    <div className="flex items-center gap-1.5 mt-1 text-emerald-600 font-bold text-xs">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>Đã liên kết</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-500 font-bold mt-1 leading-normal">
+                      Chưa liên kết nhóm (Gõ 'bind_group' trong Zalo)
+                    </p>
+                  )}
+                  {config?.targetChatId && (
+                    <code className="block mt-1 text-[10px] bg-slate-50 p-1.5 rounded-lg border border-slate-100 text-slate-600 font-mono truncate select-all">
+                      ID: {config.targetChatId}
+                    </code>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+                    Tài khoản LMS liên kết
+                  </span>
+                  {config?.isLmsConfigured ? (
+                    <div className="mt-1 space-y-2">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        Đã cấu hình
+                      </span>
+                      {config.mindxUsername && (
+                        <div className="flex items-center gap-1.5 mt-1 text-xs font-bold text-slate-700 bg-slate-50 border border-slate-100 p-2 rounded-lg">
+                          <User className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="truncate">{config.mindxUsername}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-100 mt-1">
+                      Chưa cấu hình
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
 
-          <Card className="p-6 space-y-4">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 border-b pb-2">
-              Hành động nhanh
-            </h2>
+            {/* Actions Card */}
+            <Card className="p-4 sm:p-5 bg-white border border-slate-200 rounded-xl shadow-sm space-y-4">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center">
+                  <Send className="h-3 w-3 text-primary" />
+                </div>
+                <h2 className="text-xs sm:text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  Hành động nhanh
+                </h2>
+              </div>
 
-            <div className="flex flex-col gap-3">
-              <Button
-                variant="outline"
-                className="w-full flex items-center justify-center gap-2"
-                onClick={handleLinkAccount}
-                disabled={saving}
-              >
-                <RefreshCw
-                  className={`w-4 h-4 ${saving ? "animate-spin" : ""}`}
-                />
-                Đồng bộ tài khoản của tôi
-              </Button>
-              <p className="text-xs text-slate-400 text-center">
-                Lấy Token hiện tại của bạn làm Token hệ thống để Bot gọi LMS
-                thay cho cấu hình cũ.
+              <div className="space-y-3">
+                <Button
+                  variant="outline"
+                  className="w-full h-9 text-[11px] font-bold gap-1.5 bg-white hover:bg-slate-50 text-slate-700 active:scale-95 transition-all shadow-sm border-slate-200"
+                  onClick={handleLinkAccount}
+                  disabled={saving}
+                >
+                  <RefreshCw
+                    className={`w-3.5 h-3.5 ${saving ? "animate-spin" : ""}`}
+                  />
+                  Đồng bộ tài khoản của tôi
+                </Button>
+                <p className="text-[10px] text-slate-400 leading-relaxed text-center px-1">
+                  Đồng bộ Token hiện tại của bạn làm Token hệ thống để Bot gọi LMS thay cho tài khoản cấu hình cũ.
+                </p>
+
+                <div className="h-px bg-slate-100 my-2" />
+
+                <Button
+                  onClick={handleTriggerNow}
+                  disabled={
+                    triggering ||
+                    !config?.targetChatId ||
+                    !config?.isLmsConfigured
+                  }
+                  className="w-full h-9 text-[11px] font-bold gap-1.5 bg-primary hover:bg-primary/95 text-white active:scale-95 transition-all shadow-sm"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Gửi nhắc nhở ngay
+                </Button>
+                <p className="text-[10px] text-slate-400 leading-relaxed text-center px-1">
+                  Kích hoạt lệnh quét điểm danh & bài tập và gửi ngay một tin nhắn nhắc nhở tới nhóm Zalo liên kết.
+                </p>
+              </div>
+            </Card>
+          </div>
+
+          {/* Right column: Scheduler Configuration */}
+          <div className="md:col-span-2">
+            <Card className="p-4 sm:p-5 bg-white border border-slate-200 rounded-xl shadow-sm space-y-5">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center">
+                  <Save className="h-3 w-3 text-primary" />
+                </div>
+                <h2 className="text-xs sm:text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  Giờ nhắc nhở tự động
+                </h2>
+              </div>
+
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Hệ thống sẽ tự động quét trạng thái điểm danh và nhận xét bài tập chưa hoàn thành vào các mốc thời gian bên dưới, sau đó tự động gửi cảnh báo và tag tên TE/giáo viên trực tiếp vào nhóm Zalo chat.
               </p>
 
-              <div className="h-px bg-slate-100 dark:bg-slate-800 my-2" />
-
-              <Button
-                onClick={handleTriggerNow}
-                disabled={
-                  triggering ||
-                  !config?.targetChatId ||
-                  !config?.isLmsConfigured
-                }
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2"
-              >
-                <Send className="w-4 h-4" />
-                Gửi nhắc nhở ngay
-              </Button>
-            </div>
-          </Card>
-        </div>
-
-        {/* Right column: Scheduler Configuration */}
-        <div className="md:col-span-2">
-          <Card className="p-6 space-y-6">
-            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 border-b pb-3">
-              Giờ nhắc nhở tự động
-            </h2>
-            <p className="text-sm text-slate-500">
-              Bot sẽ tự động thu thập thông tin nhận xét chưa hoàn thành vào các
-              mốc giờ cấu hình bên dưới và gửi tới Group Zalo của bạn.
-            </p>
-
-            <div className="flex items-center gap-3">
-              <Input
-                type="time"
-                value={newTime}
-                onChange={(e) => setNewTime(e.target.value)}
-                className="max-w-[200px]"
-              />
-              <Button
-                onClick={handleAddTime}
-                className="flex items-center gap-1"
-              >
-                <Plus className="w-4 h-4" />
-                Thêm giờ
-              </Button>
-            </div>
-
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-              {reminderTimes.length === 0 ? (
-                <div className="text-center py-8 text-slate-400 italic">
-                  Chưa có mốc giờ nhắc nhở tự động nào được thêm.
+              <div className="flex items-center gap-2">
+                {/* Hour Selection */}
+                <div className="w-[75px]">
+                  <Select value={hour} onValueChange={setHour}>
+                    <SelectTrigger className="w-full h-9 text-xs bg-white border-slate-200 focus:ring-4 focus:ring-primary/10 focus:border-primary font-mono font-bold text-slate-700">
+                      <SelectValue placeholder="Giờ" />
+                    </SelectTrigger>
+                    <SelectContent className="text-xs max-h-48 custom-scrollbar">
+                      {hoursArray.map((h) => (
+                        <SelectItem key={h} value={h} className="font-mono">
+                          {h}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : (
-                reminderTimes.map((time, idx) => (
-                  <div
-                    key={time}
-                    className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl border border-slate-200/50 transition-colors"
-                  >
-                    <span className="font-semibold text-slate-700 dark:text-slate-350 text-lg">
-                      {time}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRemoveTime(idx)}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
 
-            <div className="flex justify-end pt-4 border-t">
-              <Button
-                onClick={handleSaveTimes}
-                disabled={saving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2"
-              >
-                <Save className="w-4 h-4" />
-                Lưu cấu hình giờ nhắc
-              </Button>
-            </div>
-          </Card>
+                <span className="text-slate-450 font-bold text-xs">:</span>
+
+                {/* Minute Selection */}
+                <div className="w-[75px]">
+                  <Select value={minute} onValueChange={setMinute}>
+                    <SelectTrigger className="w-full h-9 text-xs bg-white border-slate-200 focus:ring-4 focus:ring-primary/10 focus:border-primary font-mono font-bold text-slate-700">
+                      <SelectValue placeholder="Phút" />
+                    </SelectTrigger>
+                    <SelectContent className="text-xs max-h-48 custom-scrollbar">
+                      {minutesArray.map((m) => (
+                        <SelectItem key={m} value={m} className="font-mono">
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  onClick={handleAddTime}
+                  className="h-9 text-[11px] font-bold gap-1.5 bg-slate-900 hover:bg-slate-850 text-white active:scale-95 transition-all shadow-sm ml-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Thêm mốc giờ
+                </Button>
+              </div>
+
+              <div className="space-y-1.5 max-h-[350px] overflow-y-auto pr-1.5 custom-scrollbar no-vertical-scrollbar border border-slate-100 p-2 rounded-xl bg-slate-50/50">
+                {reminderTimes.length === 0 ? (
+                  <div className="text-center py-10 text-xs text-slate-400 italic bg-white rounded-lg border border-dashed border-slate-200">
+                    Chưa có mốc giờ tự động nào được đăng ký.
+                  </div>
+                ) : (
+                  reminderTimes.map((time, idx) => (
+                    <div
+                      key={time}
+                      className="flex items-center justify-between p-2.5 bg-white hover:bg-slate-50 rounded-lg border border-slate-200/60 shadow-sm transition-all"
+                    >
+                      <span className="font-bold text-slate-800 text-sm font-mono tracking-wide">
+                        {time}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveTime(idx)}
+                        className="h-7 w-7 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex justify-end pt-3 border-t border-slate-100">
+                <Button
+                  onClick={handleSaveTimes}
+                  disabled={saving}
+                  className="h-9 px-4 text-[11px] font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-all shadow-sm"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  Lưu cấu hình giờ nhắc
+                </Button>
+              </div>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

@@ -301,6 +301,24 @@ export default function SpreadsheetPage() {
     }
   };
 
+  const handlePrevDay = () => {
+    const parts = selectedDate.split("-");
+    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(format(d, "yyyy-MM-dd"));
+  };
+
+  const handleNextDay = () => {
+    const parts = selectedDate.split("-");
+    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    d.setDate(d.getDate() + 1);
+    setSelectedDate(format(d, "yyyy-MM-dd"));
+  };
+
+  const handleToday = () => {
+    setSelectedDate(getTodayDateStr());
+  };
+
   const [isSaving, setIsSaving] = useState<Record<string, boolean>>({});
 
   const handleAssignTeacher = async (trial: any, teacher: any) => {
@@ -377,228 +395,46 @@ export default function SpreadsheetPage() {
       .filter(
         (header) => !HIDDEN_COLUMNS.some((hidden) => header.includes(hidden)),
       ) || [];
-
-  const renderTrialCard = (trial: any, idx: number) => {
-    const filter = getCardFilter(idx);
-    const present = trial.availabilities?.presentAtBranch || [];
-    const absent = trial.availabilities?.notPresentAtBranch || [];
-    
-    let displayedTeachers: any[] = [];
-    if (filter === "all") {
-      displayedTeachers = [...present, ...absent];
-    } else if (filter === "present") {
-      displayedTeachers = present;
-    } else {
-      displayedTeachers = absent;
-    }
-
-    if (teacherSearch.trim() !== "") {
-      const q = teacherSearch.toLowerCase();
-      displayedTeachers = displayedTeachers.filter(
-        (t: any) => t.fullName?.toLowerCase().includes(q) || t.code?.toLowerCase().includes(q)
-      );
-    }
-
-    return (
-      <div key={idx} className="bg-white border border-[#cbd5e1] rounded-xl p-4 shadow-sm space-y-4 hover:border-slate-300 transition-all flex flex-col min-h-[350px]">
-        {/* Slot Info header */}
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 border-b border-slate-100 pb-3 shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20">
-              {trial.timeSlot}
-            </span>
-            <div>
-              <h3 className="font-bold text-slate-800 text-[14px] leading-tight">
-                {trial.subject === "Trống" ? "Khung giờ trực Trial" : `${trial.subject} (${trial.type})`}
-              </h3>
-              {trial.rowIndex ? (
-                <p className="text-[10px] text-slate-500 mt-0.5">
-                  Dòng sheet: {trial.rowIndex}
-                </p>
-              ) : (
-                <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">
-                  Khung giờ chuẩn (chưa có lớp)
-                </p>
-              )}
-            </div>
-          </div>
-          {trial.roomLink && (
-            <a
-              href={trial.roomLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[11px] font-semibold text-blue-600 hover:underline shrink-0 max-w-[120px] truncate"
-              title={trial.roomLink}
-            >
-              Link phòng ↗
-            </a>
-          )}
-        </div>
-
-        {/* Students list */}
-        <div className="space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100/60 shrink-0">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Học viên trải nghiệm ({trial.students.length})
-          </span>
-          {trial.students.length === 0 ? (
-            <span className="text-xs text-slate-500 italic">Chưa điền học viên</span>
-          ) : (
-            <div className="space-y-1">
-              {trial.students.map((student: string, sIdx: number) => (
-                <div key={sIdx} className="text-[11px] text-slate-700 font-medium leading-tight">
-                  • {student}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Availability tabs inside card */}
-        <div className="space-y-3 flex-1 flex flex-col min-h-0">
-          <div className="flex items-center justify-between gap-2 shrink-0">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Giáo viên khả dụng ({displayedTeachers.length})
-            </span>
-          </div>
-
-          {/* Group Tabs */}
-          <div className="flex gap-1 p-1 bg-slate-100 rounded-lg border border-slate-200/50 text-[11px] shrink-0 select-none">
-            <button
-              onClick={() => setCardFilter(idx, "all")}
-              className={`flex-1 py-1 rounded-md text-center font-semibold transition-all ${
-                filter === "all"
-                  ? "bg-white text-slate-800 shadow-sm"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              Tất cả ({present.length + absent.length})
-            </button>
-            <button
-              onClick={() => setCardFilter(idx, "present")}
-              className={`flex-1 py-1 rounded-md text-center font-semibold transition-all flex items-center justify-center gap-1 ${
-                filter === "present"
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              <UserCheck className="h-3 w-3" />
-              Có mặt BU ({present.length})
-            </button>
-            <button
-              onClick={() => setCardFilter(idx, "absent")}
-              className={`flex-1 py-1 rounded-md text-center font-semibold transition-all flex items-center justify-center gap-1 ${
-                filter === "absent"
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              <UserX className="h-3 w-3" />
-              Rảnh cả ngày ({absent.length})
-            </button>
-          </div>
-
-          {/* Teachers list container */}
-          <div className="flex-1 overflow-y-auto border border-slate-200/60 rounded-lg divide-y divide-slate-100 bg-white custom-scrollbar min-h-0">
-            {displayedTeachers.length === 0 ? (
-              <div className="p-4 text-center text-xs text-slate-400 italic">
-                {teacherSearch ? "Không tìm thấy giáo viên" : "Không có giáo viên khả dụng"}
-              </div>
-            ) : (
-              displayedTeachers.map((teacher: any) => {
-                const isPresent = present.some((t: any) => t.id === teacher.id);
-                const hasSchedules = teacher.schedulesToday && teacher.schedulesToday.length > 0;
-                
-                return (
-                  <div key={teacher.id} className="p-2 flex items-center justify-between gap-3 hover:bg-slate-50/50 group/row transition-all text-xs">
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-semibold text-slate-800 truncate">
-                          {teacher.fullName}
-                        </span>
-                        <code className="text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200/60 px-1 py-0.5 rounded font-mono">
-                          {teacher.code}
-                        </code>
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            isPresent ? "bg-emerald-500" : "bg-blue-500"
-                          }`}
-                          title={isPresent ? "Có mặt ở BU hôm đó" : "Rảnh cả ngày hôm đó"}
-                        />
-                      </div>
-                      
-                      {isPresent && hasSchedules && (
-                        <div className="text-[9px] text-slate-500 font-medium leading-normal flex items-start gap-1 flex-wrap mt-0.5">
-                          <Info className="h-3 w-3 text-slate-400 shrink-0 mt-0.5" />
-                          <span>Lịch BU: {teacher.schedulesToday.map((s: any) => `${s.time} (${s.title})`).join(", ")}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <Button
-                      onClick={() => handleCopyCode(teacher.code)}
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6 rounded-md hover:bg-slate-100 shrink-0 opacity-40 group-hover/row:opacity-100 transition-opacity"
-                      title="Copy mã giáo viên"
-                    >
-                      {copiedCode === teacher.code ? (
-                        <Check className="h-3 w-3 text-emerald-600" />
-                      ) : (
-                        <Copy className="h-3 w-3 text-slate-500" />
-                      )}
-                    </Button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] md:h-screen p-6 md:p-8 space-y-4 bg-[#f8fafc]">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <TableProperties className="h-5 w-5 text-primary" />
+    <div className="p-1.5 sm:p-3 space-y-1.5 h-[calc(100vh-76px)] md:h-[calc(100vh-16px)] overflow-hidden flex flex-col bg-[#f8fafc]">
+      <div className="flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+            <TableProperties className="h-3.5 w-3.5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">
-              Book Trial{" "}
-              {activeTab === "sheet" && sheetData?.sheetName ? `- ${sheetData.sheetName}` : ""}
+            <h1 className="text-sm sm:text-base font-bold text-slate-900 leading-none">
+              Book Trial{activeTab === "sheet" && sheetData?.sheetName ? ` - ${sheetData.sheetName}` : ""}
             </h1>
-            <p className="text-sm text-slate-500">
-              Dữ liệu được đồng bộ từ Google Sheets qua API
-            </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1.5">
           {/* Tab selector */}
-          <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-sm text-xs shrink-0 select-none">
+          <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 shadow-sm text-[11px] shrink-0 select-none">
             <button
               onClick={() => setActiveTab("trials")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-md font-semibold transition-all ${
                 activeTab === "trials"
                   ? "bg-slate-100 text-slate-900 shadow-sm"
                   : "text-slate-500 hover:text-slate-900"
               }`}
             >
-              <Calendar className="h-3.5 w-3.5" />
-              Khảo sát trực Trial
+              <Calendar className="h-3 w-3" />
+              <span className="hidden sm:inline">Khảo sát trực Trial</span>
+              <span className="sm:hidden">Trial</span>
             </button>
             <button
               onClick={() => setActiveTab("sheet")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-md font-semibold transition-all ${
                 activeTab === "sheet"
                   ? "bg-slate-100 text-slate-900 shadow-sm"
                   : "text-slate-500 hover:text-slate-900"
               }`}
             >
-              <TableProperties className="h-3.5 w-3.5" />
-              Bảng tính Google Sheet
+              <TableProperties className="h-3 w-3" />
+              <span className="hidden sm:inline">Bảng tính Google Sheet</span>
+              <span className="sm:hidden">Sheet</span>
             </button>
           </div>
 
@@ -607,10 +443,10 @@ export default function SpreadsheetPage() {
               onClick={() => fetchSheetData(activeSheet || undefined)}
               disabled={isLoading}
               variant="outline"
-              className="gap-2 bg-white h-9 text-xs"
+              className="h-8 px-2 text-[11px] font-semibold gap-1 bg-white active:scale-95 transition-all shrink-0"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-              Làm mới
+              <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Làm mới</span>
             </Button>
           )}
 
@@ -619,10 +455,10 @@ export default function SpreadsheetPage() {
               onClick={() => fetchTrialAvailabilities()}
               disabled={isTrialsLoading}
               variant="outline"
-              className="gap-2 bg-white h-9 text-xs"
+              className="h-8 px-2 text-[11px] font-semibold gap-1 bg-white active:scale-95 transition-all shrink-0"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${isTrialsLoading ? "animate-spin" : ""}`} />
-              Làm mới
+              <RefreshCw className={`h-3 w-3 ${isTrialsLoading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Làm mới</span>
             </Button>
           )}
         </div>
@@ -640,7 +476,7 @@ export default function SpreadsheetPage() {
         </div>
       )}
 
-      <div className="flex-1 border border-[#cbd5e1] bg-white shadow-sm overflow-hidden relative flex flex-col rounded-xl">
+      <div className="flex-1 border border-slate-200 bg-white shadow-sm overflow-hidden relative flex flex-col rounded-xl">
         {activeTab === "sheet" ? (
           <>
             {showLoading && !sheetData ? (
@@ -648,11 +484,11 @@ export default function SpreadsheetPage() {
                 <CatLoader />
               </div>
             ) : (
-              <div className="overflow-auto flex-1 custom-scrollbar">
-                <table className="w-max min-w-full border-collapse text-[13px]">
-                  <thead className="sticky top-0 z-40 bg-slate-200 shadow-[0_1px_0_#cbd5e1]">
+              <div className="overflow-auto flex-1 custom-scrollbar no-vertical-scrollbar">
+                <table className="w-max min-w-full border-collapse text-xs">
+                  <thead className="sticky top-0 z-40 bg-slate-200 shadow-[0_1px_0_#e2e8f0]">
                     <tr>
-                      <th className="border-r border-b border-[#cbd5e1] bg-slate-200 w-12 text-center text-slate-600 font-bold py-2 px-2 sticky left-0 z-50">
+                      <th className="border-r border-b border-slate-200 bg-slate-200 w-10 text-center text-slate-600 font-bold py-1 px-1.5 sticky left-0 z-50">
                         #
                       </th>
                       {visibleHeaders.map((header, idx) => {
@@ -677,7 +513,7 @@ export default function SpreadsheetPage() {
                         return (
                           <th
                             key={idx}
-                            className={`border-r border-b border-[#cbd5e1] text-slate-800 font-bold py-2 px-3 whitespace-nowrap min-w-[120px] ${colorClass}`}
+                            className={`border-r border-b border-slate-200 text-slate-800 font-bold py-1 px-2 whitespace-nowrap min-w-[120px] ${colorClass}`}
                           >
                             {header}
                           </th>
@@ -690,7 +526,7 @@ export default function SpreadsheetPage() {
                       <tr>
                         <td
                           colSpan={visibleHeaders.length + 1}
-                          className="text-center py-12 text-slate-500 border-b border-[#cbd5e1]"
+                          className="text-center py-8 text-slate-500 border-b border-slate-200"
                         >
                           Không có dữ liệu trong bảng tính này.
                         </td>
@@ -707,10 +543,10 @@ export default function SpreadsheetPage() {
                           const secondColData = row[visibleHeaders[1]] || "";
                           const thirdColData = row[visibleHeaders[2]] || "";
                           const isDayRow =
-                            (/\d{1,2}\/\d{1,2}/.test(firstColData) ||
-                              firstColData.trim().length > 0) &&
-                            secondColData.trim() === "" &&
-                            thirdColData.trim() === "";
+                              (/\d{1,2}\/\d{1,2}/.test(firstColData) ||
+                                firstColData.trim().length > 0) &&
+                              secondColData.trim() === "" &&
+                              thirdColData.trim() === "";
 
                           return (
                             <tr
@@ -724,7 +560,7 @@ export default function SpreadsheetPage() {
                               }`}
                             >
                               <td
-                                className={`border-r border-b border-[#cbd5e1] text-center font-bold py-1.5 px-2 sticky left-0 z-30 ${
+                                className={`border-r border-b border-slate-200 text-center font-bold py-1 px-1.5 sticky left-0 z-30 ${
                                   isDayRow
                                     ? "bg-blue-200 text-blue-800"
                                     : "bg-slate-100 text-slate-500"
@@ -755,7 +591,7 @@ export default function SpreadsheetPage() {
                                   cellColors[colIdx % cellColors.length];
 
                                 let displayData = cellData;
-                                let cellClass = `border-r border-b border-[#cbd5e1] py-1.5 px-3 text-slate-900 font-medium break-words ${
+                                let cellClass = `border-r border-b border-slate-200 py-1 px-2 text-slate-900 font-medium break-words ${
                                   isDayRow ? "" : bgColorClass
                                 }`;
 
@@ -766,21 +602,21 @@ export default function SpreadsheetPage() {
 
                                 if (isDayRow || isDateCell) {
                                   cellClass +=
-                                    " font-extrabold text-[15px] text-blue-900 bg-blue-100/60";
+                                    " font-extrabold text-xs text-blue-900 bg-blue-100/60";
                                 } else if (
                                   cellData === "TRUE" ||
                                   cellData === "TRUE " ||
                                   cellData === "true"
                                 ) {
                                   displayData = "✓";
-                                  cellClass = `border-r border-b border-[#cbd5e1] py-1.5 px-3 text-emerald-600 font-bold text-center bg-emerald-100/60`;
+                                  cellClass = `border-r border-b border-slate-200 py-1 px-2 text-emerald-600 font-bold text-center bg-emerald-100/60`;
                                 } else if (
                                   cellData === "FALSE" ||
                                   cellData === "FALSE " ||
                                   cellData === "false"
                                 ) {
                                   displayData = "✗";
-                                  cellClass = `border-r border-b border-[#cbd5e1] py-1.5 px-3 text-rose-500 font-bold text-center bg-rose-100/60`;
+                                  cellClass = `border-r border-b border-slate-200 py-1 px-2 text-rose-500 font-bold text-center bg-rose-100/60`;
                                 }
 
                                 return (
@@ -805,49 +641,84 @@ export default function SpreadsheetPage() {
         ) : (
           <div className="flex-1 flex flex-col overflow-hidden bg-[#f8fafc]">
             {/* Filter control bar */}
-            <div className="p-4 bg-white border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-slate-700 shrink-0">Chọn ngày trực:</span>
-                <div className="relative" ref={datePickerRef}>
-                  <button
-                    onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
-                    className={`flex items-center justify-center gap-2 px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 focus:outline-none transition-all cursor-pointer shadow-sm min-w-[140px] select-none ${isDatePickerOpen ? "border-indigo-600 ring-4 ring-indigo-600/10" : ""}`}
+            <div className="p-1 sm:p-1.5 bg-white border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 shrink-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden sm:inline">Ngày trực:</span>
+                
+                {/* Day Navigator */}
+                <div className="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm h-8 transition-all hover:border-slate-300 justify-between flex-1 sm:flex-none">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-full w-8 text-slate-500 hover:text-primary hover:bg-primary/5 rounded-none rounded-l-lg"
+                    onClick={handlePrevDay}
+                    title="Ngày trước"
                   >
-                    <Calendar className="h-4 w-4 text-indigo-600 shrink-0" />
-                    <span>
-                      {selectedDate ? format(new Date(selectedDate), "dd/MM/yyyy") : ""}
-                    </span>
-                  </button>
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </Button>
 
-                  {isDatePickerOpen && (
-                    <div className="absolute top-[calc(100%+8px)] left-0 z-50">
-                      <CustomDatePicker
-                        selectedDate={new Date(selectedDate)}
-                        onSelect={(date) => {
-                          const offset = date.getTimezoneOffset();
-                          const localDate = new Date(date.getTime() - (offset * 60 * 1000));
-                          setSelectedDate(localDate.toISOString().split('T')[0]);
-                        }}
-                        onClose={() => setIsDatePickerOpen(false)}
-                      />
+                  <div
+                    className="relative h-full border-x border-slate-200 flex-1 sm:flex-none"
+                    ref={datePickerRef}
+                  >
+                    <div
+                      onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
+                      className={`flex items-center justify-center gap-1.5 px-3 h-full hover:bg-slate-50 transition-colors cursor-pointer min-w-[110px] sm:min-w-[125px] select-none text-[11px] font-bold text-slate-700 ${isDatePickerOpen ? "bg-slate-50 ring-1 ring-primary/20" : ""}`}
+                    >
+                      <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span>{selectedDate ? format(new Date(selectedDate), "dd/MM/yyyy") : ""}</span>
                     </div>
-                  )}
+
+                    {isDatePickerOpen && (
+                      <div className="absolute top-[calc(100%+6px)] left-1/2 -translate-x-1/2 z-50">
+                        <CustomDatePicker
+                          selectedDate={new Date(selectedDate)}
+                          onSelect={(date) => {
+                            const offset = date.getTimezoneOffset();
+                            const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+                            setSelectedDate(localDate.toISOString().split('T')[0]);
+                          }}
+                          onClose={() => setIsDatePickerOpen(false)}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-full w-8 text-slate-500 hover:text-primary hover:bg-primary/5 rounded-none"
+                    onClick={handleNextDay}
+                    title="Ngày tiếp theo"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+
+                  <div className="h-full border-l border-slate-200">
+                    <Button
+                      variant="ghost"
+                      className="h-full px-2 text-[10px] font-extrabold text-primary hover:bg-primary/10 rounded-none rounded-r-lg"
+                      onClick={handleToday}
+                    >
+                      H.Nay
+                    </Button>
+                  </div>
                 </div>
               </div>
 
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <div className="relative w-full sm:w-56">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                 <Input
                   placeholder="Tìm giáo viên..."
                   value={teacherSearch}
                   onChange={(e) => setTeacherSearch(e.target.value)}
-                  className="pl-9 h-9 bg-white"
+                  className="pl-8 h-8 text-[11px] bg-white w-full"
                 />
               </div>
             </div>
 
             {/* Trial grid / list */}
-            <div className="flex-1 overflow-auto p-4 md:p-6 custom-scrollbar relative min-h-0">
+            <div className="flex-1 overflow-hidden p-1.5 sm:p-2.5 relative min-h-0 flex flex-col">
               {showTrialsLoading ? (
                 <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm flex items-center justify-center">
                   <CatLoader />
@@ -865,15 +736,15 @@ export default function SpreadsheetPage() {
               ) : (
                 <div className="flex-1 flex flex-col min-h-0">
                   {!isMobile ? (
-                    <div className="bg-white rounded-xl border border-[#cbd5e1] overflow-hidden shadow-sm flex flex-col h-full">
-                      <div className="overflow-auto flex-1 custom-scrollbar">
-                        <table className="w-full min-w-[700px] md:min-w-full border-collapse text-[13px] text-left">
+                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col h-full">
+                      <div className="overflow-auto flex-1 custom-scrollbar no-vertical-scrollbar">
+                        <table className="w-full min-w-[700px] md:min-w-full border-collapse text-xs text-left">
                           <thead className="bg-slate-100 sticky top-0 z-10 border-b border-slate-200">
                             <tr>
-                              <th className="py-3 px-4 font-bold text-slate-600 w-[15%]">Thời gian</th>
-                              <th className="py-3 px-4 font-bold text-slate-600 w-[25%]">Thông tin ca</th>
-                              <th className="py-3 px-4 font-bold text-slate-600 w-[30%]">Học viên</th>
-                              <th className="py-3 px-4 font-bold text-slate-600 w-[30%]">Giáo viên trực</th>
+                              <th className="py-2 px-3 font-bold text-slate-600 w-[15%] text-[11px]">Thời gian</th>
+                              <th className="py-2 px-3 font-bold text-slate-600 w-[25%] text-[11px]">Thông tin ca</th>
+                              <th className="py-2 px-3 font-bold text-slate-600 w-[30%] text-[11px]">Học viên</th>
+                              <th className="py-2 px-3 font-bold text-slate-600 w-[30%] text-[11px]">Giáo viên trực</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-200 bg-white">
@@ -883,6 +754,7 @@ export default function SpreadsheetPage() {
                               const assigned = trial.assignedTeacher;
                               const slotId = trial.slotId;
                               const saving = isSaving[slotId];
+                              const isBottomRow = false;
 
                               if (teacherSearch.trim() !== "") {
                                 const q = teacherSearch.toLowerCase();
@@ -897,15 +769,15 @@ export default function SpreadsheetPage() {
                               return (
                                 <tr key={idx} className="hover:bg-slate-50/40 transition-colors group">
                                   {/* 1. Time */}
-                                  <td className="py-3 px-4 align-top">
-                                    <span className="inline-flex items-center justify-center text-xs font-extrabold bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20">
+                                  <td className="py-2 px-3 align-top">
+                                    <span className="inline-flex items-center justify-center text-[10px] font-extrabold bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">
                                       {trial.timeSlot}
                                     </span>
                                   </td>
 
                                   {/* 2. Info */}
-                                  <td className="py-3 px-4 align-top space-y-1.5">
-                                    <h4 className="font-bold text-slate-800 text-[13px] leading-tight">
+                                  <td className="py-2 px-3 align-top space-y-1">
+                                    <h4 className="font-bold text-slate-800 text-xs leading-tight">
                                       {trial.subject === "Trống" ? (
                                         <span className="text-slate-400 italic font-medium">Khung giờ trống</span>
                                       ) : (
@@ -914,11 +786,11 @@ export default function SpreadsheetPage() {
                                     </h4>
                                     
                                     {trial.rowIndex ? (
-                                      <span className="inline-block text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60 px-1.5 py-0.5 rounded">
+                                      <span className="inline-block text-[8.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60 px-1 py-0.25 rounded">
                                         Sheet dòng {trial.rowIndex}
                                       </span>
                                     ) : (
-                                      <span className="inline-block text-[9px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-1.5 py-0.5 rounded">
+                                      <span className="inline-block text-[8.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-1 py-0.25 rounded">
                                         Khung giờ chuẩn
                                       </span>
                                     )}
@@ -938,11 +810,11 @@ export default function SpreadsheetPage() {
                                   </td>
 
                                   {/* 3. Students */}
-                                  <td className="py-3 px-4 align-top">
+                                  <td className="py-2 px-3 align-top">
                                     {trial.students.length === 0 ? (
                                       <span className="text-xs text-slate-400 italic">Chưa có học viên</span>
                                     ) : (
-                                      <div className="space-y-1">
+                                      <div className="space-y-0.5">
                                         {trial.students.map((student: string, sIdx: number) => (
                                           <div key={sIdx} className="text-xs text-slate-700 font-medium leading-relaxed">
                                             • {student}
@@ -953,22 +825,22 @@ export default function SpreadsheetPage() {
                                   </td>
 
                                   {/* 4. Teacher Assignment */}
-                                  <td className="py-3 px-4 align-top">
+                                  <td className={`py-2 px-3 align-top ${openDropdownId === slotId ? "relative z-30" : ""}`}>
                                     {saving ? (
-                                      <div className="border border-slate-200 rounded-xl p-2.5 flex items-center justify-center bg-slate-50/50">
+                                      <div className="border border-slate-200 rounded-lg p-1.5 flex items-center justify-center bg-slate-50/50">
                                         <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                          <Loader2 className="h-3 w-3 animate-spin" />
                                           <span>Đang lưu...</span>
                                         </div>
                                       </div>
                                     ) : assigned ? (
-                                      <div className="border-2 border-emerald-400 bg-emerald-50/20 rounded-xl p-2.5 flex items-center justify-between gap-3 transition-all shadow-sm">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                          <div className="w-7.5 h-7.5 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                                      <div className="border border-emerald-300 bg-emerald-50/20 rounded-lg p-1.5 flex items-center justify-between gap-2 transition-all shadow-sm">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                          <div className="w-6.5 h-6.5 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
                                             {assigned.fullName.charAt(0)}
                                           </div>
                                           <div className="min-w-0">
-                                            <div className="font-semibold text-slate-800 text-[12px] truncate leading-tight">
+                                            <div className="font-semibold text-slate-800 text-[11.5px] truncate leading-tight">
                                               {assigned.fullName}
                                             </div>
                                           </div>
@@ -977,7 +849,7 @@ export default function SpreadsheetPage() {
                                           onClick={() => handleUnassignTeacher(trial)}
                                           size="icon"
                                           variant="ghost"
-                                          className="h-7 w-7 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md shrink-0 transition-colors"
+                                          className="h-6 w-6 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md shrink-0 transition-colors"
                                           title="Xóa phân công"
                                         >
                                           <span className="font-bold text-xs">✕</span>
@@ -995,16 +867,16 @@ export default function SpreadsheetPage() {
 
                                         <button
                                           onClick={() => setOpenDropdownId(openDropdownId === slotId ? null : slotId)}
-                                          className="w-full text-left text-xs border border-slate-200 hover:border-slate-300 rounded-lg px-3 py-2 bg-slate-50 hover:bg-slate-100/60 text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer shadow-sm flex items-center justify-between relative z-10"
+                                          className="w-full text-left text-xs border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100/60 text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer shadow-sm flex items-center justify-between relative z-10"
                                         >
                                           <span>-- Chọn giáo viên khả dụng ({present.length + absent.length}) --</span>
-                                          <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-slate-400 shrink-0 transition-transform duration-200 ${openDropdownId === slotId ? "transform rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${openDropdownId === slotId ? "transform rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                           </svg>
                                         </button>
 
                                         {openDropdownId === slotId && (
-                                          <div className="absolute left-0 right-0 mt-1.5 z-30 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg py-1 text-xs divide-y divide-slate-100 animate-in fade-in-50 slide-in-from-top-1 duration-150 custom-scrollbar">
+                                          <div className={`absolute left-0 right-0 z-30 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg py-1 text-xs divide-y divide-slate-100 duration-150 custom-scrollbar animate-in fade-in-50 ${isBottomRow ? "bottom-full mb-1 slide-in-from-bottom-1" : "top-full mt-1 slide-in-from-top-1"}`}>
                                             {present.length > 0 && (
                                               <div>
                                                 <div className="px-3 py-1 text-[10px] font-bold text-emerald-700 bg-emerald-50/50 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-sm">
@@ -1021,11 +893,11 @@ export default function SpreadsheetPage() {
                                                         handleAssignTeacher(trial, teacher);
                                                         setOpenDropdownId(null);
                                                       }}
-                                                      className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-medium transition-colors flex items-center justify-between"
+                                                      className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-medium transition-colors flex items-center justify-between"
                                                     >
                                                       <span>{teacher.fullName}</span>
                                                       {busyTimes && (
-                                                        <span className="text-[9.5px] text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded font-semibold ml-2 shrink-0">
+                                                        <span className="text-[9px] text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded font-semibold ml-2 shrink-0">
                                                           {busyTimes}
                                                         </span>
                                                       )}
@@ -1047,7 +919,7 @@ export default function SpreadsheetPage() {
                                                       handleAssignTeacher(trial, teacher);
                                                       setOpenDropdownId(null);
                                                     }}
-                                                    className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-medium transition-colors"
+                                                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-medium transition-colors"
                                                   >
                                                     {teacher.fullName}
                                                   </button>
@@ -1067,13 +939,14 @@ export default function SpreadsheetPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-4 pb-12 overflow-y-auto max-h-[calc(100vh-280px)] custom-scrollbar">
+                    <div className="space-y-2 pb-8 overflow-y-auto max-h-[calc(100vh-200px)] custom-scrollbar no-vertical-scrollbar">
                       {trialsData.map((trial, idx) => {
                         let present = trial.availabilities?.presentAtBranch || [];
                         let absent = trial.availabilities?.notPresentAtBranch || [];
                         const assigned = trial.assignedTeacher;
                         const slotId = trial.slotId;
                         const saving = isSaving[slotId];
+                        const isBottomRow = trialsData.length > 2 && idx >= trialsData.length - 2;
 
                         if (teacherSearch.trim() !== "") {
                           const q = teacherSearch.toLowerCase();
@@ -1088,20 +961,20 @@ export default function SpreadsheetPage() {
                         return (
                           <div
                             key={idx}
-                            className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 space-y-4 transition-all hover:shadow-md"
+                            className={`bg-white rounded-lg border border-slate-200 shadow-sm p-2.5 space-y-2.5 transition-all hover:shadow-md ${openDropdownId === slotId ? "relative z-20" : ""}`}
                           >
                             {/* Card Header: time badge and sheet row badge */}
-                            <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
-                              <span className="inline-flex items-center justify-center text-xs font-extrabold bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20">
+                            <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                              <span className="inline-flex items-center justify-center text-[10px] font-extrabold bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">
                                 {trial.timeSlot}
                               </span>
 
                               {trial.rowIndex ? (
-                                <span className="inline-block text-[9.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60 px-1.5 py-0.5 rounded">
+                                <span className="inline-block text-[8.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60 px-1 py-0.25 rounded">
                                   Sheet dòng {trial.rowIndex}
                                 </span>
                               ) : (
-                                <span className="inline-block text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-1.5 py-0.5 rounded">
+                                <span className="inline-block text-[8.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-1 py-0.25 rounded">
                                   Khung giờ chuẩn
                                 </span>
                               )}
@@ -1110,7 +983,7 @@ export default function SpreadsheetPage() {
                             {/* Card Body: subject details, link */}
                             <div className="space-y-2">
                               <div>
-                                <h4 className="font-bold text-slate-800 text-[14px] leading-snug">
+                                <h4 className="font-bold text-slate-800 text-xs leading-snug">
                                   {trial.subject === "Trống" ? (
                                     <span className="text-slate-400 italic font-medium">Khung giờ trống</span>
                                   ) : (
@@ -1123,7 +996,7 @@ export default function SpreadsheetPage() {
                                       href={trial.roomLink}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="inline-flex items-center text-xs font-semibold text-blue-600 hover:underline"
+                                      className="inline-flex items-center text-[10.5px] font-semibold text-blue-600 hover:underline"
                                     >
                                       Link phòng ↗
                                     </a>
@@ -1132,16 +1005,16 @@ export default function SpreadsheetPage() {
                               </div>
 
                               {/* Student Info */}
-                              <div className="bg-slate-50/60 rounded-lg p-2.5 border border-slate-100">
-                                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                              <div className="bg-slate-50/60 rounded-md p-2 border border-slate-100">
+                                <div className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                                   Học viên ({trial.students.length})
                                 </div>
                                 {trial.students.length === 0 ? (
-                                  <span className="text-xs text-slate-400 italic">Chưa có học viên</span>
+                                  <span className="text-[11px] text-slate-400 italic">Chưa có học viên</span>
                                 ) : (
-                                  <div className="space-y-1">
+                                  <div className="space-y-0.5">
                                     {trial.students.map((student: string, sIdx: number) => (
-                                      <div key={sIdx} className="text-xs text-slate-700 font-semibold flex items-center gap-1.5">
+                                      <div key={sIdx} className="text-[11px] text-slate-700 font-semibold flex items-center gap-1">
                                         <span className="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0" />
                                         {student}
                                       </div>
@@ -1151,25 +1024,25 @@ export default function SpreadsheetPage() {
                               </div>
 
                               {/* Teacher Assignment Sector */}
-                              <div className="space-y-1.5 pt-1">
-                                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                              <div className="space-y-1 pt-0.5">
+                                <div className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">
                                   Giáo viên trực
                                 </div>
                                 {saving ? (
-                                  <div className="border border-slate-200 rounded-xl p-2.5 flex items-center justify-center bg-slate-50/50">
+                                  <div className="border border-slate-200 rounded-lg p-1.5 flex items-center justify-center bg-slate-50/50">
                                     <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      <Loader2 className="h-3 w-3 animate-spin" />
                                       <span>Đang lưu...</span>
                                     </div>
                                   </div>
                                 ) : assigned ? (
-                                  <div className="border-2 border-emerald-400 bg-emerald-50/20 rounded-xl p-2.5 flex items-center justify-between gap-3 transition-all shadow-sm">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+                                  <div className="border border-emerald-300 bg-emerald-50/20 rounded-lg p-1.5 flex items-center justify-between gap-2 transition-all shadow-sm">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <div className="w-6.5 h-6.5 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
                                         {assigned.fullName.charAt(0)}
                                       </div>
                                       <div className="min-w-0">
-                                        <div className="font-semibold text-slate-800 text-[13px] truncate leading-tight">
+                                        <div className="font-semibold text-slate-800 text-[11.5px] truncate leading-tight">
                                           {assigned.fullName}
                                         </div>
                                       </div>
@@ -1178,10 +1051,10 @@ export default function SpreadsheetPage() {
                                       onClick={() => handleUnassignTeacher(trial)}
                                       size="icon"
                                       variant="ghost"
-                                      className="h-8 w-8 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md shrink-0 transition-colors"
+                                      className="h-6.5 w-6.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md shrink-0 transition-colors"
                                       title="Xóa phân công"
                                     >
-                                      <span className="font-bold text-sm">✕</span>
+                                      <span className="font-bold text-xs">✕</span>
                                     </Button>
                                   </div>
                                 ) : (
@@ -1196,16 +1069,16 @@ export default function SpreadsheetPage() {
 
                                     <button
                                       onClick={() => setOpenDropdownId(openDropdownId === slotId ? null : slotId)}
-                                      className="w-full text-left text-xs border border-slate-200 hover:border-slate-300 rounded-lg px-3 py-2 bg-slate-50 hover:bg-slate-100/60 text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer shadow-sm flex items-center justify-between relative z-10"
+                                      className="w-full text-left text-[11px] border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100/60 text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer shadow-sm flex items-center justify-between relative z-10"
                                     >
                                       <span>-- Chọn giáo viên khả dụng ({present.length + absent.length}) --</span>
-                                      <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-slate-400 shrink-0 transition-transform duration-200 ${openDropdownId === slotId ? "transform rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${openDropdownId === slotId ? "transform rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                       </svg>
                                     </button>
 
                                     {openDropdownId === slotId && (
-                                      <div className="absolute left-0 right-0 mt-1.5 z-30 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg py-1 text-xs divide-y divide-slate-100 animate-in fade-in-50 slide-in-from-top-1 duration-150 custom-scrollbar">
+                                      <div className={`absolute left-0 right-0 z-30 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg py-1 text-xs divide-y divide-slate-100 duration-150 custom-scrollbar animate-in fade-in-50 ${isBottomRow ? "bottom-full mb-1 slide-in-from-bottom-1" : "top-full mt-1 slide-in-from-top-1"}`}>
                                         {present.length > 0 && (
                                           <div>
                                             <div className="px-3 py-1 text-[10px] font-bold text-emerald-700 bg-emerald-50/50 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-sm">
@@ -1222,11 +1095,11 @@ export default function SpreadsheetPage() {
                                                     handleAssignTeacher(trial, teacher);
                                                     setOpenDropdownId(null);
                                                   }}
-                                                  className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-medium transition-colors flex items-center justify-between"
+                                                  className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-medium transition-colors flex items-center justify-between text-[11px]"
                                                 >
                                                   <span>{teacher.fullName}</span>
                                                   {busyTimes && (
-                                                    <span className="text-[9.5px] text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded font-semibold ml-2 shrink-0">
+                                                    <span className="text-[8.5px] text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded font-semibold ml-2 shrink-0">
                                                       {busyTimes}
                                                     </span>
                                                   )}
@@ -1248,7 +1121,7 @@ export default function SpreadsheetPage() {
                                                   handleAssignTeacher(trial, teacher);
                                                   setOpenDropdownId(null);
                                                 }}
-                                                className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-medium transition-colors"
+                                                className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-medium transition-colors text-[11px]"
                                               >
                                                 {teacher.fullName}
                                               </button>
