@@ -1,4 +1,5 @@
 const axios = require("axios");
+const path = require("path");
 const LMSClient = require("../services/lmsClient");
 const { isLmsAuthError } = require("../utils/authError");
 const ClassCacheService = require("../services/classCache");
@@ -15,9 +16,16 @@ const {
   getCurrentSessionIndex,
 } = require("../utils/classHelpers");
 
+const serviceAccountKeyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS
+  || path.join(__dirname, "../../serviceAccountKey.json");
+
 const vertexAI = new VertexAI({
-  project: process.env.VERTEX_AI_PROJECT_ID || "your-google-cloud-project-id",
+  project: process.env.VERTEX_AI_PROJECT_ID || "xitthui-tool",
   location: process.env.VERTEX_AI_LOCATION || "us-central1",
+  googleAuthOptions: {
+    keyFilename: serviceAccountKeyPath,
+    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+  },
 });
 
 exports.getClasses = async (req, res) => {

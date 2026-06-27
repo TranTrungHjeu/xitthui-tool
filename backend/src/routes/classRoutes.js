@@ -3,9 +3,9 @@ const router = express.Router();
 const classController = require("../controllers/classController");
 const rateLimiter = require("../utils/rateLimiter");
 
-// Limit AI evaluation requests (e.g. max 20 requests per 10 minutes)
+// Limit AI evaluation requests (e.g. max 60 requests per 10 minutes)
 const aiLimiter = rateLimiter(
-  20,
+  60,
   10 * 60 * 1000,
   "Too many AI evaluation requests. Please try again later.",
 );
