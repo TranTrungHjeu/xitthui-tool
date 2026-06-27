@@ -984,61 +984,53 @@ export default function StatisticsTab({
                 </div>
               </div>
             ) : aiReport ? (
-              <div className="p-4 sm:p-5">
-                <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-                  {/* Info Header */}
-                  <div className="bg-slate-800 text-white p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div>
-                      <h2 className="text-base font-bold uppercase tracking-wider text-slate-100">
-                        Báo Cáo Năng Lực Học Viên
-                      </h2>
-                    </div>
-                    <div className="bg-slate-700/50 rounded-lg p-2.5 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs w-full sm:w-auto">
-                      <div className="flex flex-col">
-                        <span className="text-slate-400 text-[10px] font-semibold uppercase">
-                          Học viên
-                        </span>
-                        <span className="font-medium truncate max-w-[120px]">
-                          {selectedStudent?.fullName}
-                        </span>
+              <div className="p-4 sm:p-6">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+
+                  {/* ── Header thông tin học viên ── */}
+                  <div className="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-5 py-4">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-300 mb-3">
+                      Kết quả đánh giá năng lực học viên
+                    </h2>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-slate-400 text-[11px] font-semibold uppercase tracking-wide">Học viên</span>
+                        <span className="font-semibold text-white">{selectedStudent?.fullName}</span>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-slate-400 text-[10px] font-semibold uppercase">
-                          Lớp
-                        </span>
-                        <span className="font-medium truncate max-w-[120px]">
-                          {classData?.name}
-                        </span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-slate-400 text-[11px] font-semibold uppercase tracking-wide">Ngày tạo</span>
+                        <span className="font-semibold text-white">{new Date().toLocaleDateString("vi-VN")}</span>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-slate-400 text-[10px] font-semibold uppercase">
-                          Khóa học
-                        </span>
-                        <span className="font-medium truncate max-w-[120px]">
-                          {classData?.course?.name}
-                        </span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-slate-400 text-[11px] font-semibold uppercase tracking-wide">Lớp học</span>
+                        <span className="font-semibold text-white">{classData?.name}</span>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-slate-400 text-[10px] font-semibold uppercase">
-                          Ngày tạo
-                        </span>
-                        <span className="font-medium">
-                          {new Date().toLocaleDateString("vi-VN")}
-                        </span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-slate-400 text-[11px] font-semibold uppercase tracking-wide">Khóa học</span>
+                        <span className="font-semibold text-white">{classData?.course?.name}</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="p-4 sm:p-5 space-y-5 text-slate-700">
-                    {/* I. Tiêu chí đánh giá */}
+                  <div className="p-5 space-y-6">
+
+                    {/* ── I. Tiêu chí đánh giá ── */}
                     <section>
-                      <div className="flex items-center gap-2 mb-2 border-b border-slate-100 pb-1">
-                        <Award className="w-4 h-4 text-blue-600" />
-                        <h3 className="text-sm font-bold text-slate-800">
-                          I. ĐÁNH GIÁ TIÊU CHÍ KỸ NĂNG
+                      <div className="flex items-center gap-2 mb-3">
+                        <Award className="w-4 h-4 text-blue-600 shrink-0" />
+                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                          I. Đánh giá tiêu chí kỹ năng
                         </h3>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="rounded-lg border border-slate-200 overflow-hidden">
+                        {/* Table header */}
+                        <div className="grid grid-cols-[2fr_0.6fr_0.9fr_3fr] bg-slate-100 border-b border-slate-200">
+                          <div className="px-3 py-2.5 text-[11px] font-bold text-slate-600 uppercase tracking-wide">Tiêu chí</div>
+                          <div className="px-3 py-2.5 text-[11px] font-bold text-slate-600 uppercase tracking-wide text-center">Điểm</div>
+                          <div className="px-3 py-2.5 text-[11px] font-bold text-slate-600 uppercase tracking-wide text-center">Xu hướng</div>
+                          <div className="px-3 py-2.5 text-[11px] font-bold text-slate-600 uppercase tracking-wide">Nhận xét</div>
+                        </div>
+                        {/* Table rows */}
                         {(Array.isArray(aiReport.criteria)
                           ? aiReport.criteria
                           : Object.entries(aiReport.criteria || {}).map(
@@ -1047,116 +1039,109 @@ export default function StatisticsTab({
                                 label:
                                   v.label ||
                                   (k === "attitude"
-                                    ? "Thái độ"
+                                    ? "Thái độ học tập"
                                     : k === "assembly"
-                                      ? "Lắp ráp"
+                                      ? "Kỹ năng lắp ráp"
                                       : k === "programming"
-                                        ? "Lập trình"
+                                        ? "Tư duy lập trình"
                                         : k),
                               }),
                             )
                         ).map((item: any, index: number) => (
                           <div
                             key={index}
-                            className="bg-slate-50 rounded-lg border border-slate-100 p-2.5 flex flex-col h-full hover:shadow-sm transition-shadow"
+                            className={`grid grid-cols-[2fr_0.6fr_0.9fr_3fr] border-b border-slate-100 last:border-b-0 ${index % 2 === 1 ? "bg-slate-50/60" : "bg-white"}`}
                           >
-                            <div className="flex justify-between items-start mb-1.5">
-                              <h4 className="font-bold text-slate-800 text-xs">
-                                {item.label}
-                              </h4>
-                              <div className="flex flex-col items-end gap-0.5">
-                                <span className="bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded text-[10px]">
-                                  {item.score}/10
-                                </span>
-                                <span
-                                  className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
-                                    item.trend === "Tiến bộ"
-                                      ? "bg-emerald-100 text-emerald-700"
-                                      : item.trend === "Đi xuống"
-                                        ? "bg-rose-100 text-rose-700"
-                                        : "bg-slate-200 text-slate-700"
-                                  }`}
-                                >
-                                  {item.trend}
-                                </span>
-                              </div>
+                            <div className="px-3 py-3 text-sm font-semibold text-slate-800 flex items-center">
+                              {item.label}
                             </div>
-                            <p className="text-slate-600 text-xs leading-relaxed flex-grow text-justify">
+                            <div className="px-3 py-3 flex items-center justify-center">
+                              <span className="bg-blue-600 text-white font-bold px-2.5 py-1 rounded-md text-sm min-w-[46px] text-center">
+                                {item.score}/10
+                              </span>
+                            </div>
+                            <div className="px-3 py-3 flex items-center justify-center">
+                              <span
+                                className={`text-xs font-bold px-2 py-1 rounded-full ${
+                                  item.trend === "Tiến bộ"
+                                    ? "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300"
+                                    : item.trend === "Đi xuống"
+                                      ? "bg-rose-100 text-rose-700 ring-1 ring-rose-300"
+                                      : "bg-slate-200 text-slate-600 ring-1 ring-slate-300"
+                                }`}
+                              >
+                                {item.trend}
+                              </span>
+                            </div>
+                            <div className="px-3 py-3 text-sm text-slate-600 leading-relaxed flex items-center">
                               {item.analysis}
-                            </p>
+                            </div>
                           </div>
                         ))}
                       </div>
                     </section>
 
-                    {/* II. Đánh giá chung */}
+                    {/* ── II. Tổng hợp nhận xét ── */}
                     <section>
-                      <div className="flex items-center gap-2 mb-2 border-b border-slate-100 pb-1">
-                        <ClipboardCheck className="w-4 h-4 text-purple-600" />
-                        <h3 className="text-sm font-bold text-slate-800">
-                          II. TỔNG HỢP NHẬN XÉT
+                      <div className="flex items-center gap-2 mb-3">
+                        <ClipboardCheck className="w-4 h-4 text-purple-600 shrink-0" />
+                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                          II. Tổng hợp nhận xét
                         </h3>
                       </div>
-                      <div className="bg-slate-50 border border-slate-100 rounded-lg p-3">
-                        <div className="space-y-2 text-slate-600 text-xs leading-relaxed text-justify">
-                          {String(aiReport.overall_progress)
-                            .split(/(?=\[(?:L|T|Đ)\])/g)
-                            .map((segment: string, idx: number) => {
-                              const text = segment.trim();
-                              if (!text) return null;
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                        {String(aiReport.overall_progress)
+                          .split(/(?=\[(?:L|T|Đ)\])/g)
+                          .map((segment: string, idx: number) => {
+                            const text = segment.trim();
+                            if (!text) return null;
 
-                              const match = text.match(
-                                /^\[(L|T|Đ)\]\s*([\s\S]*)$/,
-                              );
-                              const label = match?.[1];
-                              const content = (match?.[2] || text).trim();
+                            const match = text.match(/^\[(L|T|Đ)\]\s*([\s\S]*)$/);
+                            const label = match?.[1];
+                            const content = (match?.[2] || text).trim();
 
-                              const titleMap: Record<string, string> = {
-                                L: "Tư duy / Kiến thức",
-                                T: "Thao tác / Lập trình",
-                                Đ: "Đề xuất hỗ trợ",
-                              };
+                            const labelConfig: Record<string, { text: string; color: string }> = {
+                              L: { text: "Tư duy / Kiến thức", color: "bg-blue-100 text-blue-700 ring-blue-200" },
+                              T: { text: "Thao tác / Lập trình", color: "bg-violet-100 text-violet-700 ring-violet-200" },
+                              Đ: { text: "Đề xuất hỗ trợ", color: "bg-amber-100 text-amber-700 ring-amber-200" },
+                            };
 
-                              return (
-                                <div
-                                  key={idx}
-                                  className="flex flex-col sm:flex-row gap-1 sm:gap-2"
-                                >
-                                  {label && (
-                                    <div className="sm:w-1/4 shrink-0">
-                                      <span className="inline-block font-semibold text-slate-700 bg-slate-200 px-1.5 py-0.5 rounded text-[10px] w-full sm:w-auto">
-                                        {titleMap[label] || `[${label}]`}
-                                      </span>
-                                    </div>
-                                  )}
-                                  <div
-                                    className={label ? "sm:w-3/4" : "w-full"}
-                                  >
-                                    <p>{content}</p>
+                            const cfg = label ? labelConfig[label] : null;
+
+                            return (
+                              <div key={idx} className="flex flex-col sm:flex-row gap-2">
+                                {cfg && (
+                                  <div className="shrink-0 sm:pt-0.5">
+                                    <span className={`inline-block text-[11px] font-bold px-2.5 py-1 rounded-md ring-1 whitespace-nowrap ${cfg.color}`}>
+                                      {cfg.text}
+                                    </span>
                                   </div>
-                                </div>
-                              );
-                            })}
-                        </div>
+                                )}
+                                <p className="text-sm text-slate-700 leading-relaxed text-justify flex-1">
+                                  {content}
+                                </p>
+                              </div>
+                            );
+                          })}
                       </div>
                     </section>
 
-                    {/* III. Đề xuất / Phương án hỗ trợ */}
+                    {/* ── III. Đề xuất / Phương án hỗ trợ ── */}
                     <section>
-                      <div className="flex items-center gap-2 mb-2 border-b border-slate-100 pb-1">
-                        <GraduationCap className="w-4 h-4 text-amber-600" />
-                        <h3 className="text-sm font-bold text-slate-800">
-                          III. ĐỀ XUẤT HỖ TRỢ
+                      <div className="flex items-center gap-2 mb-3">
+                        <GraduationCap className="w-4 h-4 text-amber-600 shrink-0" />
+                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                          III. Đề xuất hỗ trợ
                         </h3>
                       </div>
-                      <div className="bg-amber-50/50 border border-amber-100 rounded-lg p-3">
-                        <ul className="space-y-1.5">
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                        <ul className="space-y-2.5">
                           {aiReport.suggestions.map((s: string, i: number) => (
-                            <li key={i} className="flex items-start gap-2">
-                              <div className="mt-0.5 bg-amber-500 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center shrink-0 text-[9px] font-bold shadow-sm">
+                            <li key={i} className="flex items-start gap-3">
+                              <div className="mt-0.5 bg-amber-500 text-white rounded-full w-5 h-5 flex items-center justify-center shrink-0 text-[11px] font-bold shadow-sm">
                                 {i + 1}
                               </div>
-                              <span className="text-slate-700 leading-relaxed text-xs font-medium">
+                              <span className="text-sm text-slate-700 leading-relaxed">
                                 {s}
                               </span>
                             </li>
@@ -1164,9 +1149,11 @@ export default function StatisticsTab({
                         </ul>
                       </div>
                     </section>
+
                   </div>
                 </div>
               </div>
+
             ) : (
               <div className="px-6 py-12 text-center text-sm text-slate-500">
                 Không thể tải báo cáo đánh giá. Vui lòng kiểm tra lại kết nối.
