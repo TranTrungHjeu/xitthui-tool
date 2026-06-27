@@ -111,7 +111,7 @@ export const classService = {
       studentId,
       rosterToApiMap,
     });
-    return response.data.data;
+    return response.data;
   },
   getStudents: async (
     _token: string, // Unused as interceptor handles it
