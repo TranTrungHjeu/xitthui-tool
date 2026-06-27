@@ -37,7 +37,7 @@ exports.getTeacherSchedules = async (req, res) => {
     if (!token && req.headers.authorization) {
       token = req.headers.authorization.split(" ")[1];
     }
-    const { teacherIds, dateGte, dateLte } = req.body;
+    const { teacherIds, dateGte, dateLte, forceRefresh = false } = req.body;
 
     if (!token) return res.status(400).json({ error: "Token is required" });
     if (!Array.isArray(teacherIds) || teacherIds.length === 0) {
@@ -70,8 +70,8 @@ exports.getTeacherSchedules = async (req, res) => {
     let allSchedules = [];
     let fetchedFromDb = false;
 
-    // 2. Fetch from MongoDB if within the synced window and DB has records
-    if (isWithinSyncWindow) {
+    // 2. Fetch from MongoDB if within the synced window and DB has records (skip if forceRefresh)
+    if (isWithinSyncWindow && !forceRefresh) {
       try {
         const dbCount = await Schedule.countDocuments();
         if (dbCount > 0) {

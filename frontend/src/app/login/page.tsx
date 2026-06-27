@@ -25,7 +25,6 @@ export default function LoginPage() {
 
     try {
       const res = await authService.login({ email, password });
-      console.log("[Login] Response from server:", res);
 
       if (res.success || res.lmsToken || res.data?.lmsToken) {
         const data =

@@ -288,7 +288,7 @@ export default function SchedulesPage() {
     loadVisibilityPrefs();
   }, [user?.id]);
 
-  const fetchSchedulesForDate = async (date: Date) => {
+  const fetchSchedulesForDate = async (date: Date, forceRefresh = false) => {
     if (!token) return;
 
     const timer = setTimeout(() => {
@@ -326,6 +326,7 @@ export default function SchedulesPage() {
         teacherIds,
         dateGte,
         dateLte,
+        forceRefresh,
       );
       if (schedulesRes.success) {
         setSchedules(schedulesRes.data || []);
@@ -367,7 +368,7 @@ export default function SchedulesPage() {
   };
 
   const handleRefresh = () => {
-    fetchSchedulesForDate(selectedDate);
+    fetchSchedulesForDate(selectedDate, true);
   };
 
   const handlePrevWeek = () => {

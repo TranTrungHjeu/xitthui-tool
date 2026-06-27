@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { zaloService, ZaloConfig } from "../../../services/zaloService";
@@ -17,14 +17,9 @@ import {
   AlertCircle,
   CheckCircle,
   User,
+  Clock,
+  ChevronDown,
 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../../components/ui/select";
 import { toast } from "sonner";
 import CatLoader from "@/components/CatLoader";
 import { useMinLoading } from "@/hooks/useMinLoading";
@@ -46,6 +41,45 @@ export default function ZaloBotSettingsPage() {
 
   const hoursArray = useMemo(() => Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0")), []);
   const minutesArray = useMemo(() => Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, "0")), []);
+
+  const [isTimePickerOpen, setIsTimePickerOpen] = useState(false);
+  const timePickerRef = useRef<HTMLDivElement>(null);
+  const hoursScrollRef = useRef<HTMLDivElement>(null);
+  const minutesScrollRef = useRef<HTMLDivElement>(null);
+
+  // Click outside to close
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        timePickerRef.current &&
+        !timePickerRef.current.contains(e.target as Node)
+      ) {
+        setIsTimePickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Scroll to selected values when open
+  useEffect(() => {
+    if (isTimePickerOpen) {
+      setTimeout(() => {
+        if (hoursScrollRef.current) {
+          const selected = hoursScrollRef.current.querySelector('[data-selected="true"]');
+          if (selected) {
+            selected.scrollIntoView({ block: "center", behavior: "auto" });
+          }
+        }
+        if (minutesScrollRef.current) {
+          const selected = minutesScrollRef.current.querySelector('[data-selected="true"]');
+          if (selected) {
+            selected.scrollIntoView({ block: "center", behavior: "auto" });
+          }
+        }
+      }, 50);
+    }
+  }, [isTimePickerOpen]);
 
   const isKhiem = isKhiemAccount(user);
 
@@ -320,44 +354,101 @@ export default function ZaloBotSettingsPage() {
                 Hệ thống sẽ tự động quét trạng thái điểm danh và nhận xét bài tập chưa hoàn thành vào các mốc thời gian bên dưới, sau đó tự động gửi cảnh báo và tag tên TE/giáo viên trực tiếp vào nhóm Zalo chat.
               </p>
 
-              <div className="flex items-center gap-2">
-                {/* Hour Selection */}
-                <div className="w-[75px]">
-                  <Select value={hour} onValueChange={setHour}>
-                    <SelectTrigger className="w-full h-9 text-xs bg-white border-slate-200 focus:ring-4 focus:ring-primary/10 focus:border-primary font-mono font-bold text-slate-700">
-                      <SelectValue placeholder="Giờ" />
-                    </SelectTrigger>
-                    <SelectContent className="text-xs max-h-48 custom-scrollbar">
-                      {hoursArray.map((h) => (
-                        <SelectItem key={h} value={h} className="font-mono">
-                          {h}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="flex items-center gap-2 relative">
+                {/* Unified Time Picker Dropdown */}
+                <div className="relative" ref={timePickerRef}>
+                  <div
+                    onClick={() => setIsTimePickerOpen(!isTimePickerOpen)}
+                    className={`flex items-center justify-between gap-2 px-3 h-9 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-colors cursor-pointer w-[120px] select-none text-xs font-bold text-slate-700 ${
+                      isTimePickerOpen ? "ring-2 ring-primary/20 border-primary" : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-slate-450" />
+                      <span className="font-mono text-sm tracking-wide">
+                        {hour}:{minute}
+                      </span>
+                    </div>
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                  </div>
 
-                <span className="text-slate-450 font-bold text-xs">:</span>
+                  {isTimePickerOpen && (
+                    <div className="absolute top-[calc(100%+6px)] left-0 z-50 p-3 bg-white rounded-xl shadow-xl border border-slate-200 w-[180px] animate-in fade-in zoom-in-95 duration-200 flex flex-col gap-2">
+                      <div className="grid grid-cols-2 gap-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <div>Giờ</div>
+                        <div>Phút</div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2 h-40">
+                        {/* Hours list */}
+                        <div className="overflow-y-auto pr-0.5 custom-scrollbar scroll-smooth flex flex-col gap-1 border-r border-slate-100" ref={hoursScrollRef}>
+                          {hoursArray.map((h) => {
+                            const isSelected = h === hour;
+                            return (
+                              <button
+                                key={h}
+                                data-selected={isSelected}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setHour(h);
+                                }}
+                                className={`py-1 text-xs font-mono font-bold rounded transition-colors ${
+                                  isSelected
+                                    ? "bg-primary text-white"
+                                    : "text-slate-600 hover:bg-slate-100"
+                                }`}
+                              >
+                                {h}
+                              </button>
+                            );
+                          })}
+                        </div>
 
-                {/* Minute Selection */}
-                <div className="w-[75px]">
-                  <Select value={minute} onValueChange={setMinute}>
-                    <SelectTrigger className="w-full h-9 text-xs bg-white border-slate-200 focus:ring-4 focus:ring-primary/10 focus:border-primary font-mono font-bold text-slate-700">
-                      <SelectValue placeholder="Phút" />
-                    </SelectTrigger>
-                    <SelectContent className="text-xs max-h-48 custom-scrollbar">
-                      {minutesArray.map((m) => (
-                        <SelectItem key={m} value={m} className="font-mono">
-                          {m}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        {/* Minutes list */}
+                        <div className="overflow-y-auto pr-0.5 custom-scrollbar scroll-smooth flex flex-col gap-1" ref={minutesScrollRef}>
+                          {minutesArray.map((m) => {
+                            const isSelected = m === minute;
+                            return (
+                              <button
+                                key={m}
+                                data-selected={isSelected}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setMinute(m);
+                                }}
+                                className={`py-1 text-xs font-mono font-bold rounded transition-colors ${
+                                  isSelected
+                                    ? "bg-primary text-white"
+                                    : "text-slate-600 hover:bg-slate-100"
+                                }`}
+                              >
+                                {m}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end border-t border-slate-100 pt-2 mt-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsTimePickerOpen(false);
+                          }}
+                          className="h-7 text-[10px] font-bold px-2.5 text-slate-500 hover:text-slate-800"
+                        >
+                          Đóng
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <Button
                   onClick={handleAddTime}
-                  className="h-9 text-[11px] font-bold gap-1.5 bg-slate-900 hover:bg-slate-850 text-white active:scale-95 transition-all shadow-sm ml-1"
+                  className="h-9 text-[11px] font-bold gap-1.5 bg-slate-900 hover:bg-slate-850 text-white active:scale-95 transition-all shadow-sm"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Thêm mốc giờ

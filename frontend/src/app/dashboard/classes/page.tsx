@@ -329,18 +329,8 @@ export default function ClassesPage() {
     if (centreFilter === "default_tdm") return;
 
     const fetchClasses = async () => {
-      console.log(
-        "[ClassesPage] Fetching classes for teacherId:",
-        user?.teacherId,
-        "centreFilter:",
-        centreFilter,
-        "roles:",
-        user?.appRoles,
-      );
-
       const isTE = user?.appRoles?.includes("TE" as any);
       if (!user?.teacherId && !isTE) {
-        console.warn("[ClassesPage] No teacherId found and user is not TE");
         if (!isCancelled) setIsLoading(false);
         return;
       }
@@ -360,14 +350,10 @@ export default function ClassesPage() {
 
         let statusIn: string[] | undefined = undefined;
 
-        console.log("[ClassesPage] Filter Status changed to:", deferredStatus);
-
         // Ưu tiên dùng statusFilter để quyết định statusIn gửi lên MindX
         if (deferredStatus !== "all") {
           statusIn = [deferredStatus];
         }
-
-        console.log("[ClassesPage] Generated statusIn array:", statusIn);
 
         const res = await classService.getClasses(
           token || "",

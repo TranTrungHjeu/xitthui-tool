@@ -30,6 +30,7 @@ export const teacherService = {
     teacherIds: string[],
     dateGte: string,
     dateLte: string,
+    forceRefresh = false,
   ) => {
     try {
       const response = await api.post("/teachers/schedules", {
@@ -37,6 +38,7 @@ export const teacherService = {
         teacherIds,
         dateGte,
         dateLte,
+        forceRefresh,
       });
       return response.data;
     } catch (error) {
