@@ -1,18 +1,51 @@
 const { getCourseCategory } = require("./courseConfig");
 
+/**
+ * Normalize a time value to Vietnam timezone (UTC+7) and return { hour, minute }.
+ *
+ * - ISO strings (with "T"): parsed as UTC/timezone-aware, then explicitly converted to UTC+7.
+ *   Uses getTime() + 7h instead of relying on the server's system timezone.
+ * - Plain time strings ("HH:MM:SS"): extracted directly as Vietnam wall-clock time.
+ */
+function extractHHMM(timeVal) {
+  if (!timeVal) return null;
+  const str = String(timeVal).trim();
+
+  // ISO string (has "T"): parse then convert to UTC+7 explicitly
+  if (str.includes("T")) {
+    const d = new Date(str);
+    if (Number.isNaN(d.getTime())) return null;
+    const VN_OFFSET_MS = 7 * 60 * 60 * 1000; // UTC+7
+    const vnDate = new Date(d.getTime() + VN_OFFSET_MS);
+    return { hour: vnDate.getUTCHours(), minute: vnDate.getUTCMinutes() };
+  }
+
+  // Plain time ("14:00:00" or "14:00"): treat as Vietnam wall-clock time directly
+  const parts = str.split(":");
+  if (parts.length >= 2) {
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (!Number.isNaN(h) && !Number.isNaN(m)) return { hour: h, minute: m };
+  }
+  return null;
+}
+
 function parseDateTime(dateVal, timeVal) {
   if (!timeVal) return null;
-  const timeStr = String(timeVal).trim();
-  if (timeStr.includes("T")) {
-    const d = new Date(timeStr);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
+  const hhmm = extractHHMM(timeVal);
+  if (!hhmm) return null;
+
+  let dateStr;
   if (dateVal) {
-    const dateStr = String(dateVal).split("T")[0];
-    const d = new Date(`${dateStr}T${timeStr}`);
-    if (!Number.isNaN(d.getTime())) return d;
+    dateStr = String(dateVal).split("T")[0]; // "2024-01-15"
+  } else {
+    return null;
   }
-  const d = new Date(timeStr);
+
+  // Build with explicit +07:00 suffix → correct UTC timestamp, timezone-safe
+  const d = new Date(
+    `${dateStr}T${String(hhmm.hour).padStart(2, "0")}:${String(hhmm.minute).padStart(2, "0")}:00+07:00`
+  );
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -104,16 +137,14 @@ function isTeacherInRole(cls, roleShortName, teacherId) {
 
 function formatTime(isoString) {
   if (!isoString) return "";
-  try {
-    const d = new Date(isoString);
-    if (Number.isNaN(d.getTime())) return "";
-    return d.toLocaleTimeString("vi-VN", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch (e) {
-    return "";
+  // Extract HH:mm directly from the string to avoid timezone offset conversion issues.
+  // MindX LMS may store times with wrong offset (+08:00 instead of +07:00),
+  // but the HH:mm component always represents the correct Vietnam wall-clock time.
+  const hhmm = extractHHMM(isoString);
+  if (hhmm) {
+    return `${String(hhmm.hour).padStart(2, "0")}:${String(hhmm.minute).padStart(2, "0")}`;
   }
+  return "";
 }
 
 function getClassTimeRange(cls) {
@@ -148,67 +179,36 @@ function getCurrentSessionIndex(cls) {
   if (!cls.slots || cls.slots.length === 0) return 0;
   const now = new Date();
 
-  // Sort slots chronologically
+  // Build a UTC+7-normalized Date from slot date + time value
+  const buildSlotDate = (dateVal, timeVal) => {
+    if (!dateVal) return null;
+    let dateStr;
+    if (typeof dateVal === "string" && dateVal.includes("/")) {
+      const [d, m, y] = dateVal.split("/").map(Number);
+      dateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    } else {
+      dateStr = String(dateVal).split("T")[0];
+    }
+    const hhmm = extractHHMM(timeVal);
+    if (!hhmm) return new Date(`${dateStr}T00:00:00+07:00`);
+    // Build with explicit +07:00 → correct UTC timestamp, timezone-safe
+    return new Date(
+      `${dateStr}T${String(hhmm.hour).padStart(2, "0")}:${String(hhmm.minute).padStart(2, "0")}:00+07:00`
+    );
+  };
+
+  // Sort slots chronologically using UTC+7 start time
   const sortedSlots = [...cls.slots].sort((a, b) => {
-    const parseTime = (dateStr, timeStr) => {
-      try {
-        if (!dateStr) return 0;
-        let d;
-        if (dateStr.includes("/")) {
-          const [day, month, year] = dateStr.split("/").map(Number);
-          d = new Date(year, month - 1, day);
-        } else {
-          d = new Date(dateStr);
-        }
-        if (timeStr) {
-          let hr = 0, min = 0;
-          if (timeStr.includes("T")) {
-            const temp = new Date(timeStr);
-            hr = temp.getHours();
-            min = temp.getMinutes();
-          } else {
-            const parts = timeStr.split(":");
-            hr = parseInt(parts[0], 10) || 0;
-            min = parseInt(parts[1], 10) || 0;
-          }
-          d.setHours(hr, min, 0, 0);
-        }
-        return d.getTime();
-      } catch (e) {
-        return 0;
-      }
-    };
-    return parseTime(a.date, a.startTime) - parseTime(b.date, b.startTime);
+    const ta = buildSlotDate(a.date, a.startTime);
+    const tb = buildSlotDate(b.date, b.startTime);
+    return (ta?.getTime() ?? 0) - (tb?.getTime() ?? 0);
   });
 
   let pastCount = 0;
   for (const slot of sortedSlots) {
     if (!slot.date || !slot.endTime) continue;
-    let slotEndDateTime;
-    try {
-      if (typeof slot.date === "string" && slot.date.includes("/")) {
-        const [d, m, y] = slot.date.split("/").map(Number);
-        slotEndDateTime = new Date(y, m - 1, d);
-      } else {
-        slotEndDateTime = new Date(slot.date);
-      }
-
-      if (isNaN(slotEndDateTime.getTime())) continue;
-
-      let hour = 0, minute = 0;
-      if (slot.endTime.includes("T")) {
-        const dateObj = new Date(slot.endTime);
-        hour = dateObj.getHours();
-        minute = dateObj.getMinutes();
-      } else {
-        const timeParts = slot.endTime.split(":");
-        hour = parseInt(timeParts[0], 10) || 0;
-        minute = parseInt(timeParts[1], 10) || 0;
-      }
-      slotEndDateTime.setHours(hour, minute, 0, 0);
-    } catch (e) {
-      continue;
-    }
+    const slotEndDateTime = buildSlotDate(slot.date, slot.endTime);
+    if (!slotEndDateTime || Number.isNaN(slotEndDateTime.getTime())) continue;
 
     if (now > slotEndDateTime) {
       pastCount++;
@@ -257,6 +257,7 @@ function enrichClassData(cls) {
 }
 
 module.exports = {
+  extractHHMM,
   parseDateTime,
   getTeacherByRole,
   getRealTeacherByRole,

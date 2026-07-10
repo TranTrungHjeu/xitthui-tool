@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react";
 import { format, addDays, startOfWeek, parseISO, isSameDay } from "date-fns";
+import { extractHHMM, extractDatePart } from "@/lib/date";
 import {
   Dialog,
   DialogContent,
@@ -62,37 +63,22 @@ export function TeacherScheduleModal({
 
   const getLocalTimeParts = (timeStr: string) => {
     if (!timeStr) return null;
-    try {
-      if (/^\d{2}:\d{2}$/.test(timeStr)) {
-        const [h, m] = timeStr.split(":");
-        return { hours: parseInt(h, 10), minutes: parseInt(m, 10) };
-      }
-      if (/^\d{2}:\d{2}:\d{2}$/.test(timeStr)) {
-        const [h, m] = timeStr.split(":");
-        return { hours: parseInt(h, 10), minutes: parseInt(m, 10) };
-      }
-      const date = new Date(timeStr);
-      if (isNaN(date.getTime())) return null;
-      return { hours: date.getHours(), minutes: date.getMinutes() };
-    } catch {
-      return null;
-    }
+    // Extract HH:mm directly — avoids timezone offset issues (+08:00 vs +07:00 from MindX)
+    const hhmm = extractHHMM(timeStr);
+    if (hhmm) return { hours: hhmm.hours, minutes: hhmm.minutes };
+    return null;
   };
 
   const getLocalDate = (sch: Schedule) => {
     try {
-      if (
-        sch.startTime &&
-        sch.startTime.length > 10 &&
-        sch.startTime.includes("T")
-      ) {
-        return new Date(sch.startTime);
+      // Extract date part directly from string to avoid timezone date-shift issues
+      if (sch.startTime && sch.startTime.includes("T")) {
+        const dateStr = extractDatePart(sch.startTime);
+        if (dateStr) return parseISO(dateStr);
       }
       if (sch.date) {
-        if (sch.date.length > 10 && sch.date.includes("T")) {
-          return new Date(sch.date);
-        }
-        return parseISO(sch.date);
+        const dateStr = extractDatePart(sch.date);
+        if (dateStr) return parseISO(dateStr);
       }
       return null;
     } catch {

@@ -171,6 +171,7 @@ export function getSessionExamType(
 
   if (sessionIndex === milestones.checkpoint1) return "checkpoint1";
   if (sessionIndex === milestones.checkpoint2) return "checkpoint2";
+  // Chỉ kiểm tra sessionIndex khớp với buổi demo đã được định nghĩa
   if (sessionIndex === milestones.demo) return "demo";
 
   return null;
@@ -186,6 +187,6 @@ export function getSessionExamLabel(
   const type = getSessionExamType(courseCodeOrClassName, sessionIndex);
   if (type === "checkpoint1") return "Checkpoint 1";
   if (type === "checkpoint2") return "Checkpoint 2";
-  if (type === "demo") return "Demo Cuối Khóa";
+  if (type === "demo") return "Demo Cuối Khóa"; // Giờ đây type="demo" chỉ khi sessionIndex khớp với milestones.demo
   return `Buổi ${sessionIndex}`;
 }

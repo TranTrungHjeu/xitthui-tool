@@ -1,6 +1,11 @@
 const path = require("path");
 const fs = require("fs");
 
+// Fix: System DNS (fe80::1 IPv6 link-local) does not support SRV record queries
+// required for MongoDB Atlas connection strings (mongodb+srv://). Override to use Google DNS.
+const dns = require("dns");
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
+
 // Load env variables: first check local folder, then fall back to root folder
 const localEnvPath = path.join(__dirname, "../.env");
 const rootEnvPath = path.join(__dirname, "../../.env");
@@ -64,7 +69,7 @@ app.use("/spreadsheet", spreadsheetRoutes);
 
 // Global Error Handler - Prevents server from crashing on unhandled errors
 app.use((err, req, res, next) => {
-  console.error("💥 Unhandled Error:", err);
+  console.error("Unhandled Error:", err);
   res.status(500).json({
     success: false,
     error: err.message || "Internal Server Error",
@@ -97,6 +102,9 @@ async function startApp() {
 
       // Start Schedule Background Sync
       ScheduleScheduler.start();
+
+      // Start Office Hour Background Sync
+      require("./services/officeHourScheduler").start();
     });
   } catch (error) {
     console.error("Failed to start API server:", error);

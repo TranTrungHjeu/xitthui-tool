@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { teacherService } from "../../../services/teacherService";
 import { isActualKhiemAccount } from "../../../lib/utils";
+import { extractHHMM, extractDatePart } from "../../../lib/date";
 import {
   TableBody,
   TableCell,
@@ -434,18 +435,12 @@ export default function SchedulesPage() {
 
   const getLocalDate = (sch: Schedule) => {
     try {
-      if (
-        sch.startTime &&
-        sch.startTime.length > 10 &&
-        sch.startTime.includes("T")
-      ) {
-        return format(new Date(sch.startTime), "yyyy-MM-dd");
+      // Extract date part directly to avoid timezone date-shift issues (+08:00 string near midnight)
+      if (sch.startTime && sch.startTime.includes("T")) {
+        return extractDatePart(sch.startTime);
       }
       if (sch.date) {
-        if (sch.date.length > 10 && sch.date.includes("T")) {
-          return format(new Date(sch.date), "yyyy-MM-dd");
-        }
-        return sch.date.substring(0, 10);
+        return extractDatePart(sch.date);
       }
       return "";
     } catch {
@@ -455,35 +450,18 @@ export default function SchedulesPage() {
 
   const getLocalTime = (timeStr: string) => {
     if (!timeStr) return "";
-    try {
-      if (/^\d{2}:\d{2}$/.test(timeStr)) return timeStr;
-      if (/^\d{2}:\d{2}:\d{2}$/.test(timeStr)) return timeStr.substring(0, 5);
-
-      const date = new Date(timeStr);
-      if (isNaN(date.getTime())) return timeStr;
-      return format(date, "HH:mm");
-    } catch {
-      return timeStr;
-    }
+    // Extract HH:mm directly — avoids timezone offset issues (+08:00 vs +07:00 from MindX)
+    const hhmm = extractHHMM(timeStr);
+    if (hhmm) return `${String(hhmm.hours).padStart(2, "0")}:${String(hhmm.minutes).padStart(2, "0")}`;
+    return "";
   };
 
   const timeToMinutes = (timeStr: string): number => {
     if (!timeStr) return 0;
-    try {
-      let hh = 0, mm = 0;
-      if (timeStr.includes("T")) {
-        const date = new Date(timeStr);
-        hh = date.getHours();
-        mm = date.getMinutes();
-      } else {
-        const parts = timeStr.split(":");
-        hh = parseInt(parts[0], 10) || 0;
-        mm = parseInt(parts[1], 10) || 0;
-      }
-      return hh * 60 + mm;
-    } catch {
-      return 0;
-    }
+    // Extract HH:mm directly — no timezone conversion
+    const hhmm = extractHHMM(timeStr);
+    if (hhmm) return hhmm.hours * 60 + hhmm.minutes;
+    return 0;
   };
 
   const getShortClassName = (name: string): string => {
@@ -1000,7 +978,7 @@ export default function SchedulesPage() {
                         <TableCell
                           key={slot}
                           onClick={() => handleCellClick(teacher.id, slot)}
-                          className={`border-r border-slate-300 p-0.25 md:p-0.5 align-top min-w-[70px] md:min-w-[72px] cursor-pointer transition-all ${
+                          className={`relative hover:z-[60] border-r border-slate-300 p-0.25 md:p-0.5 align-top min-w-[70px] md:min-w-[72px] cursor-pointer transition-all ${
                             selectedHighlightTeacherId === teacher.id && selectedHighlightSlot === slot
                               ? "bg-red-200 text-red-950 font-bold ring-2 ring-inset ring-red-500 z-20"
                               : selectedHighlightTeacherId === teacher.id
@@ -1044,7 +1022,7 @@ export default function SchedulesPage() {
                                         </div>
                                       </div>
                                     </TooltipTrigger>
-                                    <TooltipContent className="z-[100] max-w-[250px] p-2 bg-slate-800 text-white text-xs leading-relaxed shadow-lg whitespace-pre-line border-0">
+                                    <TooltipContent className="z-[100] w-[280px] sm:w-[350px] max-w-[400px] p-2.5 bg-slate-800 text-white text-xs leading-relaxed shadow-lg whitespace-pre-line border-0">
                                       {getScheduleTitle(sch)}
                                     </TooltipContent>
                                   </Tooltip>

@@ -192,7 +192,7 @@ function parseTrialSlotTimes(timeSlot, dateStr) {
   }
 
   const startTime = new Date(`${dateStr}T${String(startHour).padStart(2, '0')}:${String(startMinute).padStart(2, '0')}:00+07:00`);
-  const endTime = new Date(startTime.getTime() + 2 * 60 * 60 * 1000); // 2 hours duration
+  const endTime = new Date(startTime.getTime() + 1 * 60 * 60 * 1000); // 1 hour duration (standard trial duration at MindX)
 
   return { startTime, endTime };
 }

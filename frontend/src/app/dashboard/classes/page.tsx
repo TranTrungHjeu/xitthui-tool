@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useDeferredValue, useRef } from "react";
+import { useEffect, useMemo, useState, useDeferredValue, useRef, useCallback } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ClassData } from "@/types";
 import { classService } from "@/services/classService";
@@ -28,6 +28,7 @@ import {
   Bot,
   Code2,
   Palette,
+  TableProperties,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatDate, formatTime } from "@/lib/date";
@@ -322,145 +323,129 @@ export default function ClassesPage() {
   const deferredRole = roleFilter;
   const deferredCentre = centreFilter;
 
-  useEffect(() => {
-    let isCancelled = false;
+  const fetchClasses = useCallback(async (forceLoading = false) => {
+    const isTE = user?.appRoles?.includes("TE" as any);
+    if (!user?.teacherId && !isTE) {
+      setIsLoading(false);
+      return;
+    }
 
-    // Nếu chưa resolve default (trong trường hợp fallback), thì không fetch
-    if (centreFilter === "default_tdm") return;
+    setIsPendingFilter(true);
+    if (enrichedClasses.length === 0 || forceLoading) {
+      setIsLoading(true);
+    }
+    try {
+      if (!user) return;
 
-    const fetchClasses = async () => {
-      const isTE = user?.appRoles?.includes("TE" as any);
-      if (!user?.teacherId && !isTE) {
-        if (!isCancelled) setIsLoading(false);
-        return;
+      const targetCentres =
+        centreFilter === "all"
+          ? availableCentres.map((c) => c.id)
+          : [centreFilter];
+
+      let statusIn: string[] | undefined = undefined;
+
+      if (deferredStatus !== "all") {
+        statusIn = [deferredStatus];
       }
 
-      setIsPendingFilter(true);
-      if (enrichedClasses.length === 0) {
-        setIsLoading(true);
-      }
-      try {
-        if (!user) return;
-
-        // Xác định các centreIds sẽ fetch
-        const targetCentres =
-          centreFilter === "all"
-            ? availableCentres.map((c) => c.id)
-            : [centreFilter];
-
-        let statusIn: string[] | undefined = undefined;
-
-        // Ưu tiên dùng statusFilter để quyết định statusIn gửi lên MindX
-        if (deferredStatus !== "all") {
-          statusIn = [deferredStatus];
-        }
-
-        const res = await classService.getClasses(
-          token || "",
-          user.teacherId || "",
-          targetCentres,
-          user.appRoles,
-          {
-            statusIn,
-            status: deferredStatus,
-            page: currentPage,
-            limit: ITEMS_PER_PAGE,
-            search: debouncedSearchQuery,
-            centre: deferredCentre,
-            weekday: deferredWeekday,
-            role: deferredRole,
-            userName: user.fullName || "",
-            category: deferredCategory,
-          },
-        );
-
-        if (isCancelled) return;
-
-        const data = res.data || [];
-        const meta = res.meta || {
-          total: 0,
-          page: 1,
+      const res = await classService.getClasses(
+        token || "",
+        user.teacherId || "",
+        targetCentres,
+        user.appRoles,
+        {
+          statusIn,
+          status: deferredStatus,
+          page: currentPage,
           limit: ITEMS_PER_PAGE,
-          totalPages: 1,
-        };
+          search: debouncedSearchQuery,
+          centre: deferredCentre,
+          weekday: deferredWeekday,
+          role: deferredRole,
+          userName: user.fullName || "",
+          category: deferredCategory,
+        },
+      );
 
-        // Tối ưu: Tính toán sẵn dữ liệu để hiển thị UI
-        const enriched: EnrichedClassData[] = data.map((cls) => {
-          if ((cls as any).computed) {
-            const comp = (cls as any).computed;
-            if (!comp.category) {
-              comp.category = getFrontCourseCategory(cls.name || "", cls.course?.name || "");
-            }
-            if (comp.currentSessionIndex === undefined) {
-              comp.currentSessionIndex = getFrontCurrentSessionIndex(cls.slots);
-            }
-            return cls as EnrichedClassData;
+      const data = res.data || [];
+      const meta = res.meta || {
+        total: 0,
+        page: 1,
+        limit: ITEMS_PER_PAGE,
+        totalPages: 1,
+      };
+
+      const enriched: EnrichedClassData[] = data.map((cls) => {
+        if ((cls as any).computed) {
+          const comp = (cls as any).computed;
+          if (!comp.category) {
+            comp.category = getFrontCourseCategory(cls.name || "", cls.course?.name || "");
           }
-
-          const weekdayIndexes = getClassWeekdayIndexes(cls);
-          const lecName = getTeacherByRole(cls, "LEC");
-          const taName = getTeacherByRole(cls, "TA");
-          const timeRange = getClassTimeRange(cls);
-          const weekdays = getClassWeekdays(cls);
-
-          // Tạo chuỗi tìm kiếm tổng hợp để search nhanh
-          const searchString =
-            `${cls.name} ${cls.course?.name || ""} ${cls.course?.shortName || ""} ${lecName} ${taName}`.toLowerCase();
-
-          const category = getFrontCourseCategory(cls.name || "", cls.course?.name || "");
-          const currentSessionIndex = getFrontCurrentSessionIndex(cls.slots);
-
-          return {
-            ...cls,
-            computed: {
-              weekdayIndexes,
-              lecName,
-              taName,
-              timeRange,
-              weekdays,
-              searchString,
-              category,
-              currentSessionIndex,
-            },
-          };
-        });
-
-        setClasses(data);
-        setEnrichedClasses(enriched);
-        setPaginationMeta(meta);
-      } catch (err) {
-        console.error("Failed to fetch classes", err);
-      } finally {
-        if (!isCancelled) {
-          setIsLoading(false);
-          setIsPendingFilter(false);
+          if (comp.currentSessionIndex === undefined) {
+            comp.currentSessionIndex = getFrontCurrentSessionIndex(cls.slots);
+          }
+          return cls as EnrichedClassData;
         }
-      }
-    };
+
+        const weekdayIndexes = getClassWeekdayIndexes(cls);
+        const lecName = getTeacherByRole(cls, "LEC");
+        const taName = getTeacherByRole(cls, "TA");
+        const timeRange = getClassTimeRange(cls);
+        const weekdays = getClassWeekdays(cls);
+
+        const searchString =
+          `${cls.name} ${cls.course?.name || ""} ${cls.course?.shortName || ""} ${lecName} ${taName}`.toLowerCase();
+
+        const category = getFrontCourseCategory(cls.name || "", cls.course?.name || "");
+        const currentSessionIndex = getFrontCurrentSessionIndex(cls.slots);
+
+        return {
+          ...cls,
+          computed: {
+            weekdayIndexes,
+            lecName,
+            taName,
+            timeRange,
+            weekdays,
+            searchString,
+            category,
+            currentSessionIndex,
+          },
+        };
+      });
+
+      setClasses(data);
+      setEnrichedClasses(enriched);
+      setPaginationMeta(meta);
+    } catch (err) {
+      console.error("Failed to fetch classes", err);
+    } finally {
+      setIsLoading(false);
+      setIsPendingFilter(false);
+    }
+  }, [
+    user,
+    token,
+    centreFilter,
+    availableCentres,
+    deferredStatus,
+    currentPage,
+    debouncedSearchQuery,
+    deferredCentre,
+    deferredWeekday,
+    deferredRole,
+    deferredCategory,
+    enrichedClasses.length,
+  ]);
+
+  useEffect(() => {
+    if (centreFilter === "default_tdm") return;
 
     const isTE = user?.appRoles?.includes("TE" as any);
     if ((user?.teacherId || isTE) && token) {
       fetchClasses();
     }
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [
-    user?.teacherId,
-    token,
-    deferredCentre,
-    deferredWeekday,
-    deferredStatus,
-    deferredRole,
-    currentPage,
-    debouncedSearchQuery,
-    availableCentres,
-    user?.appRoles,
-    user?.fullName,
-    user,
-    deferredCategory,
-  ]);
+  }, [fetchClasses, centreFilter, user, token]);
 
   // Server đã filter và phân trang, ta chỉ cần alias lại các biến để code cũ hoạt động
   const filteredClasses = enrichedClasses;
@@ -501,178 +486,212 @@ export default function ClassesPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-1.5 sm:p-3 space-y-1.5 h-[calc(100vh-76px)] md:h-[calc(100vh-16px)] overflow-hidden flex flex-col animate-in fade-in duration-300">
+      {/* Title Header */}
+      <div className="flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+            <TableProperties className="h-3.5 w-3.5 text-primary" />
+          </div>
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">
+            <h1 className="text-sm sm:text-base font-bold text-slate-900 leading-none">
               Danh sách lớp học
-            </h2>
-            <p className="text-muted-foreground">
+            </h1>
+            <p className="text-[10px] text-slate-400 mt-1 hidden sm:block">
               Quản lý và theo dõi các lớp học bạn đang giảng dạy
             </p>
           </div>
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <Button
+            onClick={() => fetchClasses(true)}
+            disabled={showLoading}
+            variant="outline"
+            className="h-8 px-2 text-[11px] font-semibold gap-1 bg-white active:scale-95 transition-all shrink-0"
+          >
+            <RotateCcw className={`h-3 w-3 ${showLoading ? "animate-spin" : ""}`} />
+            Làm mới
+          </Button>
+        </div>
+      </div>
+
+      {/* Main card view */}
+      <div className="flex-1 border border-slate-200 bg-white shadow-sm overflow-hidden relative flex flex-col rounded-xl">
+        {/* Filters Toolbar */}
+        <div className="p-1.5 bg-white border-b border-slate-200 flex flex-wrap items-center gap-1.5 shrink-0">
+          {/* Search Box */}
+          <div className="relative flex-[2] min-w-[200px] sm:min-w-[280px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             <Input
               placeholder="Tìm tên lớp, khóa học..."
-              className="pl-8"
+              className="pl-8 h-8 text-[11px] bg-white w-full border-slate-200 focus:ring-4 focus:ring-primary/10 focus:border-primary"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+
+          {/* Select Centre */}
+          <div className="flex-1 min-w-[130px] sm:min-w-[180px]">
+            <Select
+              value={centreFilter === "default_tdm" ? "all" : centreFilter}
+              onValueChange={setCentreFilter}
+            >
+              <SelectTrigger size="sm" className="font-bold text-slate-700">
+                <SelectValue placeholder="Cơ sở" />
+              </SelectTrigger>
+              <SelectContent className="text-[11px]">
+                <SelectItem value="all">Tất cả cơ sở</SelectItem>
+                {availableCentres.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Category Filter */}
+          <div className="flex-1 min-w-[110px] sm:min-w-[130px]">
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger size="sm" className="font-bold text-slate-700">
+                <SelectValue placeholder="Bộ môn" />
+              </SelectTrigger>
+              <SelectContent className="text-[11px]">
+                <SelectItem value="all">Tất cả bộ môn</SelectItem>
+                <SelectItem value="coding">Lập trình (Coding)</SelectItem>
+                <SelectItem value="robotics">Robotics</SelectItem>
+                <SelectItem value="art">Mỹ thuật (Art)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Weekday Filter */}
+          <div className="flex-1 min-w-[120px] sm:min-w-[140px]">
+            <Select value={weekdayFilter} onValueChange={setWeekdayFilter}>
+              <SelectTrigger size="sm" className="font-bold text-slate-700">
+                <SelectValue placeholder="Thứ tự học" />
+              </SelectTrigger>
+              <SelectContent className="text-[11px]">
+                <SelectItem value="all">Tất cả các thứ</SelectItem>
+                <SelectItem value="1">Thứ 2</SelectItem>
+                <SelectItem value="2">Thứ 3</SelectItem>
+                <SelectItem value="3">Thứ 4</SelectItem>
+                <SelectItem value="4">Thứ 5</SelectItem>
+                <SelectItem value="5">Thứ 6</SelectItem>
+                <SelectItem value="6">Thứ 7</SelectItem>
+                <SelectItem value="0">Chủ nhật</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Status Filter */}
+          <div className="flex-1 min-w-[120px] sm:min-w-[150px]">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger size="sm" className="font-bold text-slate-700">
+                <SelectValue placeholder="Trạng thái" />
+              </SelectTrigger>
+              <SelectContent className="text-[11px]">
+                <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                <SelectItem value="RUNNING">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                    Đang diễn ra
+                  </div>
+                </SelectItem>
+                <SelectItem value="OPEN">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-teal-500" />
+                    Đang mở
+                  </div>
+                </SelectItem>
+                <SelectItem value="PRE_OPEN">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                    Sắp khai giảng
+                  </div>
+                </SelectItem>
+                <SelectItem value="PREPARING">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-indigo-400" />
+                    Đang chuẩn bị
+                  </div>
+                </SelectItem>
+                <SelectItem value="NEW">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    Mới
+                  </div>
+                </SelectItem>
+                <SelectItem value="FINISHED">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-slate-500" />
+                    Đã kết thúc
+                  </div>
+                </SelectItem>
+                <SelectItem value="PENDING">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                    Chờ duyệt
+                  </div>
+                </SelectItem>
+                <SelectItem value="SUSPENDED">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-orange-500" />
+                    Tạm dừng
+                  </div>
+                </SelectItem>
+                <SelectItem value="ABANDONED">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-red-500" />
+                    Đã hủy
+                  </div>
+                </SelectItem>
+                <SelectItem value="REJECTED">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-rose-600" />
+                    Bị từ chối
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Role Filter */}
+          <div className="flex-1 min-w-[120px] sm:min-w-[140px]">
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger size="sm" className="font-bold text-slate-700">
+                <SelectValue placeholder="Vai trò" />
+              </SelectTrigger>
+              <SelectContent className="text-[11px]">
+                <SelectItem value="all">Tất cả vai trò</SelectItem>
+                <SelectItem value="LEC">Tôi là LEC</SelectItem>
+                <SelectItem value="TA">Tôi là TA</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Reset Filters */}
+          {(centreFilter !== "all" ||
+            categoryFilter !== "all" ||
+            weekdayFilter !== "all" ||
+            statusFilter !== "all" ||
+            roleFilter !== "all" ||
+            searchQuery !== "") && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 text-[11px] font-bold gap-1 bg-white hover:bg-slate-50 active:scale-95 transition-all shrink-0 ml-auto"
+              onClick={resetFilters}
+            >
+              <RotateCcw className="h-3 w-3" />
+              <span>Xóa bộ lọc</span>
+            </Button>
+          )}
         </div>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
-              <Select
-                value={centreFilter === "default_tdm" ? "all" : centreFilter}
-                onValueChange={setCentreFilter}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Cơ sở" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả cơ sở</SelectItem>
-                  {availableCentres.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Category Filter */}
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Bộ môn" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả bộ môn</SelectItem>
-                  <SelectItem value="coding">Lập trình (Coding)</SelectItem>
-                  <SelectItem value="robotics">Robotics</SelectItem>
-                  <SelectItem value="art">Mỹ thuật (Art)</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={weekdayFilter} onValueChange={setWeekdayFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Thứ trong tuần" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả các thứ</SelectItem>
-                  <SelectItem value="1">Thứ 2</SelectItem>
-                  <SelectItem value="2">Thứ 3</SelectItem>
-                  <SelectItem value="3">Thứ 4</SelectItem>
-                  <SelectItem value="4">Thứ 5</SelectItem>
-                  <SelectItem value="5">Thứ 6</SelectItem>
-                  <SelectItem value="6">Thứ 7</SelectItem>
-                  <SelectItem value="0">Chủ nhật</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={statusFilter}
-                onValueChange={(val) => {
-                  setStatusFilter(val);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Trạng thái" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
-                  <SelectItem value="RUNNING">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-blue-500" />
-                      Đang diễn ra
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="OPEN">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-teal-500" />
-                      Đang mở
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="PRE_OPEN">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                      Sắp khai giảng
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="PREPARING">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-indigo-400" />
-                      Đang chuẩn bị
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="NEW">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                      Mới
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="FINISHED">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-slate-500" />
-                      Đã kết thúc
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="PENDING">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                      Chờ duyệt
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="SUSPENDED">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-orange-500" />
-                      Tạm dừng
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="ABANDONED">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-red-500" />
-                      Đã hủy
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="REJECTED">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-rose-600" />
-                      Bị từ chối
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Vai trò giảng dạy" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả vai trò</SelectItem>
-                  <SelectItem value="LEC">Tôi là LEC</SelectItem>
-                  <SelectItem value="TA">Tôi là TA</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Button
-                variant="outline"
-                className="w-full h-full"
-                onClick={resetFilters}
-              >
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Xóa bộ lọc
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardContent className={`p-0 overflow-x-auto relative ${showLoading && classes.length === 0 ? "min-h-[400px]" : ""}`}>
-          {/* Overlay Loading giữ nguyên bảng cũ */}
+        {/* Table Container */}
+        <div className="flex-1 overflow-auto custom-scrollbar relative">
           {showLoading && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-[2px]">
               <CatLoader />
@@ -680,35 +699,35 @@ export default function ClassesPage() {
           )}
 
           <Table className="table-fixed min-w-[1000px]">
-            <TableHeader>
+            <TableHeader className="sticky top-0 bg-white z-10 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
               <TableRow>
-                <TableHead className="w-[200px] min-w-[200px] md:w-[250px] md:min-w-[250px]">
+                <TableHead className="w-[200px] min-w-[200px] md:w-[250px] md:min-w-[250px] bg-white">
                   Tên lớp
                 </TableHead>
-                <TableHead className="w-[90px] min-w-[90px]">
+                <TableHead className="w-[90px] min-w-[90px] bg-white">
                   Buổi
                 </TableHead>
-                <TableHead className="w-[120px] min-w-[120px] md:w-[150px] md:min-w-[150px]">
+                <TableHead className="w-[120px] min-w-[120px] md:w-[150px] md:min-w-[150px] bg-white">
                   Lịch dạy
                 </TableHead>
-                <TableHead className="w-[100px] min-w-[100px]">
+                <TableHead className="w-[100px] min-w-[100px] bg-white">
                   Ngày bắt đầu
                 </TableHead>
-                <TableHead className="w-[100px] min-w-[100px]">
+                <TableHead className="w-[100px] min-w-[100px] bg-white">
                   Ngày kết thúc
                 </TableHead>
-                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px]">
+                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-white">
                   LEC
                 </TableHead>
-                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px]">
+                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-white">
                   TA
                 </TableHead>
-                <TableHead className="w-[130px] min-w-[130px]">
+                <TableHead className="w-[130px] min-w-[130px] bg-white">
                   Trạng thái
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="[&_tr:last-child]:border-0 relative">
+            <TableBody className="[&_tr:last-child]:border-0">
               {filteredClasses.length === 0 && !showLoading ? (
                 <TableRow>
                   <TableCell colSpan={8} className="h-64 text-center">
@@ -716,7 +735,7 @@ export default function ClassesPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedClasses.map((cls) => {
+                filteredClasses.map((cls) => {
                   const displayedLecName = cls.computed.lecName || "-";
                   const displayedTaName = cls.computed.taName || "-";
 
@@ -770,11 +789,10 @@ export default function ClassesPage() {
                       </TableCell>
                       <TableCell className="relative overflow-hidden pr-10">
                         <StatusBadge type="class" status={cls.status} />
-
                         {cls.computed.category && cls.computed.category !== "unknown" && (
-                          <Tooltip delayDuration={150}>
+                          <Tooltip delayDuration={150} className="absolute top-0 right-0 w-12 h-12">
                             <TooltipTrigger asChild>
-                              <div className="absolute top-0 right-0 w-12 h-12 overflow-hidden pointer-events-auto cursor-pointer z-10 group/ribbon">
+                              <div className="w-full h-full overflow-hidden pointer-events-auto cursor-pointer z-10 group/ribbon">
                                 <div
                                   className={`absolute top-[-4px] right-[-24px] w-16 h-5 rotate-45 flex items-center justify-center shadow-sm transition-all duration-300 group-hover/ribbon:scale-110 group-hover/ribbon:brightness-110 ${
                                     cls.computed.category === "robotics"
@@ -812,22 +830,15 @@ export default function ClassesPage() {
               )}
             </TableBody>
           </Table>
+        </div>
 
-          <div
-            className={`border-t transition-opacity duration-200 min-h-[65px] flex flex-col justify-center ${
-              showLoading ? "opacity-0 pointer-events-none" : "opacity-100"
-            }`}
-          >
-            {filteredClasses.length > 0 && (
-              <div className="flex flex-col md:flex-row items-center justify-between px-4 py-3 gap-4">
-                <div className="text-sm text-muted-foreground">
-                  Hiển thị tất cả <span className="font-semibold">{paginationMeta.total}</span> lớp học.
-                </div>
-              </div>
-            )}
+        {/* Footer/Pagination summary */}
+        <div className="border-t shrink-0 flex items-center justify-between px-4 py-2.5 bg-slate-50/50">
+          <div className="text-[11px] text-muted-foreground">
+            Hiển thị tất cả <span className="font-semibold">{paginationMeta.total}</span> lớp học.
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

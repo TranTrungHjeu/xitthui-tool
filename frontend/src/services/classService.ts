@@ -74,8 +74,8 @@ export const classService = {
     const response = await api.post("/classes/details", { classIds });
     return response.data.data;
   },
-  getClassById: async (_token: string, classId: string): Promise<ClassData> => {
-    const response = await api.post("/classes/detail", { classId });
+  getClassById: async (_token: string, classId: string, noCache?: boolean): Promise<ClassData> => {
+    const response = await api.post("/classes/detail", { classId, noCache });
     return response.data.data;
   },
   updateEvaluation: async (token: string, payload: any) => {

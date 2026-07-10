@@ -88,9 +88,25 @@ class ClassScheduler {
         console.log(`[ClassScheduler] Deleted ${deleteResult.deletedCount} obsolete classes from MongoDB.`);
       }
 
-      // Fetch full class details (roster, slots with studentAttendance) for active classes
-      const activeStatuses = ["OPEN", "RUNNING", "PRE_OPEN", "PREPARING", "PENDING"];
-      const activeClasses = rawClasses.filter(cls => activeStatuses.includes(cls.status));
+      // Fetch full class details (roster, slots with studentAttendance) for active classes,
+      // and finished classes that ended within the last 30 days.
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const activeClasses = rawClasses.filter(cls => {
+        if (["OPEN", "RUNNING", "PRE_OPEN", "PREPARING", "PENDING"].includes(cls.status)) {
+          return true;
+        }
+        if (cls.status === "FINISHED" && cls.endDate) {
+          try {
+            const endD = new Date(cls.endDate);
+            return endD >= thirtyDaysAgo;
+          } catch (e) {
+            return false;
+          }
+        }
+        return false;
+      });
       const activeClassIds = activeClasses.map(cls => cls.id);
 
       console.log(`[ClassScheduler] Fetching full details for ${activeClassIds.length} active classes from LMS...`);

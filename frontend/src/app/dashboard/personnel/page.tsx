@@ -13,7 +13,7 @@ import {
 } from "../../../components/ui/table";
 import { Input } from "../../../components/ui/input";
 import { Badge } from "../../../components/ui/badge";
-import { Loader2, Search, Users, Eye, EyeOff, Info } from "lucide-react";
+import { Loader2, Search, Users, Eye, EyeOff, Info, RotateCcw } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import CatLoader from "../../../components/CatLoader";
 import { useMinLoading } from "@/hooks/useMinLoading";
@@ -193,16 +193,16 @@ export default function PersonnelPage() {
   }
 
   return (
-    <div className="p-4 md:p-8 space-y-6">
+    <div className="p-1.5 sm:p-3 space-y-1.5 h-[calc(100vh-76px)] md:h-[calc(100vh-16px)] overflow-hidden flex flex-col animate-in fade-in duration-300">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Users className="h-5 w-5 text-primary" />
+      <div className="flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Users className="h-3.5 w-3.5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Nhân sự</h1>
-            <p className="text-sm text-slate-500">
+            <h1 className="text-sm sm:text-base font-bold text-slate-900 leading-none">Nhân sự</h1>
+            <p className="text-[10px] text-slate-400 mt-1 hidden sm:block">
               {isLoading
                 ? "Đang tải..."
                 : `${filtered.length} / ${totalTeachers} nhân viên`}
@@ -210,73 +210,92 @@ export default function PersonnelPage() {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input
-            placeholder="Tìm theo tên, email, mã..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex items-center gap-1.5">
+          <Button
+            onClick={() => window.location.reload()}
+            variant="outline"
+            className="h-8 px-2 text-[11px] font-semibold gap-1 bg-white active:scale-95 transition-all shrink-0"
+          >
+            <RotateCcw className="h-3 w-3" />
+            Tải lại
+          </Button>
         </div>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="p-4 text-sm text-white bg-destructive rounded-lg">
+        <div className="p-4 text-sm text-white bg-destructive rounded-lg shrink-0">
           {error}
         </div>
       )}
 
-      {/* Loading */}
-      {showLoading && (
-        <div className="flex items-center justify-center py-20 min-h-[60vh]">
-          <CatLoader />
-        </div>
-      )}
+      {/* Main card view */}
+      <div className="flex-1 border border-slate-200 bg-white shadow-sm overflow-hidden relative flex flex-col rounded-xl">
+        {/* Filters Toolbar */}
+        <div className="p-1.5 bg-white border-b border-slate-200 flex flex-wrap items-center gap-1.5 shrink-0">
+          {/* Search Box */}
+          <div className="relative flex-[2] min-w-[200px] sm:min-w-[320px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Input
+              placeholder="Tìm theo tên, email, mã..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 text-[11px] bg-white w-full border-slate-200 focus:ring-4 focus:ring-primary/10 focus:border-primary"
+            />
+          </div>
 
-      {/* Search client side filter warning */}
-      {totalTeachers > 100 && (
-        <div className="bg-amber-50 text-amber-800 text-sm p-3 rounded-lg border border-amber-200">
-          Hệ thống hiện đang giới hạn tải 100 nhân viên mới nhất. Kết quả tìm
-          kiếm có thể không đầy đủ.
+          {/* Reset Search Button */}
+          {search && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSearch("")}
+              className="h-8 px-2.5 text-[11px] font-bold gap-1 bg-white hover:bg-slate-50 active:scale-95 transition-all shrink-0 ml-auto"
+            >
+              <RotateCcw className="h-3 w-3" />
+              <span>Xóa tìm kiếm</span>
+            </Button>
+          )}
         </div>
-      )}
 
-      {/* Table */}
-      {!showLoading && !error && (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        {/* Scrollable Content Container */}
+        <div className="flex-1 overflow-auto custom-scrollbar relative">
+          {showLoading && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 backdrop-blur-[2px]">
+              <CatLoader />
+            </div>
+          )}
+
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <Table className="min-w-[800px]">
-              <TableHeader>
-                <TableRow className="bg-slate-50 hover:bg-slate-50">
-                  <TableHead className="font-semibold text-slate-700 w-10">
+          <div className="hidden md:block min-h-full">
+            <Table className="min-w-[800px] table-fixed">
+              <TableHeader className="sticky top-0 bg-white z-10 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+                <TableRow className="bg-white hover:bg-white">
+                  <TableHead className="font-semibold text-slate-700 w-12 bg-white">
                     #
                   </TableHead>
-                  <TableHead className="font-semibold text-slate-700 w-24">
+                  <TableHead className="font-semibold text-slate-700 w-24 bg-white">
                     Mã
                   </TableHead>
-                  <TableHead className="font-semibold text-slate-700 min-w-[150px]">
+                  <TableHead className="font-semibold text-slate-700 min-w-[150px] bg-white">
                     Họ và Tên
                   </TableHead>
-                  <TableHead className="font-semibold text-slate-700 w-32">
+                  <TableHead className="font-semibold text-slate-700 w-32 bg-white">
                     Username
                   </TableHead>
-                  <TableHead className="font-semibold text-slate-700 min-w-[180px]">
+                  <TableHead className="font-semibold text-slate-700 min-w-[180px] bg-white">
                     Email
                   </TableHead>
-                  <TableHead className="font-semibold text-slate-700 min-w-[180px] hidden lg:table-cell">
+                  <TableHead className="font-semibold text-slate-700 min-w-[180px] hidden lg:table-cell bg-white">
                     Email cá nhân
                   </TableHead>
-                  <TableHead className="font-semibold text-slate-700 w-32 hidden md:table-cell">
+                  <TableHead className="font-semibold text-slate-700 w-32 hidden md:table-cell bg-white">
                     Điện thoại
                   </TableHead>
-                  <TableHead className="font-semibold text-slate-700 w-24">
+                  <TableHead className="font-semibold text-slate-700 w-24 bg-white">
                     Giới tính
                   </TableHead>
-                  <TableHead className="font-semibold text-slate-700 w-16 text-center">
+                  <TableHead className="font-semibold text-slate-700 w-20 text-center bg-white">
                     Chi tiết
                   </TableHead>
                 </TableRow>
@@ -514,7 +533,19 @@ export default function PersonnelPage() {
             )}
           </div>
         </div>
-      )}
+
+        {/* Footer/Warning summary */}
+        <div className="border-t shrink-0 flex flex-col sm:flex-row items-center justify-between px-4 py-2 bg-slate-50/50 text-[11px] text-muted-foreground gap-2">
+          <div>
+            Hiển thị <span className="font-semibold">{filtered.length}</span> / {totalTeachers} nhân viên.
+          </div>
+          {totalTeachers > 100 && (
+            <div className="text-amber-600 font-semibold">
+              Hệ thống hiện giới hạn tải 100 nhân viên mới nhất.
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Detail Dialog */}
       <Dialog

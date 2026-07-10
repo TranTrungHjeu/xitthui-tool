@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const classController = require("../controllers/classController");
+const officeHourController = require("../controllers/officeHourController");
 const rateLimiter = require("../utils/rateLimiter");
 
 // Limit AI evaluation requests (e.g. max 60 requests per 10 minutes)
@@ -11,6 +12,8 @@ const aiLimiter = rateLimiter(
 );
 
 router.post("/classes", classController.getClasses);
+router.post("/office-hours", officeHourController.getOfficeHours);
+router.post("/office-hours/detail", officeHourController.getOfficeHourById);
 router.post("/classes/notifications", classController.getClassesNotifications);
 router.post("/classes/sync-notifications", classController.syncNotifications);
 router.post(

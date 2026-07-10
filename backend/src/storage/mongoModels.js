@@ -190,6 +190,72 @@ const TrialBookingSchema = new mongoose.Schema(
   { timestamps: { createdAt: false, updatedAt: true } }
 );
 
+// 10. Office Hour Schema
+const OfficeHourSchema = new mongoose.Schema(
+  {
+    _id: { type: String, required: true }, // LMS officeHourId
+    courses: [
+      {
+        id: { type: String },
+        name: { type: String },
+        shortName: { type: String }
+      }
+    ],
+    courseLines: [
+      {
+        id: { type: String },
+        name: { type: String }
+      }
+    ],
+    courseTopics: [
+      {
+        id: { type: String },
+        name: { type: String }
+      }
+    ],
+    startTime: { type: Date, required: true, index: true },
+    endTime: { type: Date, required: true },
+    status: { type: String, required: true },
+    centre: {
+      id: { type: String, required: true, index: true },
+      name: { type: String },
+      shortName: { type: String }
+    },
+    teacher: {
+      id: { type: String, index: true },
+      username: { type: String },
+      code: { type: String },
+      fullName: { type: String },
+      imageUrl: { type: String },
+      email: { type: String, index: true },
+      phoneNumber: { type: String }
+    },
+    class: {
+      id: { type: String },
+      name: { type: String }
+    },
+    classSiteId: { type: String },
+    note: { type: String },
+    managerNote: { type: String },
+    type: { type: String },
+    links: [
+      {
+        _id: { type: String },
+        title: { type: String },
+        link: { type: String }
+      }
+    ],
+    studentCount: { type: Number, default: 0 },
+    custom: { type: mongoose.Schema.Types.Mixed },
+    createdBy: {
+      username: { type: String }
+    },
+    createdAt: { type: Date },
+    updatedAt: { type: Date, default: Date.now }
+  },
+  { timestamps: { createdAt: false, updatedAt: true } }
+);
+
 module.exports = {
   Session: mongoose.model("Session", SessionSchema),
   ActiveToken: mongoose.model("ActiveToken", ActiveTokenSchema),
@@ -199,5 +265,7 @@ module.exports = {
   ZaloConfig: mongoose.model("ZaloConfig", ZaloConfigSchema),
   Class: mongoose.model("Class", ClassSchema),
   Schedule: mongoose.model("Schedule", ScheduleSchema),
-  TrialBooking: mongoose.model("TrialBooking", TrialBookingSchema)
+  TrialBooking: mongoose.model("TrialBooking", TrialBookingSchema),
+  OfficeHour: mongoose.model("OfficeHour", OfficeHourSchema)
 };
+

@@ -36,13 +36,12 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="vi"
       className={cn(
         "h-full",
         "antialiased",
         geistSans.variable,
         geistMono.variable,
-        "font-mono",
         jetbrainsMono.variable,
       )}
       suppressHydrationWarning

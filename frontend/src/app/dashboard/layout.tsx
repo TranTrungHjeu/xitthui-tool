@@ -22,10 +22,11 @@ import {
   ChevronLeft,
   TableProperties,
   Bot,
+  Clock,
 } from "lucide-react";
 import Link from "next/link";
 import { Toaster } from "sonner";
-import { isKhiemAccount } from "@/lib/utils";
+import { isKhiemAccount, cn } from "@/lib/utils";
 
 export default function DashboardLayout({
   children,
@@ -185,6 +186,11 @@ export default function DashboardLayout({
       href: "/dashboard/spreadsheet",
       icon: TableProperties,
     },
+    {
+      label: "Office Hours",
+      href: "/dashboard/office-hours",
+      icon: Clock,
+    },
     ...(isKhiemAccount(user)
       ? [{ label: "Cài đặt Zalo Bot", href: "/dashboard/zalo-bot", icon: Bot }]
       : []),
@@ -204,7 +210,7 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
+    <div className="flex h-dvh bg-[#f8fafc] overflow-hidden">
       <Toaster position="top-right" expand={true} richColors />
       {/* Sidebar Desktop */}
       <aside
@@ -212,45 +218,24 @@ export default function DashboardLayout({
           isSidebarCollapsed ? "w-20" : "w-72"
         }`}
       >
-        <div className="relative pt-10 pb-6 flex items-center justify-center">
-          <Image
-            src={isSidebarCollapsed ? "/favicon.ico" : "/logo.png"}
-            alt="Xitthui logo"
-            width={isSidebarCollapsed ? 40 : 200}
-            height={isSidebarCollapsed ? 40 : 200}
-            className={`transition-all duration-300 ${
-              isSidebarCollapsed
-                ? "object-contain"
-                : "hover:scale-105 max-w-[180px]"
-            }`}
-            style={{
-              width: isSidebarCollapsed ? "40px" : "100%",
-              height: "auto",
-            }}
-            priority
-          />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute -right-3 top-6 h-6 w-6 rounded-full border border-slate-200 bg-white shadow-sm hover:bg-slate-50 z-50 flex items-center justify-center"
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            title={
-              isSidebarCollapsed ? "Mở rộng thanh bên" : "Thu nhỏ thanh bên"
-            }
-          >
-            {isSidebarCollapsed ? (
-              <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
-            ) : (
-              <ChevronLeft className="h-3.5 w-3.5 text-slate-500" />
-            )}
-          </Button>
-        </div>
+        {isSidebarCollapsed && (
+          <div className="relative pt-4 pb-2 flex items-center justify-center px-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 rounded-full border border-slate-200 bg-white shadow-sm hover:bg-slate-50 z-50 flex items-center justify-center"
+              onClick={() => setIsSidebarCollapsed(false)}
+              title="Mở rộng thanh bên"
+            >
+              <ChevronRight className="size-4 text-slate-500" />
+            </Button>
+          </div>
+        )}
 
-        <div className="px-4 mb-4">
-          <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent opacity-50" />
-        </div>
-
-        <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+        <nav className={cn(
+          "flex-1 px-4 space-y-1.5 overflow-y-auto custom-scrollbar",
+          !isSidebarCollapsed ? "pt-6" : "pt-0"
+        )}>
           {navItems.map((item) => {
             const isClassesMenu = item.href === "/dashboard/classes";
             const isParentActive = pathname === item.href;
@@ -261,46 +246,65 @@ export default function DashboardLayout({
             return (
               <div key={item.href} className="group/item">
                 <div
-                  className={`relative flex items-center justify-between rounded-xl transition-all duration-300 ${
+                  className={cn(
+                    "relative flex items-center justify-between rounded-xl transition-all duration-150 ease-out",
                     isActive
-                      ? "bg-primary/5 text-primary shadow-sm"
+                      ? "bg-primary/[0.04] text-primary shadow-sm font-semibold"
                       : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                  }`}
+                  )}
                 >
                   {isActive && (
                     <div
-                      className={`absolute top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full transition-all duration-300 ${
+                      className={cn(
+                        "absolute top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full transition-all duration-150 ease-out shadow-[0_0_8px_rgba(227,31,38,0.4)]",
                         isSidebarCollapsed ? "left-1" : "left-0"
-                      }`}
+                      )}
                     />
                   )}
 
                   <Link
                     href={item.href}
                     title={item.label}
-                    className={`flex-1 flex items-center ${
-                      isSidebarCollapsed ? "justify-center px-0" : "px-4"
-                    } py-2.5 text-sm font-medium transition-all duration-200 ${
-                      isActive && !isSidebarCollapsed ? "pl-5" : ""
-                    }`}
+                    className={cn(
+                      "flex-1 flex items-center transition-all duration-150 ease-out",
+                      isSidebarCollapsed ? "justify-center px-0" : "px-4",
+                      isActive && !isSidebarCollapsed ? "pl-5 text-primary" : "text-inherit",
+                      "py-2.5 text-sm font-medium"
+                    )}
                   >
                     <item.icon
-                      className={`h-5 w-5 transition-colors duration-300 ${
+                      className={cn(
+                        "size-5 transition-all duration-150 ease-out",
                         isActive
-                          ? "text-primary"
-                          : "text-slate-400 group-hover/item:text-slate-600"
-                      }`}
+                          ? "text-primary scale-105"
+                          : "text-slate-400 group-hover/item:text-slate-600 group-hover/item:scale-105"
+                      )}
                     />
                     <span
-                      className={`transition-all duration-300 whitespace-nowrap overflow-hidden ${
+                      className={cn(
+                        "transition-all duration-150 ease-out whitespace-nowrap overflow-hidden",
                         isSidebarCollapsed
                           ? "max-w-0 opacity-0 pointer-events-none overflow-hidden ml-0"
                           : "max-w-xs opacity-100 ml-3.5"
-                      }`}
+                      )}
                     >
                       {item.label}
                     </span>
                   </Link>
+
+                  {!isSidebarCollapsed && item.href === "/dashboard" && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsSidebarCollapsed(true);
+                      }}
+                      className="p-1.5 mr-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all duration-150 ease-out active:scale-95 flex items-center justify-center"
+                      title="Thu nhỏ thanh bên"
+                    >
+                      <ChevronLeft className="size-4" />
+                    </button>
+                  )}
 
                   {!isSidebarCollapsed &&
                     isClassesMenu &&
@@ -311,27 +315,29 @@ export default function DashboardLayout({
                           e.stopPropagation();
                           setIsClassesExpanded(!isClassesExpanded);
                         }}
-                        className={`p-1.5 mr-2 rounded-lg transition-all duration-200 ${
+                        className={cn(
+                          "p-1.5 mr-2 rounded-lg transition-all duration-150 ease-out",
                           isClassesExpanded
                             ? "bg-primary/10 text-primary"
                             : "hover:bg-slate-100 text-slate-400"
-                        }`}
+                        )}
                       >
                         <ChevronDown
-                          className={`h-4 w-4 transition-transform duration-300 ${
+                          className={cn(
+                            "size-4 transition-transform duration-150 ease-out",
                             isClassesExpanded ? "rotate-0" : "-rotate-90"
-                          }`}
+                          )}
                         />
                       </button>
                     )}
                 </div>
 
-                {/* Submenu with animation-like behavior */}
+                {/* Submenu with animation */}
                 {!isSidebarCollapsed &&
                   isClassesMenu &&
                   isClassesExpanded &&
                   classes.length > 0 && (
-                    <div className="mt-1 ml-6 pl-4 space-y-1 border-l-2 border-slate-100/80 animate-in fade-in slide-in-from-left-2 duration-300">
+                    <div className="mt-1 ml-6 pl-4 space-y-1 border-l-2 border-slate-100/80 animate-in fade-in slide-in-from-top-1 duration-150 ease-out">
                       {classes.slice(0, 8).map((cls) => {
                         const classHref = `/dashboard/classes/${cls.id}`;
                         const isClassActive = pathname === classHref;
@@ -339,19 +345,21 @@ export default function DashboardLayout({
                           <Link
                             key={cls.id}
                             href={classHref}
-                            className={`group/sub flex items-center px-3 py-2 text-[13px] font-medium rounded-lg transition-all duration-200 truncate ${
+                            className={cn(
+                              "group/sub flex items-center px-3 py-2 text-[13px] font-medium rounded-lg transition-all duration-150 ease-out truncate",
                               isClassActive
                                 ? "text-primary bg-primary/5 font-semibold"
                                 : "text-slate-400 hover:text-slate-700 hover:bg-slate-50/80"
-                            }`}
+                            )}
                             title={cls.name}
                           >
                             <div
-                              className={`w-1.5 h-1.5 rounded-full mr-3 transition-all duration-300 ${
+                              className={cn(
+                                "size-1.5 rounded-full mr-3 transition-all duration-150 ease-out",
                                 isClassActive
-                                  ? "bg-primary scale-110 shadow-[0_0_8px_rgba(var(--primary),0.5)]"
-                                  : "bg-slate-300 group-hover/sub:bg-slate-400"
-                              }`}
+                                  ? "bg-primary scale-125 shadow-[0_0_8px_rgba(227,31,38,0.5)]"
+                                  : "bg-slate-300 group-hover/sub:bg-slate-400 group-hover/sub:scale-110"
+                              )}
                             />
                             <span className="truncate">{cls.name}</span>
                           </Link>
@@ -387,7 +395,7 @@ export default function DashboardLayout({
                 isSidebarCollapsed ? "justify-center mb-2 gap-0" : "mb-4 gap-3"
               }`}
             >
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold border border-primary/10 shadow-inner shrink-0">
+              <div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold border border-primary/10 shadow-inner shrink-0">
                 {displayName.charAt(0).toUpperCase()}
               </div>
               <div
@@ -414,11 +422,11 @@ export default function DashboardLayout({
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-slate-500 hover:text-red-600 hover:bg-red-50/50 rounded-full h-9 w-9"
+                className="text-slate-500 hover:text-red-600 hover:bg-red-50/50 rounded-full size-9"
                 onClick={handleLogout}
                 title="Đăng xuất"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="size-4" />
               </Button>
             ) : (
               <Button
@@ -427,7 +435,7 @@ export default function DashboardLayout({
                 className="w-full justify-start text-slate-500 hover:text-red-600 hover:bg-red-50/50 rounded-xl h-9 text-xs font-semibold transition-all duration-200 border border-transparent hover:border-red-100"
                 onClick={handleLogout}
               >
-                <LogOut className="mr-2.5 h-4 w-4" />
+                <LogOut className="mr-2.5 size-4" />
                 Đăng xuất
               </Button>
             )}
@@ -440,14 +448,7 @@ export default function DashboardLayout({
         {/* Header Mobile */}
         <header className="md:hidden flex items-center justify-between px-6 py-3 bg-white border-b border-slate-100 shadow-sm sticky top-0 z-40 shrink-0">
           <div className="flex items-center gap-2">
-            <Image
-              src="/logo.png"
-              alt="Xitthui logo"
-              width={100}
-              height={100}
-              style={{ width: "auto", height: "40px" }}
-              priority
-            />
+            <span className="font-bold text-slate-800 text-lg tracking-tight">Xitthui Tool</span>
           </div>
           <Button
             variant="ghost"
@@ -474,22 +475,14 @@ export default function DashboardLayout({
             {/* Drawer */}
             <div className="fixed top-0 left-0 bottom-0 w-80 max-w-[85vw] bg-white z-[60] p-6 flex flex-col overflow-y-auto shadow-2xl animate-in slide-in-from-left duration-250 md:hidden">
               {/* Drawer Header */}
-              <div className="flex items-center justify-between pb-6 border-b border-slate-100 mb-6 shrink-0">
-                <Image
-                  src="/logo.png"
-                  alt="Xitthui logo"
-                  width={100}
-                  height={100}
-                  style={{ width: "auto", height: "36px" }}
-                  priority
-                />
+              <div className="flex items-center justify-end pb-4 border-b border-slate-100 mb-6 shrink-0">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="rounded-xl h-9 w-9 bg-slate-50 hover:bg-slate-100"
+                  className="rounded-xl size-9 bg-slate-50 hover:bg-slate-100"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <X className="h-5 w-5 text-slate-500" />
+                  <X className="size-5 text-slate-500" />
                 </Button>
               </div>
 
@@ -517,7 +510,7 @@ export default function DashboardLayout({
                           }`}
                         >
                           <item.icon
-                            className={`mr-3.5 h-5 w-5 ${isActive ? "text-primary" : "text-slate-400"}`}
+                            className={`mr-3.5 size-5 ${isActive ? "text-primary" : "text-slate-400"}`}
                           />
                           {item.label}
                         </Link>
@@ -530,9 +523,9 @@ export default function DashboardLayout({
                             className="p-3 text-slate-500 hover:bg-slate-50 rounded-xl"
                           >
                             {isClassesExpanded ? (
-                              <ChevronDown className="h-5 w-5" />
+                              <ChevronDown className="size-5" />
                             ) : (
-                              <ChevronRight className="h-5 w-5" />
+                              <ChevronRight className="size-5" />
                             )}
                           </button>
                         )}
@@ -555,7 +548,7 @@ export default function DashboardLayout({
                                 }`}
                               >
                                 <span
-                                  className={`w-1.5 h-1.5 rounded-full mr-3.5 transition-colors ${
+                                  className={`size-1.5 rounded-full mr-3.5 transition-colors ${
                                     isClassActive
                                       ? "bg-primary scale-110"
                                       : "bg-slate-300 group-hover:bg-slate-400"
@@ -593,7 +586,7 @@ export default function DashboardLayout({
                   className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50/50 py-3 rounded-xl text-sm font-semibold transition-colors duration-200"
                   onClick={handleLogout}
                 >
-                  <LogOut className="mr-3 h-5 w-5" />
+                  <LogOut className="mr-3 size-5" />
                   Đăng xuất
                 </Button>
               </div>

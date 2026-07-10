@@ -763,6 +763,24 @@ exports.getClassesNotifications = async (req, res) => {
     console.time("Fetch Notifications");
     let tickets = [];
     if (isTE) {
+      try {
+        const { Class, NotificationTicket } = require("../storage/mongoModels");
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const activeClasses = await Class.find({
+          $or: [
+            { status: { $in: ["OPEN", "RUNNING"] } },
+            { status: "FINISHED", endDate: { $gte: thirtyDaysAgo.toISOString().split("T")[0] } }
+          ]
+        }).select("_id").lean();
+        const activeClassIds = activeClasses.map(c => c._id);
+        const deleteResult = await NotificationTicket.deleteMany({ classId: { $nin: activeClassIds } });
+        if (deleteResult.deletedCount > 0) {
+          console.log(`[classController] Cleared ${deleteResult.deletedCount} orphaned class tickets from database.`);
+        }
+      } catch (cleanupErr) {
+        console.error("[classController] Failed to cleanup finished tickets", cleanupErr.message);
+      }
       tickets = await FirestoreNotification.getTicketsForTE(parsedCentreIds);
     } else {
       // GIÁO VIÊN THƯỜNG -> GỌI REALTIME
@@ -771,11 +789,23 @@ exports.getClassesNotifications = async (req, res) => {
         teacherId,
         parsedCentreIds,
         roles,
-        ["OPEN", "RUNNING"],
+        ["OPEN", "RUNNING", "FINISHED"],
       );
-      const runningClasses = allEnrichedClasses.filter((cls) =>
-        ["OPEN", "RUNNING"].includes(cls.status),
-      );
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const runningClasses = allEnrichedClasses.filter((cls) => {
+        if (["OPEN", "RUNNING"].includes(cls.status)) return true;
+        if (cls.status === "FINISHED" && cls.endDate) {
+          try {
+            const endD = new Date(cls.endDate);
+            return endD >= thirtyDaysAgo;
+          } catch (e) {
+            return false;
+          }
+        }
+        return false;
+      });
       const classIdsToFetch = runningClasses.map((c) => c.id);
 
       if (classIdsToFetch.length > 0) {

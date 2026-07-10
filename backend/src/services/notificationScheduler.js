@@ -4,6 +4,7 @@ const LMSClient = require("./lmsClient");
 const ClassCacheService = require("./classCache");
 const config = require("../config/index");
 const lmsAuth = require("./lmsAuth");
+const { extractHHMM } = require("../utils/classHelpers");
 
 class NotificationScheduler {
   static start() {
@@ -88,12 +89,24 @@ class NotificationScheduler {
           teacherId,
           finalCentreIds,
           roles,
-          ["OPEN", "RUNNING"],
+          ["OPEN", "RUNNING", "FINISHED"],
         );
 
-        const runningClasses = allEnrichedClasses.filter((cls) =>
-          ["OPEN", "RUNNING"].includes(cls.status),
-        );
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const runningClasses = allEnrichedClasses.filter((cls) => {
+          if (["OPEN", "RUNNING"].includes(cls.status)) return true;
+          if (cls.status === "FINISHED" && cls.endDate) {
+            try {
+              const endD = new Date(cls.endDate);
+              return endD >= thirtyDaysAgo;
+            } catch (e) {
+              return false;
+            }
+          }
+          return false;
+        });
 
         const classIdsToFetch = [];
         const classCentres = {}; // Map classId -> centreIds
@@ -156,7 +169,7 @@ class NotificationScheduler {
               .filter(Boolean)
               .join(", ");
             const emails = matched
-              .map((t) => t.teacher?.personalEmail || t.teacher?.email)
+              .map((t) => t.teacher?.email || t.teacher?.personalEmail) // Dùng email công việc MindX, fallback về personalEmail
               .filter(Boolean);
             return { name, emails };
           }
@@ -169,34 +182,53 @@ class NotificationScheduler {
         for (const cls of fetchedDetails) {
           if (!cls || !cls.id || !cls.slots || cls.slots.length === 0) continue;
 
+          // Sắp xếp các slot theo trình tự thời gian để tính fallback index
+          const parseSlotDateForSorting = (dateVal, timeVal) => {
+            if (!dateVal) return 0;
+            let dateStr;
+            if (typeof dateVal === "string" && dateVal.includes("/")) {
+              const [d, m, y] = dateVal.split("/").map(Number);
+              dateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+            } else {
+              dateStr = String(dateVal).split("T")[0];
+            }
+            if (!timeVal) return new Date(`${dateStr}T00:00:00+07:00`).getTime();
+            const parts = timeVal.split(":");
+            const hour = parseInt(parts[0], 10) || 0;
+            const minute = parseInt(parts[1], 10) || 0;
+            return new Date(
+              `${dateStr}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00+07:00`
+            ).getTime();
+          };
+
+          const sortedSlots = [...cls.slots].sort((a, b) => {
+            return parseSlotDateForSorting(a.date, a.startTime) - parseSlotDateForSorting(b.date, b.startTime);
+          });
+
           const classTickets = [];
           cls.slots.forEach((slot) => {
             if (!slot.date || !slot.endTime) return;
 
             let slotEndDateTime;
             try {
+              // Extract date part
+              let dateStr;
               if (typeof slot.date === "string" && slot.date.includes("/")) {
                 const [d, m, y] = slot.date.split("/").map(Number);
-                slotEndDateTime = new Date(y, m - 1, d);
+                dateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
               } else {
-                slotEndDateTime = new Date(slot.date);
+                dateStr = String(slot.date).split("T")[0];
               }
 
-              if (isNaN(slotEndDateTime.getTime()))
-                throw new Error("Invalid Date");
+              // Extract wall-clock HH:mm directly (avoids +08:00 vs +07:00 offset bug)
+              const hhmm = extractHHMM(slot.endTime);
+              if (!hhmm) return;
 
-              let hour = 0,
-                minute = 0;
-              if (slot.endTime.includes("T")) {
-                const dateObj = new Date(slot.endTime);
-                hour = dateObj.getHours();
-                minute = dateObj.getMinutes();
-              } else {
-                const timeParts = slot.endTime.split(":");
-                hour = parseInt(timeParts[0], 10) || 0;
-                minute = parseInt(timeParts[1], 10) || 0;
-              }
-              slotEndDateTime.setHours(hour, minute, 0, 0);
+              // Build local-time Date (no timezone suffix → treated as Vietnam local time)
+              slotEndDateTime = new Date(
+                `${dateStr}T${String(hhmm.hour).padStart(2, "0")}:${String(hhmm.minute).padStart(2, "0")}:00`
+              );
+              if (isNaN(slotEndDateTime.getTime())) return;
             } catch (e) {
               return;
             }
@@ -262,13 +294,22 @@ class NotificationScheduler {
                   .filter((t) => t.isActive !== false && t.teacher?.id)
                   .map((t) => t.teacher.id);
 
+                // Xác định sessionIndex (ưu tiên slot.index, nếu không có hoặc null thì dùng vị trí trong sortedSlots)
+                let resolvedSessionIndex = slot.index;
+                if (resolvedSessionIndex === undefined || resolvedSessionIndex === null) {
+                  resolvedSessionIndex = sortedSlots.findIndex(
+                    (s) => s.date === slot.date && s.startTime === slot.startTime
+                  );
+                  if (resolvedSessionIndex === -1) resolvedSessionIndex = 0;
+                }
+
                 classTickets.push({
                   classId: cls.id,
                   className: cls.name,
                   date: slot.date,
                   startTime: slot.startTime,
                   endTime: slot.endTime,
-                  sessionIndex: slot.index,
+                  sessionIndex: resolvedSessionIndex,
                   studentCount: studentsNeedingFeedback.length,
                   isLate,
                   lec: lecName !== "N/A" ? lecName : null,
@@ -287,6 +328,26 @@ class NotificationScheduler {
         // Lưu theo batch
         for (const [classId, tickets] of Object.entries(ticketsByClass)) {
           await FirestoreNotification.saveBatchTickets(tickets, classId);
+        }
+
+        // Dọn dẹp các ticket mồ côi của các lớp không còn được giám sát (không thuộc OPEN/RUNNING hay FINISHED dưới 30 ngày)
+        try {
+          const { Class, NotificationTicket } = require("../storage/mongoModels");
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          const activeClasses = await Class.find({
+            $or: [
+              { status: { $in: ["OPEN", "RUNNING"] } },
+              { status: "FINISHED", endDate: { $gte: thirtyDaysAgo.toISOString().split("T")[0] } }
+            ]
+          }).select("_id").lean();
+          const activeClassIds = activeClasses.map(c => c._id);
+          const deleteResult = await NotificationTicket.deleteMany({ classId: { $nin: activeClassIds } });
+          if (deleteResult.deletedCount > 0) {
+            console.log(`[NotificationScheduler] Cleared ${deleteResult.deletedCount} orphaned tickets for non-active classes.`);
+          }
+        } catch (cleanupErr) {
+          console.error("[NotificationScheduler] Error cleaning up orphaned tickets:", cleanupErr.message);
         }
 
         // Gửi email

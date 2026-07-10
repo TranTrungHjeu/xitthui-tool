@@ -429,6 +429,35 @@ async function handlePersonalCommand(userId, command, session, commandArg = "") 
                 if (slot && typeof slot.index === "number") {
                   // API trả về index bắt đầu từ 0 (0-based)
                   computedSession = slot.index + 1;
+                } else if (slot) {
+                  // Chronological index fallback if index is not present in slots list
+                  const parseSlotDateForSorting = (dateVal, timeVal) => {
+                    if (!dateVal) return 0;
+                    let dateStr;
+                    if (typeof dateVal === "string" && dateVal.includes("/")) {
+                      const [d, m, y] = dateVal.split("/").map(Number);
+                      dateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+                    } else {
+                      dateStr = String(dateVal).split("T")[0];
+                    }
+                    if (!timeVal) return new Date(`${dateStr}T00:00:00+07:00`).getTime();
+                    const parts = timeVal.split(":");
+                    const hour = parseInt(parts[0], 10) || 0;
+                    const minute = parseInt(parts[1], 10) || 0;
+                    return new Date(
+                      `${dateStr}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00+07:00`
+                    ).getTime();
+                  };
+                  const sortedSlots = [...classDetails.slots].sort((a, b) => {
+                    return parseSlotDateForSorting(a.date, a.startTime) - parseSlotDateForSorting(b.date, b.startTime);
+                  });
+                  const sIdx = sortedSlots.findIndex(
+                    (slot) =>
+                      slot.startTime === s.startTime && slot.endTime === s.endTime,
+                  );
+                  if (sIdx !== -1) {
+                    computedSession = sIdx + 1;
+                  }
                 }
               }
             }
