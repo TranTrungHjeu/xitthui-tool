@@ -1,5 +1,5 @@
 /**
- * Danh sách các Role chuẩn được sử dụng trong nội bộ XitthuiTool.
+ * Danh sách các Role chuẩn được sử dụng trong nội bộ MindX Support Tools.
  * Việc này giúp tách biệt hoàn toàn Role của hệ thống MindX gốc và hệ thống hiện tại,
  * dễ dàng mở rộng thêm các Role mới (như ADMIN, MANAGER) sau này.
  */

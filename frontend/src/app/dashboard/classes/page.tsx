@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import CatLoader from "@/components/CatLoader";
 import { useMinLoading } from "@/hooks/useMinLoading";
 import {
@@ -40,7 +42,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -486,46 +487,29 @@ export default function ClassesPage() {
   };
 
   return (
-    <div className="p-1.5 sm:p-3 space-y-1.5 h-[calc(100vh-76px)] md:h-[calc(100vh-16px)] overflow-hidden flex flex-col animate-in fade-in duration-300">
-      {/* Title Header */}
-      <div className="flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-1.5">
-          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
-            <TableProperties className="h-3.5 w-3.5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-sm sm:text-base font-bold text-slate-900 leading-none">
-              Danh sách lớp học
-            </h1>
-            <p className="text-[10px] text-slate-400 mt-1 hidden sm:block">
-              Quản lý và theo dõi các lớp học bạn đang giảng dạy
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <Button
-            onClick={() => fetchClasses(true)}
-            disabled={showLoading}
-            variant="outline"
-            className="h-8 px-2 text-[11px] font-semibold gap-1 bg-white active:scale-95 transition-all shrink-0"
-          >
-            <RotateCcw className={`h-3 w-3 ${showLoading ? "animate-spin" : ""}`} />
+    <div className="p-6 space-y-6 max-w-7xl mx-auto w-full flex flex-col h-full">
+      <PageHeader
+        icon={TableProperties}
+        title="Danh sách lớp học"
+        description="Quản lý và theo dõi các lớp học bạn đang giảng dạy"
+        actions={
+          <Button onClick={() => fetchClasses(true)} disabled={showLoading}>
+            <RotateCcw className={`h-4 w-4 ${showLoading ? "animate-spin" : ""}`} />
             Làm mới
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Main card view */}
-      <div className="flex-1 border border-slate-200 bg-white shadow-sm overflow-hidden relative flex flex-col rounded-xl">
+      <div className="flex-1 border border-border bg-card shadow-sm overflow-hidden relative flex flex-col rounded-xl">
         {/* Filters Toolbar */}
-        <div className="p-1.5 bg-white border-b border-slate-200 flex flex-wrap items-center gap-1.5 shrink-0">
+        <div className="p-1.5 bg-card border-b border-border flex flex-wrap items-center gap-1.5 shrink-0">
           {/* Search Box */}
           <div className="relative flex-[2] min-w-[200px] sm:min-w-[280px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               placeholder="Tìm tên lớp, khóa học..."
-              className="pl-8 h-8 text-[11px] bg-white w-full border-slate-200 focus:ring-4 focus:ring-primary/10 focus:border-primary"
+              className="pl-8 h-8 text-[11px] bg-card w-full border-border focus:ring-4 focus:ring-primary/10 focus:border-primary"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -537,7 +521,7 @@ export default function ClassesPage() {
               value={centreFilter === "default_tdm" ? "all" : centreFilter}
               onValueChange={setCentreFilter}
             >
-              <SelectTrigger size="sm" className="font-bold text-slate-700">
+              <SelectTrigger className="font-bold text-foreground">
                 <SelectValue placeholder="Cơ sở" />
               </SelectTrigger>
               <SelectContent className="text-[11px]">
@@ -554,7 +538,7 @@ export default function ClassesPage() {
           {/* Category Filter */}
           <div className="flex-1 min-w-[110px] sm:min-w-[130px]">
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger size="sm" className="font-bold text-slate-700">
+              <SelectTrigger className="font-bold text-foreground">
                 <SelectValue placeholder="Bộ môn" />
               </SelectTrigger>
               <SelectContent className="text-[11px]">
@@ -569,7 +553,7 @@ export default function ClassesPage() {
           {/* Weekday Filter */}
           <div className="flex-1 min-w-[120px] sm:min-w-[140px]">
             <Select value={weekdayFilter} onValueChange={setWeekdayFilter}>
-              <SelectTrigger size="sm" className="font-bold text-slate-700">
+              <SelectTrigger className="font-bold text-foreground">
                 <SelectValue placeholder="Thứ tự học" />
               </SelectTrigger>
               <SelectContent className="text-[11px]">
@@ -588,68 +572,68 @@ export default function ClassesPage() {
           {/* Status Filter */}
           <div className="flex-1 min-w-[120px] sm:min-w-[150px]">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger size="sm" className="font-bold text-slate-700">
+              <SelectTrigger className="font-bold text-foreground">
                 <SelectValue placeholder="Trạng thái" />
               </SelectTrigger>
               <SelectContent className="text-[11px]">
                 <SelectItem value="all">Tất cả trạng thái</SelectItem>
                 <SelectItem value="RUNNING">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                    <div className="w-2 h-2 rounded-full bg-primary" />
                     Đang diễn ra
                   </div>
                 </SelectItem>
                 <SelectItem value="OPEN">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-teal-500" />
+                    <div className="w-2 h-2 rounded-full bg-info/150" />
                     Đang mở
                   </div>
                 </SelectItem>
                 <SelectItem value="PRE_OPEN">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                    <div className="w-2 h-2 rounded-full bg-info/150" />
                     Sắp khai giảng
                   </div>
                 </SelectItem>
                 <SelectItem value="PREPARING">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-indigo-400" />
+                    <div className="w-2 h-2 rounded-full bg-info" />
                     Đang chuẩn bị
                   </div>
                 </SelectItem>
                 <SelectItem value="NEW">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <div className="w-2 h-2 rounded-full bg-success" />
                     Mới
                   </div>
                 </SelectItem>
                 <SelectItem value="FINISHED">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-slate-500" />
+                    <div className="w-2 h-2 rounded-full bg-muted-foreground" />
                     Đã kết thúc
                   </div>
                 </SelectItem>
                 <SelectItem value="PENDING">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                    <div className="w-2 h-2 rounded-full bg-warning" />
                     Chờ duyệt
                   </div>
                 </SelectItem>
                 <SelectItem value="SUSPENDED">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-orange-500" />
+                    <div className="w-2 h-2 rounded-full bg-warning" />
                     Tạm dừng
                   </div>
                 </SelectItem>
                 <SelectItem value="ABANDONED">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-red-500" />
+                    <div className="w-2 h-2 rounded-full bg-destructive" />
                     Đã hủy
                   </div>
                 </SelectItem>
                 <SelectItem value="REJECTED">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-rose-600" />
+                    <div className="w-2 h-2 rounded-full bg-destructive" />
                     Bị từ chối
                   </div>
                 </SelectItem>
@@ -660,7 +644,7 @@ export default function ClassesPage() {
           {/* Role Filter */}
           <div className="flex-1 min-w-[120px] sm:min-w-[140px]">
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger size="sm" className="font-bold text-slate-700">
+              <SelectTrigger className="font-bold text-foreground">
                 <SelectValue placeholder="Vai trò" />
               </SelectTrigger>
               <SelectContent className="text-[11px]">
@@ -681,7 +665,7 @@ export default function ClassesPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-2 text-[11px] font-bold gap-1 bg-white hover:bg-slate-50 active:scale-95 transition-all shrink-0 ml-auto"
+              className="h-8 px-2 text-[11px] font-bold gap-1 bg-card hover:bg-muted/30 active:scale-95 transition-all shrink-0 ml-auto"
               onClick={resetFilters}
             >
               <RotateCcw className="h-3 w-3" />
@@ -693,36 +677,36 @@ export default function ClassesPage() {
         {/* Table Container */}
         <div className="flex-1 overflow-auto custom-scrollbar relative">
           {showLoading && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-[2px]">
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-card/60 dark:bg-foreground/70 backdrop-blur-[2px]">
               <CatLoader />
             </div>
           )}
 
           <Table className="table-fixed min-w-[1000px]">
-            <TableHeader className="sticky top-0 bg-white z-10 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+            <TableHeader className="sticky top-0 bg-card z-10 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
               <TableRow>
-                <TableHead className="w-[200px] min-w-[200px] md:w-[250px] md:min-w-[250px] bg-white">
+                <TableHead className="w-[200px] min-w-[200px] md:w-[250px] md:min-w-[250px] bg-card">
                   Tên lớp
                 </TableHead>
-                <TableHead className="w-[90px] min-w-[90px] bg-white">
+                <TableHead className="w-[90px] min-w-[90px] bg-card">
                   Buổi
                 </TableHead>
-                <TableHead className="w-[120px] min-w-[120px] md:w-[150px] md:min-w-[150px] bg-white">
+                <TableHead className="w-[120px] min-w-[120px] md:w-[150px] md:min-w-[150px] bg-card">
                   Lịch dạy
                 </TableHead>
-                <TableHead className="w-[100px] min-w-[100px] bg-white">
+                <TableHead className="w-[100px] min-w-[100px] bg-card">
                   Ngày bắt đầu
                 </TableHead>
-                <TableHead className="w-[100px] min-w-[100px] bg-white">
+                <TableHead className="w-[100px] min-w-[100px] bg-card">
                   Ngày kết thúc
                 </TableHead>
-                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-white">
+                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-card">
                   LEC
                 </TableHead>
-                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-white">
+                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-card">
                   TA
                 </TableHead>
-                <TableHead className="w-[130px] min-w-[130px] bg-white">
+                <TableHead className="w-[130px] min-w-[130px] bg-card">
                   Trạng thái
                 </TableHead>
               </TableRow>
@@ -742,7 +726,7 @@ export default function ClassesPage() {
                   return (
                     <TableRow
                       key={cls.id}
-                      className={`group cursor-pointer border-b transition-all hover:bg-slate-100/80 dark:hover:bg-slate-800/80 hover:shadow-md relative ${isPendingFilter ? "opacity-50" : ""}`}
+                      className={`group cursor-pointer border-b transition-all hover:bg-accent/80 dark:hover:bg-foreground/90/80 hover:shadow-md relative ${isPendingFilter ? "opacity-50" : ""}`}
                       onClick={() =>
                         router.push(`/dashboard/classes/${cls.id}`)
                       }
@@ -758,7 +742,7 @@ export default function ClassesPage() {
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="font-semibold text-indigo-600 dark:text-indigo-400">
+                      <TableCell className="font-semibold text-primary dark:text-indigo-400">
                         Buổi {cls.computed.currentSessionIndex || 0}
                       </TableCell>
                       <TableCell>
@@ -790,7 +774,8 @@ export default function ClassesPage() {
                       <TableCell className="relative overflow-hidden pr-10">
                         <StatusBadge type="class" status={cls.status} />
                         {cls.computed.category && cls.computed.category !== "unknown" && (
-                          <Tooltip delayDuration={150} className="absolute top-0 right-0 w-12 h-12">
+                          <div className="absolute top-0 right-0 w-12 h-12">
+                          <Tooltip delayDuration={150}>
                             <TooltipTrigger asChild>
                               <div className="w-full h-full overflow-hidden pointer-events-auto cursor-pointer z-10 group/ribbon">
                                 <div
@@ -814,7 +799,7 @@ export default function ClassesPage() {
                                 </div>
                               </div>
                             </TooltipTrigger>
-                            <TooltipContent side="top" className="bg-slate-800 text-white text-xs px-2 py-1 rounded shadow-md border-0">
+                            <TooltipContent side="top" className="bg-foreground/90 text-white text-xs px-2 py-1 rounded shadow-md border-0">
                               {cls.computed.category === "robotics"
                                 ? "Robotics Class"
                                 : cls.computed.category === "art"
@@ -822,6 +807,7 @@ export default function ClassesPage() {
                                 : "Coding Class"}
                             </TooltipContent>
                           </Tooltip>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>
@@ -833,7 +819,7 @@ export default function ClassesPage() {
         </div>
 
         {/* Footer/Pagination summary */}
-        <div className="border-t shrink-0 flex items-center justify-between px-4 py-2.5 bg-slate-50/50">
+        <div className="border-t shrink-0 flex items-center justify-between px-4 py-2.5 bg-muted/30">
           <div className="text-[11px] text-muted-foreground">
             Hiển thị tất cả <span className="font-semibold">{paginationMeta.total}</span> lớp học.
           </div>

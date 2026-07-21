@@ -1,302 +1,280 @@
-/* --- PRODUCTION CALENDAR STYLES (v2) --- */
+/* Calendar custom CSS — MindX Support Tools design system */
 
-/* 1. General & Typography */
+/* ─── FullCalendar base ─────────────────────────────────── */
 .fc {
-  font-family:
-    var(--font-sans),
-    system-ui,
-    -apple-system,
-    sans-serif;
-  font-size: 14px;
-}
-.fc .fc-toolbar-title {
-  font-size: 20px !important;
-  font-weight: 600 !important;
-  color: #1f2937; /* gray-800 */
-}
-
-/* 2. Calendar Grid & Layout */
-.fc-theme-standard td,
-.fc-theme-standard th {
-  border-color: #e5e7eb; /* gray-200 */
-}
-.fc .fc-scrollgrid {
-  border-color: #e5e7eb; /* gray-200 */
-}
-.fc .fc-col-header-cell {
-  background-color: white;
-  font-weight: 500;
-  color: #4b5563; /* gray-600 */
-  padding: 8px 4px;
-  text-transform: uppercase;
-  font-size: 11px;
-  border-bottom: 1px solid #e5e7eb;
-}
-.fc .fc-timegrid-slot-label {
-  text-align: right;
-  padding: 0 10px;
-  color: #6b7280; /* gray-500 */
+  --fc-border-color: hsl(var(--border));
+  --fc-page-bg-color: hsl(var(--background));
+  --fc-neutral-bg-color: hsl(var(--muted) / 0.3);
+  --fc-list-event-hover-bg-color: hsl(var(--accent));
+  --fc-today-bg-color: hsl(var(--primary) / 0.05);
+  --fc-now-indicator-color: hsl(var(--destructive));
+  --fc-event-bg-color: transparent;
+  --fc-event-border-color: transparent;
+  --fc-event-text-color: hsl(var(--foreground));
+  --fc-button-bg-color: hsl(var(--primary));
+  --fc-button-border-color: hsl(var(--primary));
+  --fc-button-hover-bg-color: hsl(var(--primary) / 0.9);
+  --fc-button-hover-border-color: hsl(var(--primary) / 0.9);
+  --fc-button-active-bg-color: hsl(var(--primary) / 0.8);
+  --fc-button-active-border-color: hsl(var(--primary) / 0.8);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
   font-size: 12px;
-  border-bottom: none !important;
-}
-.fc .fc-timegrid-slot {
-  height: 3em; /* Compact 1-hour slots for minimal vertical space */
-}
-.fc .fc-day-today {
-  background-color: #fcf8e3 !important; /* Lighter yellow */
-}
-.fc-timegrid-body,
-.fc-view > table,
-.fc-view {
-  height: 100%;
-}
-.fc .fc-timegrid-slots > table,
-.fc .fc-timegrid-cols > table {
-  border-bottom: 1px solid #e5e7eb;
 }
 
-/* 3. Current Time Indicator */
-.fc .fc-timegrid-now-indicator-line {
-  border-width: 1px 0 0 0 !important;
-  border-style: dashed !important;
-  border-color: #e31f26 !important; /* Brand red */
-  opacity: 0.5;
-  left: 0;
-  right: 0;
-  z-index: 1 !important; /* Position behind event cards */
-}
-.fc .fc-timegrid-now-indicator-arrow {
-  margin-top: -5px; /* Center 10px indicator */
-  border-color: transparent;
-  border-width: 0;
-  width: 10px;
-  height: 10px;
-  background-color: #e31f26;
-  border-radius: 50%;
-  left: -5px;
-  opacity: 0.8;
-  z-index: 1 !important;
-}
-
-/* 4. Controls */
-.fc .fc-button,
-.fc .fc-button-primary {
-  background-color: white !important;
-  color: #374151 !important;
-  border: 1px solid #d1d5db !important; /* gray-300 */
-  border-radius: 8px !important;
-  height: 40px;
-  padding: 0 16px;
-  font-size: 14px;
-  font-weight: 500;
-  box-shadow: none !important;
-  transition: all 0.15s ease;
-  text-transform: capitalize;
-}
-.fc .fc-button:hover,
-.fc .fc-button-primary:hover {
-  background-color: #f9fafb !important; /* gray-50 */
-  border-color: #9ca3af !important; /* gray-400 */
-}
-.fc .fc-button:focus-visible,
-.fc .fc-button-primary:focus-visible {
-  outline: 2px solid #3b82f6 !important;
-  outline-offset: 1px;
-}
-.fc .fc-button-primary:not(:disabled).fc-button-active {
-  background-color: #eff6ff !important; /* blue-100 */
-  color: #1d4ed8 !important; /* blue-700 */
-  border-color: #93c5fd !important; /* blue-300 */
-}
-.fc .fc-button-group {
-  gap: 8px;
-}
-.fc .fc-toolbar.fc-header-toolbar {
-  margin-bottom: 1.5rem !important;
-  align-items: center;
-}
-.fc-toolbar-chunk {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-/* 5. Event Card */
-.fc-event,
-.fc-event-main,
-.fc-event-main-frame {
-  min-width: 80px;
-  background-color: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  cursor: pointer;
-  overflow: visible !important;
-  transition: transform 0.15s ease;
-}
-.fc-event:hover {
-  transform: translateY(-1px);
-  z-index: 50 !important; /* Raise z-index on hover to sit above everything else */
-}
-.fc-event.fc-event-selected {
-  z-index: 60 !important;
-}
-.fc-event .event-content-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  justify-content: flex-start;
-  padding: 0 !important;
-  overflow: visible !important;
-  background: transparent !important;
-}
-
-/* 6. Semantic Color System (System Theme) */
-.event-list-item {
-  border: 1px solid #cbd5e1 !important;
-  background-color: #f1f5f9 !important; /* slate-100 */
-  color: #334155 !important; /* slate-700 */
-  padding: 4px 6px !important;
-  border-radius: 6px !important;
-  margin-bottom: 2px !important;
-  transition: all 0.15s ease;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-.event-list-item:last-child {
-  margin-bottom: 0 !important;
-}
-.event-list-item:hover {
-  filter: brightness(0.97);
-}
-.event-list-item.teaching-class {
-  background-color: #f1f5f9 !important; /* slate-100 */
-  border-color: #cbd5e1 !important;
-  color: #334155 !important;
-}
-.event-list-item.checkpoint-class {
-  background-color: hsl(350 100% 96%) !important; /* soft rose-red */
-  border-color: hsl(350 100% 90%) !important;
-  color: hsl(350 85% 45%) !important;
+/* ─── Header / day labels ──────────────────────────────── */
+.fc .fc-col-header-cell-cushion,
+.fc .fc-list-day-cushion .fc-list-day-text {
+  color: hsl(var(--muted-foreground));
   font-weight: 600;
-}
-.event-list-item.demo-class {
-  background-color: hsl(0 100% 93%) !important; /* soft brand-red */
-  border-color: hsl(0 100% 85%) !important;
-  color: hsl(0 85% 40%) !important;
-  font-weight: 700;
-}
-.event-list-item.completed {
-  background-color: hsl(140 100% 96%) !important;
-  border-color: hsl(140 100% 90%) !important;
-  color: hsl(140 70% 25%) !important;
-}
-.event-list-item.cancelled {
-  background-color: var(--destructive) !important;
-  border-color: var(--destructive) !important;
-  color: var(--destructive-foreground) !important;
-  text-decoration: line-through;
-}
-.fc-event.cancelled {
-  --event-bg-color: var(--destructive);
-  --event-border-color: var(--destructive);
-  --event-text-color: var(--destructive-foreground);
-  text-decoration: line-through;
-}
-
-/* 7. "+N More" Link */
-.fc .fc-timegrid-more-link {
-  padding: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #4b5563;
-  border-radius: 6px;
-  transition: background-color 0.15s ease;
-}
-.fc .fc-timegrid-more-link:hover {
-  background-color: #f3f4f6; /* gray-100 */
+  font-size: 11px;
+  padding: 10px 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   text-decoration: none;
 }
 
-/* 8. Demo Class Override - Must be last for specificity */
-.fc-event .event-content-wrapper .event-class-name.is-demo {
-  color: hsl(280 70% 45%) !important;
-  font-weight: 700 !important;
-  background: transparent !important;
+.fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+  color: hsl(var(--primary));
+  font-weight: 700;
 }
 
-/* 9. Prevent Tooltip Clipping and Overlays */
-.fc-timegrid-col,
-.fc-timegrid-col-frame,
-.fc-timegrid-col-events {
-  overflow: visible !important;
+.fc-theme-standard td,
+.fc-theme-standard th,
+.fc-theme-standard .fc-scrollgrid {
+  border-color: hsl(var(--border));
 }
 
-.fc-timegrid-col:has(.fc-event:hover) {
-  z-index: 100 !important;
+.fc .fc-scrollgrid-section-header th {
+  background: hsl(var(--muted) / 0.4);
+  border-bottom: 1px solid hsl(var(--border));
 }
 
-.fc-scroller:has(.fc-event:hover) {
-  z-index: 100 !important;
-  overflow: visible !important;
+.fc .fc-timegrid-slot-label-cushion {
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
 }
 
-.fc-scroller-harness:has(.fc-event:hover) {
-  z-index: 100 !important;
-  overflow: visible !important;
+.fc .fc-timegrid-slot {
+  height: 4em;
+  border-bottom-color: hsl(var(--border) / 0.5);
 }
 
-.fc-view-harness:has(.fc-event:hover) {
-  z-index: 100 !important;
-  overflow: visible !important;
+.fc .fc-timegrid-col.fc-day-today {
+  background: var(--fc-today-bg-color);
 }
 
-.fc-timegrid-body:has(.fc-event:hover) {
-  z-index: 100 !important;
-  overflow: visible !important;
+/* ─── Event base ───────────────────────────────────────── */
+.fc-event,
+.fc-event.fc-event-start,
+.fc-event.fc-event-end {
+  border-radius: 8px;
+  border: none;
+  padding: 0;
+  background: transparent;
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.fc-timegrid:has(.fc-event:hover) {
-  z-index: 100 !important;
-  overflow: visible !important;
+.fc-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.12);
+  z-index: 50 !important;
 }
 
-/* 10. Selection Pulse Glow Animation and Focus Outlines Reset */
-.fc-event:focus,
-.fc-event-selected,
-.fc-event-selected:focus,
-.fc-event-selected .fc-event-main,
-.fc-event-selected .event-content-wrapper {
-  outline: none !important;
-  box-shadow: none !important;
-  background-color: transparent !important;
-  background: transparent !important;
+.fc-event-selected {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 1px;
 }
 
-.fc-event-selected::after,
-.fc-event-selected::before {
-  display: none !important;
+/* ─── Event card (rich content) ────────────────────────── */
+.event-content-wrapper {
+  color: hsl(var(--foreground));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
 }
 
-@keyframes event-pulse-glow {
-  0% {
-    box-shadow: 0 0 0 0px rgba(227, 31, 38, 0.4);
-    transform: scale(1);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgba(227, 31, 38, 0.2);
-    transform: scale(1.02);
-  }
-  100% {
-    box-shadow: 0 0 0 0px rgba(227, 31, 38, 0.4);
-    transform: scale(1);
-  }
+.event-content-wrapper::-webkit-scrollbar {
+  width: 4px;
 }
 
-.fc-event-selected .event-list-item {
-  animation: event-pulse-glow 2s infinite ease-in-out;
-  border-color: #e31f26 !important; /* brand-red border highlight */
-  border-width: 1.5px !important;
+.event-content-wrapper::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 999px;
+}
+
+.event-card {
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: hsl(var(--card));
+  border-left: 3px solid var(--accent, hsl(var(--primary)));
+  border-top: 1px solid hsl(var(--border) / 0.5);
+  border-right: 1px solid hsl(var(--border) / 0.5);
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.event-card.teaching-class {
+  background: hsl(var(--primary) / 0.06);
+  --accent: hsl(var(--primary));
+}
+
+.event-card.demo-class {
+  background: hsl(var(--success) / 0.08);
+  --accent: hsl(var(--success));
+}
+
+.event-card.checkpoint-class {
+  background: hsl(var(--info) / 0.08);
+  --accent: hsl(var(--info));
+}
+
+.event-card.cancelled {
+  background: hsl(var(--muted) / 0.4);
+  --accent: hsl(var(--muted-foreground));
+  opacity: 0.7;
+}
+
+.event-card.cancelled .event-title-text,
+.event-card.cancelled .event-meta-row {
+  text-decoration: line-through;
+}
+
+.event-card.completed {
+  background: hsl(var(--muted) / 0.4);
+  --accent: hsl(var(--muted-foreground));
+  opacity: 0.85;
+}
+
+/* ─── Badge (CHECKPOINT / DEMO / ĐÃ HỦY / HOÀN THÀNH) ── */
+.event-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  align-self: flex-start;
+  padding: 1px 5px 1px 4px;
+  border-radius: 4px;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--accent, hsl(var(--primary)));
+  background: hsl(var(--background) / 0.7);
+  border: 1px solid var(--accent, hsl(var(--primary)));
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+
+.event-badge-icon {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+}
+
+/* ─── Title ────────────────────────────────────────────── */
+.event-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.event-title-text {
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── Meta info ────────────────────────────────────────── */
+.event-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 9.5px;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.3;
+}
+
+.event-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.event-meta-icon {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.event-meta-session {
+  color: var(--accent, hsl(var(--primary)));
+  font-weight: 600;
+}
+
+.event-teacher-lec {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.event-teacher-ta {
+  color: hsl(var(--muted-foreground));
+}
+
+.event-teacher-sep {
+  color: hsl(var(--border-foreground, var(--muted-foreground)));
+  opacity: 0.6;
+}
+
+/* ─── Extra indicator ─────────────────────────────────── */
+.event-card.event-extra {
+  border-style: dashed;
+  border-left-width: 3px;
+  background: hsl(var(--muted) / 0.5);
+  font-size: 9.5px;
+  font-weight: 700;
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+  padding: 3px 6px;
+}
+
+/* ─── Body spacing fix ────────────────────────────────── */
+.fc .fc-toolbar-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* ─── Scrollbar ────────────────────────────────────────── */
+.fc-scroller-liquid-absolute::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.fc-scroller-liquid-absolute::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 999px;
+}
+
+.fc-scroller-liquid-absolute::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+.fc .fc-more-link {
+  color: hsl(var(--primary));
+  font-weight: 600;
 }

@@ -3,10 +3,27 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { useAuthStore } from "../../store/useAuthStore";
-import { classService } from "../../services/classService";
-import { authService } from "../../services/authService";
-import { Button } from "../../components/ui/button";
+import { useAuthStore } from "@/store/useAuthStore";
+import { classService } from "@/services/classService";
+import { authService } from "@/services/authService";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { CommandPalette } from "@/components/CommandPalette";
+import { cn, isKhiemAccount } from "@/lib/utils";
 import {
   LayoutDashboard,
   Calendar,
@@ -18,15 +35,25 @@ import {
   Menu,
   X,
   ChevronDown,
-  ChevronRight,
-  ChevronLeft,
   TableProperties,
   Bot,
   Clock,
+  ChevronsLeft,
+  ChevronsRight,
+  GraduationCap,
+  Search,
+  Bell,
+  Sparkles,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { Toaster } from "sonner";
-import { isKhiemAccount, cn } from "@/lib/utils";
+
+type NavItem = {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  shortcut?: string;
+};
 
 export default function DashboardLayout({
   children,
@@ -44,10 +71,12 @@ export default function DashboardLayout({
   } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isClassesExpanded, setIsClassesExpanded] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
+  const [isCommandOpen, setIsCommandOpen] = useState(false);
 
   const classes = storedClasses || [];
 
@@ -59,6 +88,14 @@ export default function DashboardLayout({
     user?.email?.split("@")[0] ||
     "Giáo viên";
 
+  const initials = displayName
+    .split(/\s+/)
+    .map((w: string) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
   const getRoleDisplay = (roles?: string[]) => {
     if (!roles || roles.length === 0) return "Giáo viên";
     if (roles.includes("TE")) return "Quản lý / TE";
@@ -68,7 +105,7 @@ export default function DashboardLayout({
 
   const roleDisplay = getRoleDisplay(user?.appRoles);
 
-  // Wait for Zustand persist rehydration before accessing auth state
+  /* ── Hydration guard ────────────────────────────────────────── */
   useEffect(() => {
     if (useAuthStore.persist?.hasHydrated?.()) {
       const timer = setTimeout(() => setHasHydrated(true), 0);
@@ -87,10 +124,9 @@ export default function DashboardLayout({
     }
   }, [hasHydrated, isAuthenticated, router]);
 
-  // Explicitly validate token on mount
+  /* ── Token validation ──────────────────────────────────────── */
   useEffect(() => {
     let isCancelled = false;
-
     const validateSession = async () => {
       if (hasHydrated && isAuthenticated && token && user?.id) {
         try {
@@ -98,27 +134,23 @@ export default function DashboardLayout({
         } catch (error) {
           if (!isCancelled) {
             console.warn("Token validation failed:", error);
-            // Interceptor handles logout if refresh fails
           }
         }
       }
     };
-
     validateSession();
-
     return () => {
       isCancelled = true;
     };
   }, [hasHydrated, isAuthenticated, token, user]);
 
+  /* ── Sidebar classes cache ─────────────────────────────────── */
   useEffect(() => {
     let isCancelled = false;
-
     const fetchClasses = async () => {
       const isTE = user?.appRoles?.includes("TE" as any);
       if ((!user?.teacherId && !isTE) || !token || !isAuthenticated) return;
 
-      // Optimize: If we have classes in store and they're less than 5 mins old, don't refetch
       const CACHE_TIME = 5 * 60 * 1000;
       if (
         storedClasses &&
@@ -128,8 +160,6 @@ export default function DashboardLayout({
         return;
       }
 
-      // If already on dashboard, let the dashboard component handle the primary fetch
-      // to avoid redundant concurrent requests
       if (pathname === "/dashboard" && !storedClasses) return;
 
       try {
@@ -147,52 +177,40 @@ export default function DashboardLayout({
           setStoredClasses(data?.data || []);
         }
       } catch (err: unknown) {
-        // Sidebar classes are non-critical. Do not use console.error here because
-        // Next.js dev overlay surfaces caught Axios errors as runtime errors.
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
         console.warn("Could not fetch sidebar classes:", errorMsg);
-        if (!isCancelled) {
-          // Keep old data if fetch fails
-        }
       }
     };
-
     fetchClasses();
-
     return () => {
       isCancelled = true;
     };
   }, [user, token, isAuthenticated, pathname]);
 
+  /* ── Command palette keyboard shortcut ───────────────────── */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsCommandOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   if (!isAuthenticated) return null;
 
-  const navItems = [
-    { label: "Tổng quan", href: "/dashboard", icon: LayoutDashboard },
-    {
-      label: "Lớp học",
-      href: "/dashboard/classes",
-      icon: Calendar,
-      hasSubmenu: true,
-    },
+  const navItems: NavItem[] = [
+    { label: "Tổng quan", href: "/dashboard", icon: LayoutDashboard, shortcut: "G D" },
+    { label: "Lớp học", href: "/dashboard/classes", icon: Calendar },
     { label: "Học viên", href: "/dashboard/students", icon: Users },
     { label: "Nhân sự", href: "/dashboard/personnel", icon: BriefcaseBusiness },
-    {
-      label: "Lịch làm việc",
-      href: "/dashboard/schedules",
-      icon: CalendarClock,
-    },
-    {
-      label: "Book Trial",
-      href: "/dashboard/spreadsheet",
-      icon: TableProperties,
-    },
-    {
-      label: "Office Hours",
-      href: "/dashboard/office-hours",
-      icon: Clock,
-    },
+    { label: "Lịch làm việc", href: "/dashboard/schedules", icon: CalendarClock },
+    { label: "Book Trial", href: "/dashboard/spreadsheet", icon: TableProperties },
+    { label: "Office Hours", href: "/dashboard/office-hours", icon: Clock },
     ...(isKhiemAccount(user)
-      ? [{ label: "Cài đặt Zalo Bot", href: "/dashboard/zalo-bot", icon: Bot }]
+      ? [{ label: "Zalo Bot", href: "/dashboard/zalo-bot", icon: Bot }]
       : []),
     { label: "Cài đặt", href: "/dashboard/settings", icon: Settings },
   ];
@@ -200,7 +218,6 @@ export default function DashboardLayout({
   const handleLogout = () => {
     const sessionId = useAuthStore.getState().sessionId;
     if (sessionId) {
-      // Fire and forget so we don't block the UI if the request hangs or fails
       authService.logout(sessionId).catch((err) => {
         console.error("Backend logout failed:", err);
       });
@@ -209,396 +226,341 @@ export default function DashboardLayout({
     router.push("/login");
   };
 
-  return (
-    <div className="flex h-dvh bg-[#f8fafc] overflow-hidden">
-      <Toaster position="top-right" expand={true} richColors />
-      {/* Sidebar Desktop */}
-      <aside
-        className={`hidden md:flex relative flex-col transition-all duration-300 bg-white border-r border-slate-200/60 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-30 ${
-          isSidebarCollapsed ? "w-20" : "w-72"
-        }`}
-      >
-        {isSidebarCollapsed && (
-          <div className="relative pt-4 pb-2 flex items-center justify-center px-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 rounded-full border border-slate-200 bg-white shadow-sm hover:bg-slate-50 z-50 flex items-center justify-center"
-              onClick={() => setIsSidebarCollapsed(false)}
-              title="Mở rộng thanh bên"
-            >
-              <ChevronRight className="size-4 text-slate-500" />
-            </Button>
-          </div>
+  /* ── Sidebar nav renderer ──────────────────────────────────── */
+  const renderNavItem = (item: NavItem, compact = false) => {
+    const isClassesMenu = item.href === "/dashboard/classes";
+    const isParentActive = pathname === item.href;
+    const isChildActive =
+      isClassesMenu && pathname.startsWith("/dashboard/classes/");
+    const isActive = isParentActive || isChildActive;
+
+    const linkNode = (
+      <Link
+        href={item.href}
+        onClick={() => {
+          if (!isClassesMenu) setIsMobileMenuOpen(false);
+        }}
+        className={cn(
+          "group/item relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all",
+          compact ? "justify-center" : "",
+          isActive
+            ? "bg-primary/10 text-primary"
+            : "text-muted-foreground hover:bg-accent hover:text-foreground",
         )}
+      >
+        {isActive && (
+          <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-primary" />
+        )}
+        <item.icon
+          className={cn(
+            "h-4 w-4 shrink-0 transition-colors",
+            isActive ? "text-primary" : "text-muted-foreground group-hover/item:text-foreground",
+          )}
+        />
+        {!compact && (
+          <span className="truncate flex-1">{item.label}</span>
+        )}
+        {!compact && isClassesMenu && classes.length > 0 && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsClassesExpanded(!isClassesExpanded);
+            }}
+            className={cn(
+              "rounded p-0.5 hover:bg-accent transition-transform",
+              isClassesExpanded ? "rotate-0" : "-rotate-90",
+            )}
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </Link>
+    );
 
-        <nav className={cn(
-          "flex-1 px-4 space-y-1.5 overflow-y-auto custom-scrollbar",
-          !isSidebarCollapsed ? "pt-6" : "pt-0"
-        )}>
-          {navItems.map((item) => {
-            const isClassesMenu = item.href === "/dashboard/classes";
-            const isParentActive = pathname === item.href;
-            const isChildActive =
-              isClassesMenu && pathname.startsWith("/dashboard/classes/");
-            const isActive = isParentActive || isChildActive;
+    if (compact) {
+      return (
+        <Tooltip key={item.href} delayDuration={0}>
+          <TooltipTrigger asChild>{linkNode}</TooltipTrigger>
+          <TooltipContent side="right" sideOffset={8}>
+            {item.label}
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+    return <div key={item.href}>{linkNode}</div>;
+  };
 
-            return (
-              <div key={item.href} className="group/item">
-                <div
-                  className={cn(
-                    "relative flex items-center justify-between rounded-xl transition-all duration-150 ease-out",
-                    isActive
-                      ? "bg-primary/[0.04] text-primary shadow-sm font-semibold"
-                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                  )}
-                >
-                  {isActive && (
-                    <div
-                      className={cn(
-                        "absolute top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full transition-all duration-150 ease-out shadow-[0_0_8px_rgba(227,31,38,0.4)]",
-                        isSidebarCollapsed ? "left-1" : "left-0"
-                      )}
-                    />
-                  )}
-
-                  <Link
-                    href={item.href}
-                    title={item.label}
-                    className={cn(
-                      "flex-1 flex items-center transition-all duration-150 ease-out",
-                      isSidebarCollapsed ? "justify-center px-0" : "px-4",
-                      isActive && !isSidebarCollapsed ? "pl-5 text-primary" : "text-inherit",
-                      "py-2.5 text-sm font-medium"
-                    )}
-                  >
-                    <item.icon
-                      className={cn(
-                        "size-5 transition-all duration-150 ease-out",
-                        isActive
-                          ? "text-primary scale-105"
-                          : "text-slate-400 group-hover/item:text-slate-600 group-hover/item:scale-105"
-                      )}
-                    />
-                    <span
-                      className={cn(
-                        "transition-all duration-150 ease-out whitespace-nowrap overflow-hidden",
-                        isSidebarCollapsed
-                          ? "max-w-0 opacity-0 pointer-events-none overflow-hidden ml-0"
-                          : "max-w-xs opacity-100 ml-3.5"
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                  </Link>
-
-                  {!isSidebarCollapsed && item.href === "/dashboard" && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setIsSidebarCollapsed(true);
-                      }}
-                      className="p-1.5 mr-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all duration-150 ease-out active:scale-95 flex items-center justify-center"
-                      title="Thu nhỏ thanh bên"
-                    >
-                      <ChevronLeft className="size-4" />
-                    </button>
-                  )}
-
-                  {!isSidebarCollapsed &&
-                    isClassesMenu &&
-                    classes.length > 0 && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setIsClassesExpanded(!isClassesExpanded);
-                        }}
-                        className={cn(
-                          "p-1.5 mr-2 rounded-lg transition-all duration-150 ease-out",
-                          isClassesExpanded
-                            ? "bg-primary/10 text-primary"
-                            : "hover:bg-slate-100 text-slate-400"
-                        )}
-                      >
-                        <ChevronDown
-                          className={cn(
-                            "size-4 transition-transform duration-150 ease-out",
-                            isClassesExpanded ? "rotate-0" : "-rotate-90"
-                          )}
-                        />
-                      </button>
-                    )}
-                </div>
-
-                {/* Submenu with animation */}
-                {!isSidebarCollapsed &&
-                  isClassesMenu &&
-                  isClassesExpanded &&
-                  classes.length > 0 && (
-                    <div className="mt-1 ml-6 pl-4 space-y-1 border-l-2 border-slate-100/80 animate-in fade-in slide-in-from-top-1 duration-150 ease-out">
-                      {classes.slice(0, 8).map((cls) => {
-                        const classHref = `/dashboard/classes/${cls.id}`;
-                        const isClassActive = pathname === classHref;
-                        return (
-                          <Link
-                            key={cls.id}
-                            href={classHref}
-                            className={cn(
-                              "group/sub flex items-center px-3 py-2 text-[13px] font-medium rounded-lg transition-all duration-150 ease-out truncate",
-                              isClassActive
-                                ? "text-primary bg-primary/5 font-semibold"
-                                : "text-slate-400 hover:text-slate-700 hover:bg-slate-50/80"
-                            )}
-                            title={cls.name}
-                          >
-                            <div
-                              className={cn(
-                                "size-1.5 rounded-full mr-3 transition-all duration-150 ease-out",
-                                isClassActive
-                                  ? "bg-primary scale-125 shadow-[0_0_8px_rgba(227,31,38,0.5)]"
-                                  : "bg-slate-300 group-hover/sub:bg-slate-400 group-hover/sub:scale-110"
-                              )}
-                            />
-                            <span className="truncate">{cls.name}</span>
-                          </Link>
-                        );
-                      })}
-                      {classes.length > 8 && (
-                        <Link
-                          href="/dashboard/classes"
-                          className="flex items-center px-3 py-1.5 text-[11px] font-semibold text-slate-400 hover:text-primary transition-colors uppercase tracking-wider"
-                        >
-                          Xem tất cả {classes.length} lớp...
-                        </Link>
-                      )}
-                    </div>
-                  )}
+  return (
+    <div className="flex h-dvh bg-background overflow-hidden">
+      {/* ─── Desktop Sidebar ───────────────────────────────────── */}
+      <aside
+        className={cn(
+          "hidden md:flex relative flex-col border-r border-border bg-card transition-[width] duration-200 ease-out z-30",
+          isSidebarCollapsed ? "w-[68px]" : "w-[260px]",
+        )}
+      >
+        {/* Brand */}
+        <div className="flex h-16 items-center border-b border-border px-4 shrink-0">
+          {!isSidebarCollapsed ? (
+            <Link href="/dashboard" className="flex items-center gap-2 min-w-0">
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary shrink-0">
+                <Sparkles className="h-4 w-4 text-primary-foreground" />
               </div>
-            );
-          })}
+              <span className="font-semibold tracking-tight truncate">
+                MST
+              </span>
+            </Link>
+          ) : (
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Link
+                  href="/dashboard"
+                  className="flex h-8 w-8 items-center justify-center rounded-md bg-primary mx-auto"
+                >
+                  <Sparkles className="h-4 w-4 text-primary-foreground" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={8}>
+                MindX Support Tools
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-0.5">
+          {navItems.map((item) => renderNavItem(item, isSidebarCollapsed))}
+
+          {/* Classes submenu (expanded only) */}
+          {!isSidebarCollapsed &&
+            pathname.startsWith("/dashboard/classes") &&
+            isClassesExpanded &&
+            classes.length > 0 && (
+              <div className="ml-4 mt-1 pl-3 border-l border-border space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                {classes.slice(0, 8).map((cls) => {
+                  const href = `/dashboard/classes/${cls.id}`;
+                  const isActive = pathname === href;
+                  return (
+                    <Link
+                      key={cls.id}
+                      href={href}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] truncate transition-colors",
+                        isActive
+                          ? "bg-primary/10 text-primary font-semibold"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full shrink-0",
+                          isActive ? "bg-primary" : "bg-muted-foreground/40",
+                        )}
+                      />
+                      <span className="truncate">{cls.name}</span>
+                    </Link>
+                  );
+                })}
+                {classes.length > 8 && (
+                  <Link
+                    href="/dashboard/classes"
+                    className="block px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-primary"
+                  >
+                    Xem tất cả {classes.length} lớp →
+                  </Link>
+                )}
+              </div>
+            )}
         </nav>
 
-        <div
-          className={`mt-auto transition-all duration-300 ${
-            isSidebarCollapsed ? "p-2" : "p-4"
-          }`}
+        {/* Collapse toggle */}
+        <button
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="absolute -right-3 top-20 hidden md:flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-accent transition-colors"
+          aria-label={isSidebarCollapsed ? "Mở rộng" : "Thu nhỏ"}
         >
-          <div
-            className={`bg-slate-50/80 rounded-2xl border border-slate-100 transition-all duration-300 ${
-              isSidebarCollapsed ? "p-2 flex flex-col items-center" : "p-4"
-            }`}
-          >
-            <div
-              className={`flex items-center transition-all duration-300 ${
-                isSidebarCollapsed ? "justify-center mb-2 gap-0" : "mb-4 gap-3"
-              }`}
-            >
-              <div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold border border-primary/10 shadow-inner shrink-0">
-                {displayName.charAt(0).toUpperCase()}
-              </div>
-              <div
-                className={`transition-all duration-300 ease-in-out flex flex-col justify-center min-w-0 ${
-                  isSidebarCollapsed
-                    ? "max-w-0 opacity-0 pointer-events-none overflow-hidden"
-                    : "max-w-[180px] opacity-100"
-                }`}
+          {isSidebarCollapsed ? (
+            <ChevronsRight className="h-3 w-3" />
+          ) : (
+            <ChevronsLeft className="h-3 w-3" />
+          )}
+        </button>
+
+        {/* User menu */}
+        <div className="border-t border-border p-2 shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-md p-2 hover:bg-accent transition-colors text-left",
+                  isSidebarCollapsed && "justify-center",
+                )}
               >
-                <p className="text-[13px] font-bold text-slate-900 truncate leading-tight">
-                  {displayName}
-                </p>
-                <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                  {user?.email}
-                </p>
-                <div className="mt-1.5 flex">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
-                    {roleDisplay}
+                <Avatar className={cn(isSidebarCollapsed ? "h-8 w-8" : "h-9 w-9")}>
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                {!isSidebarCollapsed && (
+                  <>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold truncate">
+                        {displayName}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {roleDisplay}
+                      </p>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="top" className="w-56">
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold">{displayName}</span>
+                  <span className="text-xs text-muted-foreground truncate">
+                    {user?.email}
                   </span>
                 </div>
-              </div>
-            </div>
-            {isSidebarCollapsed ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-slate-500 hover:text-red-600 hover:bg-red-50/50 rounded-full size-9"
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Cài đặt
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
                 onClick={handleLogout}
-                title="Đăng xuất"
+                className="text-destructive focus:text-destructive"
               >
-                <LogOut className="size-4" />
-              </Button>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-slate-500 hover:text-red-600 hover:bg-red-50/50 rounded-xl h-9 text-xs font-semibold transition-all duration-200 border border-transparent hover:border-red-100"
-                onClick={handleLogout}
-              >
-                <LogOut className="mr-2.5 size-4" />
+                <LogOut className="mr-2 h-4 w-4" />
                 Đăng xuất
-              </Button>
-            )}
-          </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </aside>
 
-      {/* Main Container (Visible on both Mobile and Desktop) */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        {/* Header Mobile */}
-        <header className="md:hidden flex items-center justify-between px-6 py-3 bg-white border-b border-slate-100 shadow-sm sticky top-0 z-40 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-800 text-lg tracking-tight">Xitthui Tool</span>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-xl bg-slate-50"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          >
-            {isMobileMenuOpen ? (
-              <X className="h-5 w-5" />
-            ) : (
+      {/* ─── Main + Mobile ─────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Top bar */}
+        <header className="flex h-16 items-center justify-between gap-4 border-b border-border bg-background/80 px-4 sm:px-6 backdrop-blur-md sticky top-0 z-20 shrink-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden p-2 rounded-md hover:bg-accent"
+              aria-label="Mở menu"
+            >
               <Menu className="h-5 w-5" />
-            )}
-          </Button>
-        </header>
+            </button>
 
-        {/* Mobile Menu Drawer Overlay */}
-        {isMobileMenuOpen && (
-          <>
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[55] md:hidden"
-              onClick={() => setIsMobileMenuOpen(false)}
-            />
-            {/* Drawer */}
-            <div className="fixed top-0 left-0 bottom-0 w-80 max-w-[85vw] bg-white z-[60] p-6 flex flex-col overflow-y-auto shadow-2xl animate-in slide-in-from-left duration-250 md:hidden">
-              {/* Drawer Header */}
-              <div className="flex items-center justify-end pb-4 border-b border-slate-100 mb-6 shrink-0">
+            {/* Command palette trigger */}
+            <button
+              onClick={() => setIsCommandOpen(true)}
+              className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors min-w-0 max-w-md flex-1 group"
+            >
+              <Search className="h-4 w-4 shrink-0" />
+              <span className="text-sm truncate hidden sm:inline">
+                Tìm kiếm hoặc nhảy tới trang...
+              </span>
+              <span className="text-sm truncate sm:hidden">Tìm...</span>
+              <kbd className="hidden md:inline-flex items-center gap-0.5 ml-auto rounded border border-border bg-background px-1.5 h-5 text-[10px] font-mono opacity-70 group-hover:opacity-100">
+                <span>⌘</span>K
+              </kbd>
+            </button>
+
+            <div className="hidden xl:flex items-center gap-2 text-sm shrink-0">
+              <span className="text-muted-foreground">Xin chào,</span>
+              <span className="font-semibold truncate max-w-[160px]">
+                {displayName}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="rounded-xl size-9 bg-slate-50 hover:bg-slate-100"
-                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="h-9 w-9 relative"
                 >
-                  <X className="size-5 text-slate-500" />
+                  <Bell className="h-4 w-4" />
+                  <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
                 </Button>
-              </div>
+              </TooltipTrigger>
+              <TooltipContent>Thông báo</TooltipContent>
+            </Tooltip>
+          </div>
+        </header>
 
-              {/* Navigation Items */}
-              <div className="flex-1 space-y-3 overflow-y-auto pr-1">
-                {navItems.map((item) => {
-                  const isClassesMenu = item.href === "/dashboard/classes";
-                  const isParentActive = pathname === item.href;
-                  const isChildActive =
-                    isClassesMenu && pathname.startsWith("/dashboard/classes/");
-                  const isActive = isParentActive || isChildActive;
-
-                  return (
-                    <div key={item.href} className="space-y-1">
-                      <div className="flex items-center justify-between rounded-xl">
-                        <Link
-                          href={item.href}
-                          onClick={() =>
-                            !isClassesMenu && setIsMobileMenuOpen(false)
-                          }
-                          className={`flex-1 flex items-center px-4 py-3 text-base font-semibold rounded-xl transition-all duration-200 ${
-                            isActive
-                              ? "bg-primary/5 text-primary pl-5 border-l-4 border-primary"
-                              : "text-slate-600 hover:bg-slate-50"
-                          }`}
-                        >
-                          <item.icon
-                            className={`mr-3.5 size-5 ${isActive ? "text-primary" : "text-slate-400"}`}
-                          />
-                          {item.label}
-                        </Link>
-                        {isClassesMenu && classes.length > 0 && (
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setIsClassesExpanded(!isClassesExpanded);
-                            }}
-                            className="p-3 text-slate-500 hover:bg-slate-50 rounded-xl"
-                          >
-                            {isClassesExpanded ? (
-                              <ChevronDown className="size-5" />
-                            ) : (
-                              <ChevronRight className="size-5" />
-                            )}
-                          </button>
-                        )}
-                      </div>
-
-                      {isClassesMenu && isClassesExpanded && classes.length > 0 && (
-                        <div className="pl-6 space-y-1.5 border-l ml-7 border-slate-100">
-                          {classes.map((cls) => {
-                            const classHref = `/dashboard/classes/${cls.id}`;
-                            const isClassActive = pathname === classHref;
-                            return (
-                              <Link
-                                key={cls.id}
-                                href={classHref}
-                                onClick={() => setIsMobileMenuOpen(false)}
-                                className={`group flex items-center px-4 py-2.5 text-[13px] font-semibold rounded-lg transition-colors truncate ${
-                                  isClassActive
-                                    ? "text-primary bg-primary/5 font-bold"
-                                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-                                }`}
-                              >
-                                <span
-                                  className={`size-1.5 rounded-full mr-3.5 transition-colors ${
-                                    isClassActive
-                                      ? "bg-primary scale-110"
-                                      : "bg-slate-300 group-hover:bg-slate-400"
-                                  }`}
-                                />
-                                <span className="truncate">{cls.name}</span>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Drawer Footer */}
-              <div className="pt-4 border-t border-slate-100 mt-auto shrink-0">
-                <div className="p-4 mb-3 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
-                  <p className="text-[13px] font-bold text-slate-900 truncate">
-                    {displayName}
-                  </p>
-                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {user?.email}
-                  </p>
-                  <div className="mt-2 flex">
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
-                      {roleDisplay}
-                    </span>
-                  </div>
-                </div>
-
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50/50 py-3 rounded-xl text-sm font-semibold transition-colors duration-200"
-                  onClick={handleLogout}
-                >
-                  <LogOut className="mr-3 size-5" />
-                  Đăng xuất
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Single Main Viewport */}
+        {/* Page content */}
         <main className="flex-1 overflow-y-auto">
-          {children}
+          <div className="animate-page-enter">{children}</div>
         </main>
       </div>
+
+      <CommandPalette open={isCommandOpen} onOpenChange={setIsCommandOpen} />
+
+      {/* ─── Mobile drawer ──────────────────────────────────────── */}
+      {isMobileMenuOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-sm md:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          <aside className="fixed top-0 left-0 bottom-0 z-50 w-[280px] bg-card border-r border-border p-3 flex flex-col md:hidden animate-in slide-in-from-left duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <Link href="/dashboard" className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
+                  <Sparkles className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <span className="font-semibold">MST</span>
+              </Link>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-2 rounded-md hover:bg-accent"
+                aria-label="Đóng menu"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* User info */}
+            <div className="flex items-center gap-3 p-3 mb-2 rounded-lg bg-muted/50">
+              <Avatar className="h-10 w-10 shrink-0">
+                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold truncate">{displayName}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {roleDisplay}
+                </p>
+              </div>
+            </div>
+
+            <nav className="flex-1 overflow-y-auto scrollbar-thin space-y-0.5">
+              {navItems.map((item) => renderNavItem(item))}
+            </nav>
+
+            <Separator className="my-2" />
+
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              Đăng xuất
+            </button>
+          </aside>
+        </>
+      )}
     </div>
   );
 }

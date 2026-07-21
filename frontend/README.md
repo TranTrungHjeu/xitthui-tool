@@ -1,6 +1,6 @@
-# Xitthui Teacher Dashboard (Frontend)
+# MindX Support Tools (Frontend)
 
-Modern Teacher Dashboard for MindX LMS built with Next.js 15, Shadcn UI, and Zustand.
+Modern Teacher Dashboard for MindX LMS built with Next.js, Shadcn UI, and Zustand.
 
 ## Features
 
@@ -9,19 +9,22 @@ Modern Teacher Dashboard for MindX LMS built with Next.js 15, Shadcn UI, and Zus
 - Direct Evaluation/Review Updates to LMS
 - Real-time Teacher Statistics
 - Modern Authentication Flow
+- Command Palette (⌘K / Ctrl+K)
+- Light / Dark theme
 
 ## Tech Stack
 
-- **Framework**: Next.js 15 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **UI Components**: Shadcn UI (Tailwind CSS + Radix UI)
 - **Icons**: Lucide React
 - **State Management**: Zustand
 - **API Client**: Axios with automatic token attachment
 - **Date Utilities**: date-fns
+- **Theming**: next-themes
 
 ## Getting Started
 
-The frontend is designed to work with the Xitthui backend server.
+The frontend is designed to work with the MindX Support Tools backend server.
 
 1. Install dependencies:
 

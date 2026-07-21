@@ -1,5 +1,5 @@
 /**
- * Enum các Role chuẩn của hệ thống XitthuiTool.
+ * Enum các Role chuẩn của hệ thống MindX Support Tools.
  * Tách biệt hoàn toàn với Role gốc của MindX LMS.
  */
 export enum AppRole {

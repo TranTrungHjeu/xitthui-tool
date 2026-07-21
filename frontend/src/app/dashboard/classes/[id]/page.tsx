@@ -59,6 +59,7 @@ import { useRouter } from "next/navigation";
 import { formatDate, formatTime } from "../../../../lib/date";
 import { shouldShowGrading } from "../../../../lib/class";
 import { useMinLoading } from "@/hooks/useMinLoading";
+import { PageHeader } from "../../../../components/ui/page-header";
 
 export default function ClassDetailsPage({
   params,
@@ -278,7 +279,7 @@ export default function ClassDetailsPage({
 
   const formatCommentContent = (text: string) => {
     if (!text)
-      return '<p class="italic text-slate-400 text-center py-6">Chưa có nhận xét cho học viên trong buổi học này.</p>';
+      return '<p class="italic text-muted-foreground text-center py-6">Chưa có nhận xét cho học viên trong buổi học này.</p>';
 
     // Loại bỏ Zero-width space (U+200B) thường bị dính từ copy/paste
     let cleanText = text.replace(/\u200B/g, "");
@@ -318,7 +319,7 @@ export default function ClassDetailsPage({
           htmlContent += "</ul>";
           inList = false;
         }
-        htmlContent += `<h4 class="font-bold text-slate-800 uppercase tracking-wider mt-4 mb-2 text-sm">${trimmed}</h4>`;
+        htmlContent += `<h4 class="font-bold text-foreground uppercase tracking-wider mt-4 mb-2 text-sm">${trimmed}</h4>`;
       } else if (isScore) {
         if (inList) {
           htmlContent += "</ul>";
@@ -328,7 +329,7 @@ export default function ClassDetailsPage({
       } else {
         if (!inList) {
           htmlContent +=
-            '<ul class="list-disc pl-5 space-y-1.5 marker:text-slate-400 text-slate-700">';
+            '<ul class="list-disc pl-5 space-y-1.5 marker:text-muted-foreground text-foreground">';
           inList = true;
         }
         // Remove manual bullets if teacher typed them
@@ -370,14 +371,14 @@ export default function ClassDetailsPage({
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="shrink-0">
           <ChevronLeft className="h-5 w-5" />
         </Button>
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-3xl font-bold tracking-tight">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight truncate">
               {classData.name}
             </h2>
             <StatusBadge type="class" status={classData.status} />
@@ -388,10 +389,10 @@ export default function ClassDetailsPage({
 
       <Tabs defaultValue="sessions" className="space-y-6">
         <div className="w-full overflow-x-auto select-none no-scrollbar flex pb-1">
-          <TabsList className="inline-flex w-auto bg-slate-100/80 p-1 rounded-2xl shadow-sm border border-slate-200/50 backdrop-blur-sm whitespace-nowrap">
+          <TabsList className="inline-flex w-auto bg-muted p-1 rounded-xl shadow-sm border border-border whitespace-nowrap">
           <TabsTrigger
             value="sessions"
-            className="flex items-center gap-2.5 px-6 py-3 text-sm font-bold rounded-xl transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-[0_4px_12px_rgba(0,0,0,0.08)] data-[state=inactive]:text-slate-500 data-[state=inactive]:hover:bg-white/50"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:bg-card/60"
           >
             <CalendarCheck className="w-4 h-4" />
             Buổi học
@@ -399,7 +400,7 @@ export default function ClassDetailsPage({
           {canShowGrading && (
             <TabsTrigger
               value="grading"
-              className="flex items-center gap-2.5 px-6 py-3 text-sm font-bold rounded-xl transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-[0_4px_12px_rgba(0,0,0,0.08)] data-[state=inactive]:text-slate-500 data-[state=inactive]:hover:bg-white/50"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:bg-card/60"
             >
               <Pencil className="w-4 h-4" />
               Chấm bài
@@ -407,7 +408,7 @@ export default function ClassDetailsPage({
           )}
           <TabsTrigger
             value="students"
-            className="flex items-center gap-2.5 px-6 py-3 text-sm font-bold rounded-xl transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-[0_4px_12px_rgba(0,0,0,0.08)] data-[state=inactive]:text-slate-500 data-[state=inactive]:hover:bg-white/50"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:bg-card/60"
           >
             <Users className="w-4 h-4" />
             Học viên
@@ -415,7 +416,7 @@ export default function ClassDetailsPage({
           {canShowGrading && (
             <TabsTrigger
               value="stats"
-              className="flex items-center gap-2.5 px-6 py-3 text-sm font-bold rounded-xl transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-[0_4px_12px_rgba(0,0,0,0.08)] data-[state=inactive]:text-slate-500 data-[state=inactive]:hover:bg-white/50"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:bg-card/60"
             >
               <BarChart3 className="w-4 h-4" />
               Thống kê
@@ -470,7 +471,7 @@ export default function ClassDetailsPage({
                     <Card>
                       <CardContent className="pt-6">
                         <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                          <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
                             <FileText className="h-3.5 w-3.5" />
                             Nội dung buổi học
                           </div>
@@ -567,7 +568,7 @@ export default function ClassDetailsPage({
                                         }}
                                       />
                                     ) : (
-                                      <span className="text-xs italic text-slate-400">
+                                      <span className="text-xs italic text-muted-foreground">
                                         Chưa có nhận xét
                                       </span>
                                     )}
@@ -600,9 +601,9 @@ export default function ClassDetailsPage({
                                             Xem
                                           </Button>
                                         </DialogTrigger>
-                                        <DialogContent className="sm:max-w-3xl md:max-w-4xl lg:max-w-5xl w-[95vw] p-0 overflow-hidden flex flex-col max-h-[90vh] rounded-xl border border-slate-200 shadow-xl">
+                                        <DialogContent className="sm:max-w-3xl md:max-w-4xl lg:max-w-5xl w-[95vw] p-0 overflow-hidden flex flex-col max-h-[90vh] rounded-xl border border-border shadow-xl">
                                           {/* Header with clean white/slate design */}
-                                          <div className="shrink-0 border-b border-slate-100 bg-slate-50/70 px-6 py-5">
+                                          <div className="shrink-0 border-b border-border/60 bg-muted/50/70 px-6 py-5">
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                               <div className="flex items-center gap-3.5">
                                                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-base shadow-sm">
@@ -615,14 +616,14 @@ export default function ClassDetailsPage({
                                                     : "HV"}
                                                 </div>
                                                 <div>
-                                                  <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">
+                                                  <DialogTitle className="text-lg font-bold text-foreground tracking-tight">
                                                     {sa.student?.fullName}
                                                   </DialogTitle>
                                                   <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground font-medium">
                                                     <span>
                                                       Buổi {activeSlotIndex + 1}
                                                     </span>
-                                                    <span className="text-slate-300">
+                                                    <span className="text-muted-foreground/70">
                                                       •
                                                     </span>
                                                     <span>
@@ -635,18 +636,18 @@ export default function ClassDetailsPage({
                                           </div>
 
                                           {/* Content area with nice typography */}
-                                          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 min-h-[150px] bg-slate-50/30">
+                                          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 min-h-[150px] bg-muted/50/30">
                                             <div className="space-y-4">
-                                              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-[0_2px_12px_rgba(0,0,0,0.01)] space-y-3">
-                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                              <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-3">
+                                                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                                                   Nhận xét chi tiết
                                                 </h4>
                                                 <div
-                                                  className="text-sm text-slate-700 leading-relaxed prose max-w-none prose-slate"
+                                                  className="text-sm text-foreground leading-relaxed prose max-w-none prose-slate"
                                                   dangerouslySetInnerHTML={{
                                                     __html:
                                                       sa.comment ||
-                                                      '<span class="text-slate-400 italic font-medium">Chưa có nhận xét từ giáo viên</span>',
+                                                      '<span class="text-muted-foreground italic font-medium">Chưa có nhận xét từ giáo viên</span>',
                                                   }}
                                                 />
                                               </div>
@@ -662,20 +663,20 @@ export default function ClassDetailsPage({
                           </Table>
                         </div>
                       ) : (
-                        <div className="p-4 space-y-4 bg-slate-50/50 min-h-full">
+                        <div className="p-4 space-y-4 bg-muted/50/50 min-h-full">
                           {activeSlot.studentAttendance?.length === 0 ? (
-                            <div className="text-center py-12 text-slate-400 font-medium bg-white rounded-xl border border-slate-200/60 p-6 shadow-sm">
+                            <div className="text-center py-12 text-muted-foreground font-medium bg-card rounded-xl border border-border/60 p-6 shadow-sm">
                               Không có học viên nào tham gia buổi học này.
                             </div>
                           ) : (
                             activeSlot.studentAttendance?.map((sa: any) => (
                               <div
                                 key={sa._id}
-                                className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 space-y-3.5 transition-all hover:shadow-md"
+                                className="bg-card rounded-xl border border-border/80 shadow-sm p-4 space-y-3.5 transition-all hover:shadow-md"
                               >
                                 {/* Header: Student name & Attendance status badge */}
-                                <div className="flex items-center justify-between pb-2 border-b border-slate-100 gap-2">
-                                  <span className="font-bold text-[14px] text-slate-800 truncate">
+                                <div className="flex items-center justify-between pb-2 border-b border-border/60 gap-2">
+                                  <span className="font-bold text-[14px] text-foreground truncate">
                                     {sa.student?.fullName || "N/A"}
                                   </span>
                                   <StatusBadge
@@ -686,19 +687,19 @@ export default function ClassDetailsPage({
                                 </div>
 
                                 {/* Body: Comment */}
-                                <div className="text-xs text-slate-600 bg-slate-50/50 border border-slate-100 rounded-lg p-3">
-                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                <div className="text-xs text-foreground bg-muted/50/50 border border-border/60 rounded-lg p-3">
+                                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
                                     Nhận xét buổi học
                                   </div>
                                   {sa.comment ? (
                                     <div
-                                      className="prose max-w-none text-slate-700 leading-relaxed break-words"
+                                      className="prose max-w-none text-foreground leading-relaxed break-words"
                                       dangerouslySetInnerHTML={{
                                         __html: sa.comment,
                                       }}
                                     />
                                   ) : (
-                                    <span className="italic text-slate-400 font-medium">Chưa có nhận xét</span>
+                                    <span className="italic text-muted-foreground font-medium">Chưa có nhận xét</span>
                                   )}
                                 </div>
 
@@ -708,14 +709,14 @@ export default function ClassDetailsPage({
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      className="h-8 gap-1.5 text-xs text-slate-600 border-slate-200/80 hover:bg-slate-50"
+                                      className="h-8 gap-1.5 text-xs text-foreground border-border/80 hover:bg-muted/50"
                                       onClick={() => {
                                         const cleanText = sa.comment.replace(/<[^>]*>/g, "");
                                         navigator.clipboard.writeText(cleanText);
                                       }}
                                       title="Copy nhận xét"
                                     >
-                                      <Copy className="h-3.5 w-3.5 text-slate-500" />
+                                      <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                                       Sao chép
                                     </Button>
                                   )}
@@ -723,11 +724,11 @@ export default function ClassDetailsPage({
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="h-8 gap-1.5 text-xs text-slate-600 border-slate-200/80 hover:bg-slate-50"
+                                    className="h-8 gap-1.5 text-xs text-foreground border-border/80 hover:bg-muted/50"
                                     onClick={() => setEditingStudent(sa)}
                                     title="Sửa nhận xét"
                                   >
-                                    <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                                    <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                                     Chỉnh sửa
                                   </Button>
 
@@ -736,14 +737,14 @@ export default function ClassDetailsPage({
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        className="h-8 gap-1.5 text-xs text-slate-600 border-slate-200/80 hover:bg-slate-50"
+                                        className="h-8 gap-1.5 text-xs text-foreground border-border/80 hover:bg-muted/50"
                                       >
                                         Xem
                                       </Button>
                                     </DialogTrigger>
-                                    <DialogContent className="sm:max-w-3xl md:max-w-4xl lg:max-w-5xl w-[95vw] p-0 overflow-hidden flex flex-col max-h-[90vh] rounded-xl border border-slate-200 shadow-xl">
+                                    <DialogContent className="sm:max-w-3xl md:max-w-4xl lg:max-w-5xl w-[95vw] p-0 overflow-hidden flex flex-col max-h-[90vh] rounded-xl border border-border shadow-xl">
                                       {/* Header with clean white/slate design */}
-                                      <div className="shrink-0 border-b border-slate-100 bg-slate-50/70 px-6 py-5">
+                                      <div className="shrink-0 border-b border-border/60 bg-muted/50/70 px-6 py-5">
                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                           <div className="flex items-center gap-3.5">
                                             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-base shadow-sm">
@@ -756,14 +757,14 @@ export default function ClassDetailsPage({
                                                 : "HV"}
                                             </div>
                                             <div>
-                                              <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">
+                                              <DialogTitle className="text-lg font-bold text-foreground tracking-tight">
                                                 {sa.student?.fullName}
                                               </DialogTitle>
                                               <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground font-medium">
                                                 <span>
                                                   Buổi {activeSlotIndex + 1}
                                                 </span>
-                                                <span className="text-slate-300">
+                                                <span className="text-muted-foreground/70">
                                                   •
                                                 </span>
                                                 <span>
@@ -771,7 +772,7 @@ export default function ClassDetailsPage({
                                                 </span>
                                                 {activeSlot?.startTime && (
                                                   <>
-                                                    <span className="text-slate-300">
+                                                    <span className="text-muted-foreground/70">
                                                       •
                                                     </span>
                                                     <span>
@@ -792,7 +793,7 @@ export default function ClassDetailsPage({
                                           {/* Status indicators */}
                                           <div className="flex items-center gap-2 self-start sm:self-center">
                                             <div className="flex flex-col items-start sm:items-end gap-1">
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                                                 Điểm danh
                                               </span>
                                               <StatusBadge
@@ -800,9 +801,9 @@ export default function ClassDetailsPage({
                                                 status={sa.status}
                                               />
                                             </div>
-                                            <div className="h-8 w-px bg-slate-200 mx-1 hidden sm:block" />
+                                            <div className="h-8 w-px bg-muted mx-1 hidden sm:block" />
                                             <div className="flex flex-col items-start sm:items-end gap-1">
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans">
+                                              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider font-sans">
                                                 LMS Đồng bộ
                                               </span>
                                               <StatusBadge
@@ -817,21 +818,21 @@ export default function ClassDetailsPage({
                                       {/* Body section */}
                                       <div className="p-6 space-y-4 overflow-y-auto grow">
                                         {/* Metadata strip */}
-                                        <div className="grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-3 border border-slate-100/80 text-xs shrink-0">
+                                        <div className="grid grid-cols-2 gap-4 rounded-lg bg-muted/50 p-3 border border-border/60/80 text-xs shrink-0">
                                           <div>
-                                            <span className="text-slate-400 font-semibold block mb-0.5">
+                                            <span className="text-muted-foreground font-semibold block mb-0.5">
                                               Lớp học
                                             </span>
-                                            <span className="text-slate-800 font-medium">
+                                            <span className="text-foreground font-medium">
                                               {classData?.name}
                                             </span>
                                           </div>
                                           <div>
-                                            <span className="text-slate-400 font-semibold block mb-0.5">
+                                            <span className="text-muted-foreground font-semibold block mb-0.5">
                                               Khóa học
                                             </span>
                                             <span
-                                              className="text-slate-800 font-medium truncate block"
+                                              className="text-foreground font-medium truncate block"
                                               title={classData?.course?.name}
                                             >
                                               {classData?.course?.name}
@@ -844,14 +845,14 @@ export default function ClassDetailsPage({
                                           <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
                                               <FileText className="h-4 w-4 text-primary" />
-                                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                              <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
                                                 Nhận xét chi tiết của giáo viên
                                               </h4>
                                             </div>
                                             <Button
                                               variant="ghost"
                                               size="sm"
-                                              className="h-8 px-2.5 text-xs text-muted-foreground hover:text-slate-900 gap-1.5 hover:bg-slate-100 rounded-md"
+                                              className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1.5 hover:bg-muted rounded-md"
                                               onClick={() =>
                                                 copyToClipboard(
                                                   sa.comment || "",
@@ -865,7 +866,7 @@ export default function ClassDetailsPage({
 
                                           <div className="relative">
                                             <div
-                                              className="p-5 sm:p-6 bg-white border border-slate-200/80 rounded-xl text-slate-700 text-[14.5px] leading-relaxed min-h-[250px] shadow-sm prose max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-strong:text-slate-900 prose-code:text-primary font-sans"
+                                              className="p-5 sm:p-6 bg-card border border-border/80 rounded-xl text-foreground text-[14.5px] leading-relaxed min-h-[250px] shadow-sm prose max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-strong:text-foreground prose-code:text-primary font-sans"
                                               style={{
                                                 wordBreak: "break-word",
                                               }}
@@ -890,7 +891,7 @@ export default function ClassDetailsPage({
                   </Card>
                 </div>
               ) : (
-                <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed rounded-xl text-slate-400">
+                <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed rounded-xl text-muted-foreground">
                   <FileText className="h-10 w-10 mb-2 opacity-20" />
                   <p>Chọn một buổi học bên trái để xem chi tiết</p>
                 </div>
@@ -939,7 +940,7 @@ export default function ClassDetailsPage({
                               ? "bg-primary/10 font-semibold text-primary"
                               : isCheckpoint
                                 ? "bg-orange-50 hover:bg-orange-100"
-                                : "bg-slate-100 hover:bg-muted/50"
+                                : "bg-muted hover:bg-muted/50"
                           }`}
                           onClick={() => setActiveSlotIndex(index)}
                           title={lesson.name}
@@ -1062,7 +1063,7 @@ export default function ClassDetailsPage({
                       </div>
                     ))
                   ) : (
-                    <div className="p-8 text-center text-sm text-slate-400">
+                    <div className="p-8 text-center text-sm text-muted-foreground">
                       Không có học viên
                     </div>
                   )}
@@ -1111,7 +1112,7 @@ export default function ClassDetailsPage({
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden min-w-[100px]">
+                          <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden min-w-[100px]">
                             <div
                               className="h-full bg-primary"
                               style={{

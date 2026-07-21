@@ -1,0 +1,984 @@
+/* WeeklyScheduleList — compact list with tooltip details */
+
+.schedule-list-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(220 13% 80%);
+  border-radius: 8px;
+  padding: 14px;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* ─── Day section ───────────────────────────────────── */
+.schedule-list-wrapper {
+  position: relative;
+}
+
+.schedule-list-day {
+  border: 1.5px solid hsl(220 13% 80%);
+  border-radius: 10px;
+  background: hsl(var(--background));
+  overflow: visible;
+  position: relative;
+  box-shadow: 0 1px 3px hsl(var(--foreground) / 0.04), 0 4px 12px hsl(var(--foreground) / 0.03);
+}
+
+.schedule-list-day-today {
+  border-color: hsl(var(--primary));
+  box-shadow:
+    0 0 0 1px hsl(var(--primary) / 0.3),
+    0 4px 16px hsl(var(--primary) / 0.15),
+    0 1px 3px hsl(var(--foreground) / 0.04);
+}
+
+.schedule-list-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: hsl(var(--muted) / 0.4);
+  border-bottom: 1.5px solid hsl(220 13% 80%);
+}
+
+.schedule-list-day-today .schedule-list-day-header {
+  background: hsl(var(--primary) / 0.08);
+}
+
+.schedule-list-day-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.schedule-list-day-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.schedule-list-day-today .schedule-list-day-label {
+  color: hsl(var(--primary));
+}
+
+.schedule-list-day-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.schedule-list-day-today-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.schedule-list-day-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--background));
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+}
+
+/* ─── Day items ─────────────────────────────────────── */
+.schedule-list-day-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.schedule-list-day-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+/* ─── Row (compact) ────────────────────────────────── */
+.schedule-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(220 13% 80%);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease,
+    border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  min-height: 38px;
+  z-index: 1;
+  color: hsl(var(--foreground));
+}
+
+.schedule-row:last-child {
+  border-bottom: none;
+}
+
+.schedule-row:last-child {
+  border-bottom: none;
+}
+
+/* ─── Time group header ────────────────────────────── */
+.schedule-list-time-group {
+  display: flex;
+  gap: 0;
+  padding: 2px 0;
+}
+
+.schedule-list-time-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border-radius: 8px 0 0 8px;
+  background: hsl(var(--muted) / 0.5);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  position: relative;
+  border: 1px solid hsl(220 13% 80%);
+  border-right: none;
+  min-width: 100px;
+  transition: background 0.15s ease;
+}
+
+.schedule-list-time-header-range {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1;
+}
+
+.schedule-list-time-header-start {
+  font-size: 13px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+
+.schedule-list-time-header-dash {
+  font-size: 12px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  margin: 0 1px;
+}
+
+.schedule-list-time-header-end {
+  font-size: 13px;
+  font-weight: 700;
+  color: hsl(var(--muted-foreground));
+}
+
+.schedule-list-time-header-active {
+  background: hsl(var(--primary) / 0.12);
+  border-color: hsl(var(--primary) / 0.4);
+}
+
+.schedule-list-time-header-active .schedule-list-time-header-start {
+  color: hsl(var(--primary));
+}
+
+.schedule-list-time-header-active .schedule-list-time-header-dash {
+  color: hsl(var(--primary) / 0.6);
+}
+
+.schedule-list-time-header-active .schedule-list-time-header-end {
+  color: hsl(var(--primary));
+  opacity: 0.75;
+}
+
+.schedule-list-time-header-pulse {
+  position: absolute;
+  top: 50%;
+  left: -2px;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  box-shadow: 0 0 0 0 hsl(var(--primary) / 0.6);
+  animation: schedule-time-pulse 1.6s ease-out infinite;
+}
+
+@keyframes schedule-time-pulse {
+  0%   { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.5); }
+  70%  { box-shadow: 0 0 0 7px hsl(var(--primary) / 0); }
+  100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+}
+
+.schedule-list-time-group-items {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-left: 1px dashed hsl(var(--border) / 0.5);
+  padding-left: 8px;
+}
+
+.schedule-row-class-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.schedule-row-session {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* ─── Session badge colors ─────────────────────────── */
+/* Default teaching class */
+.schedule-row-teaching-class {
+  background: hsl(var(--primary) / 0.04);
+  border-left-color: hsl(var(--primary));
+}
+.schedule-row-teaching-class:hover {
+  background: #000 !important;
+  border-color: #000 !important;
+  color: #fff !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4) !important;
+}
+.schedule-row-teaching-class:hover .schedule-row-class-name,
+.schedule-row-teaching-class:hover .schedule-row-session,
+.schedule-row-teaching-class:hover .schedule-row-meta {
+  color: #fff !important;
+}
+.schedule-row-session-teaching-class {
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+}
+
+/* Demo class — green/teal */
+.schedule-row-demo-class {
+  background: hsl(142 70% 45% / 0.08);
+  border-left-color: hsl(142 70% 45%);
+}
+.schedule-row-demo-class:hover {
+  background: hsl(142 70% 35%);
+  border-color: hsl(142 70% 35%);
+  color: hsl(0 0% 100%);
+  box-shadow: 0 6px 18px hsl(142 70% 45% / 0.4);
+}
+.schedule-row-demo-class:hover .schedule-row-class-name,
+.schedule-row-demo-class:hover .schedule-row-session,
+.schedule-row-demo-class:hover .schedule-row-meta {
+  color: hsl(0 0% 100%);
+}
+.schedule-row-session-demo-class {
+  background: hsl(142 70% 45% / 0.18);
+  color: hsl(142 70% 30%);
+  box-shadow: 0 0 0 1px hsl(142 70% 45% / 0.3) inset;
+}
+
+/* Checkpoint 1 — orange/amber */
+.schedule-row-checkpoint1-class {
+  background: hsl(28 95% 55% / 0.08);
+  border-left-color: hsl(28 95% 55%);
+}
+.schedule-row-checkpoint1-class:hover {
+  background: hsl(28 90% 45%);
+  border-color: hsl(28 90% 45%);
+  color: hsl(0 0% 100%);
+  box-shadow: 0 6px 18px hsl(28 95% 55% / 0.4);
+}
+.schedule-row-checkpoint1-class:hover .schedule-row-class-name,
+.schedule-row-checkpoint1-class:hover .schedule-row-session,
+.schedule-row-checkpoint1-class:hover .schedule-row-meta {
+  color: hsl(0 0% 100%);
+}
+.schedule-row-session-checkpoint1-class {
+  background: hsl(28 95% 55% / 0.2);
+  color: hsl(28 95% 35%);
+  box-shadow: 0 0 0 1px hsl(28 95% 55% / 0.4) inset;
+}
+
+/* Checkpoint 2 — purple/violet */
+.schedule-row-checkpoint2-class {
+  background: hsl(265 70% 55% / 0.08);
+  border-left-color: hsl(265 70% 55%);
+}
+.schedule-row-session-checkpoint2-class {
+  background: hsl(265 70% 55% / 0.2);
+  color: hsl(265 70% 35%);
+  box-shadow: 0 0 0 1px hsl(265 70% 55% / 0.4) inset;
+}
+.schedule-row-checkpoint2-class:hover {
+  background: hsl(265 70% 45%);
+  border-color: hsl(265 70% 45%);
+  color: hsl(0 0% 100%);
+  box-shadow: 0 6px 18px hsl(265 70% 55% / 0.4);
+}
+.schedule-row-checkpoint2-class:hover .schedule-row-class-name,
+.schedule-row-checkpoint2-class:hover .schedule-row-session,
+.schedule-row-checkpoint2-class:hover .schedule-row-meta {
+  color: hsl(0 0% 100%);
+}
+
+/* Cancelled */
+.schedule-row-cancelled {
+  background: hsl(var(--muted) / 0.3);
+  border-left-color: hsl(var(--muted-foreground));
+  opacity: 0.65;
+}
+.schedule-row-cancelled .schedule-row-class-name {
+  text-decoration: line-through;
+}
+.schedule-row-cancelled:hover {
+  background: hsl(var(--foreground));
+  border-color: hsl(var(--foreground));
+  color: hsl(var(--background));
+  opacity: 1;
+  box-shadow: 0 6px 18px hsl(var(--foreground) / 0.25);
+}
+.schedule-row-cancelled:hover .schedule-row-class-name,
+.schedule-row-cancelled:hover .schedule-row-session,
+.schedule-row-cancelled:hover .schedule-row-meta {
+  color: hsl(var(--background));
+}
+.schedule-row-session-cancelled {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+/* Completed */
+.schedule-row-completed {
+  background: hsl(var(--muted) / 0.4);
+  border-left-color: hsl(var(--muted-foreground));
+  opacity: 0.85;
+}
+.schedule-row-completed:hover {
+  background: hsl(var(--foreground));
+  border-color: hsl(var(--foreground));
+  color: hsl(var(--background));
+  opacity: 1;
+  box-shadow: 0 6px 18px hsl(var(--foreground) / 0.25);
+}
+.schedule-row-completed:hover .schedule-row-class-name,
+.schedule-row-completed:hover .schedule-row-session,
+.schedule-row-completed:hover .schedule-row-meta {
+  color: hsl(var(--background));
+}
+.schedule-row-session-completed {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+/* ─── Tooltip ───────────────────────────────────────── */
+.schedule-tooltip {
+  background: hsl(var(--popover));
+  border: 1px solid hsl(var(--border));
+  padding: 8px 10px;
+  max-width: 280px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.12);
+}
+
+.schedule-tooltip-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.schedule-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  color: hsl(var(--foreground));
+}
+
+.schedule-tooltip-row-meta {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid hsl(var(--border) / 0.5);
+  justify-content: center;
+}
+
+.schedule-tooltip-icon {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  color: hsl(var(--muted-foreground));
+}
+
+.schedule-tooltip-label {
+  color: hsl(var(--muted-foreground));
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.schedule-tooltip-muted {
+  color: hsl(var(--muted-foreground));
+  font-size: 10.5px;
+}
+
+/* ─── Empty state ──────────────────────────────────── */
+.schedule-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  text-align: center;
+  background: hsl(var(--muted) / 0.3);
+  border: 1px dashed hsl(var(--border));
+  border-radius: 8px;
+}
+
+.schedule-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.schedule-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  margin: 0 0 4px 0;
+}
+
+.schedule-empty-desc {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  margin: 0;
+  max-width: 320px;
+}
+
+/* ─── Responsive ───────────────────────────────────── */
+@media (max-width: 768px) {
+  .schedule-list-wrapper {
+    padding: 10px;
+    gap: 10px;
+  }
+  .schedule-row {
+    padding: 5px 10px;
+    gap: 6px;
+  }
+  .schedule-row-class-name {
+    font-size: 11px;
+  }
+  .schedule-row-session {
+    font-size: 9px;
+    padding: 1px 5px;
+  }
+}
+
+/* ─── Pure CSS tooltip (hover-driven) ──────────────── */
+.schedule-row {
+  position: relative;
+}
+
+.schedule-list-tooltip {
+  min-width: 220px;
+  max-width: 280px;
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  box-shadow: 0 6px 20px hsl(var(--foreground) / 0.2);
+  z-index: 9999;
+  pointer-events: none;
+  animation: schedule-tooltip-in 0.12s ease-out;
+}
+
+@keyframes schedule-tooltip-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.schedule-list-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: hsl(var(--popover));
+}
+
+.schedule-list-tooltip-below::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: hsl(var(--popover));
+}
+
+.schedule-list-tooltip-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid hsl(var(--border));
+  word-break: break-word;
+}
+
+.schedule-list-tooltip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.schedule-list-tooltip-row-meta {
+  justify-content: center;
+  margin-top: 4px;
+  padding-top: 5px;
+  border-top: 1px solid hsl(var(--border) / 0.5);
+}
+
+.schedule-list-tooltip-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: hsl(var(--muted-foreground));
+  flex-shrink: 0;
+}
+
+.schedule-list-tooltip-value {
+  font-size: 11.5px;
+  color: hsl(var(--foreground));
+  font-weight: 500;
+  text-align: right;
+  word-break: break-word;
+}
+
+.schedule-list-tooltip-muted {
+  color: hsl(var(--muted-foreground));
+  font-weight: 400;
+}
+
+/* ──────────────────────────────────────────────────── */
+/* WeeklyTimelineView — vertical day columns, scroll dọc */
+/* ──────────────────────────────────────────────────── */
+
+.timeline-wrapper {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+.timeline-day-header {
+  display: grid;
+  grid-template-columns: 56px repeat(7, minmax(110px, 1fr));
+  background: hsl(var(--muted) / 0.5);
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.timeline-time-spacer {
+  border-right: 1px solid hsl(var(--border));
+  background: hsl(var(--muted) / 0.7);
+}
+
+.timeline-day-header-cell {
+  padding: 8px 6px;
+  text-align: center;
+  border-right: 1.5px solid hsl(220 13% 80%);
+  border-bottom: 1.5px solid hsl(220 13% 80%);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.timeline-day-header-cell:last-child {
+  border-right: none;
+}
+
+.timeline-day-header-today {
+  background: hsl(var(--primary) / 0.1);
+}
+
+.timeline-day-header-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.timeline-day-header-today .timeline-day-header-label {
+  color: hsl(var(--primary));
+}
+
+.timeline-day-header-date {
+  font-size: 13px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-day-header-today .timeline-day-header-date {
+  color: hsl(var(--primary));
+}
+
+.timeline-body-scroll {
+  max-height: 600px;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.timeline-body {
+  display: grid;
+  grid-template-columns: 56px repeat(7, minmax(110px, 1fr));
+  position: relative;
+}
+
+.timeline-time-col {
+  border-right: 1px solid hsl(var(--border));
+  background: hsl(var(--muted) / 0.3);
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+.timeline-time-cell {
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 2px 6px 0 0;
+  text-align: right;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.timeline-time-cell:last-child {
+  border-bottom: none;
+}
+
+.timeline-time-text {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+  background: hsl(var(--muted) / 0.7);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-top: -6px;
+}
+
+.timeline-day-col {
+  position: relative;
+  border-right: 1.5px solid hsl(220 13% 80%);
+  min-width: 0;
+}
+
+.timeline-day-col:last-child {
+  border-right: none;
+}
+
+.timeline-day-col-today {
+  background: hsl(var(--primary) / 0.04);
+  border-right-color: hsl(var(--primary) / 0.55);
+}
+
+.timeline-day-col-empty {
+  background: hsl(var(--muted) / 0.18);
+  opacity: 0.5;
+}
+
+.timeline-day-col-empty::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0,
+    transparent 10px,
+    hsl(var(--muted) / 0.25) 10px,
+    hsl(var(--muted) / 0.25) 11px
+  );
+  pointer-events: none;
+}
+
+.timeline-day-header-empty {
+  background: hsl(var(--muted) / 0.3);
+  opacity: 0.45;
+}
+
+.timeline-day-header-empty .timeline-day-header-label,
+.timeline-day-header-empty .timeline-day-header-date {
+  filter: grayscale(1);
+}
+
+.timeline-hour-cell {
+  border-bottom: 1.5px solid hsl(220 13% 80%);
+  border-top: 1px solid hsl(220 13% 85%);
+}
+
+.timeline-hour-cell:first-child {
+  border-top: 1.5px solid hsl(220 13% 80%);
+}
+
+.timeline-hour-cell:last-child {
+  border-bottom: 1.5px solid hsl(220 13% 80%);
+}
+
+/* Timeline events */
+.timeline-event {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border-radius: 4px;
+  padding: 2px 5px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  cursor: pointer;
+  border-left: 3px solid;
+  background: hsl(var(--card));
+  border-top: 1px solid hsl(220 13% 80%);
+  border-right: 1px solid hsl(220 13% 80%);
+  border-bottom: 1px solid hsl(220 13% 80%);
+  overflow: hidden;
+  box-shadow: 0 1px 3px hsl(var(--foreground) / 0.08);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  z-index: 1;
+}
+
+.timeline-event:hover {
+  transform: translateX(-1px);
+  box-shadow: 0 4px 10px hsl(var(--foreground) / 0.12);
+  z-index: 10;
+}
+
+.timeline-event-name {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.15;
+}
+
+.timeline-event-session {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 5px;
+  border-radius: 999px;
+  align-self: flex-start;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+/* Timeline status variants */
+.timeline-event-teaching-class {
+  background: hsl(var(--primary) / 0.06);
+  border-left-color: hsl(var(--primary));
+}
+.timeline-event-teaching-class .timeline-event-session {
+  background: hsl(var(--primary) / 0.14);
+  color: hsl(var(--primary));
+}
+
+.timeline-event-demo-class {
+  background: hsl(142 70% 45% / 0.1);
+  border-left-color: hsl(142 70% 45%);
+}
+.timeline-event-demo-class .timeline-event-session {
+  background: hsl(142 70% 45% / 0.22);
+  color: hsl(142 70% 30%);
+  box-shadow: 0 0 0 1px hsl(142 70% 45% / 0.4) inset;
+}
+
+.timeline-event-checkpoint1-class {
+  background: hsl(28 95% 55% / 0.1);
+  border-left-color: hsl(28 95% 55%);
+}
+.timeline-event-checkpoint1-class .timeline-event-session {
+  background: hsl(28 95% 55% / 0.22);
+  color: hsl(28 95% 35%);
+  box-shadow: 0 0 0 1px hsl(28 95% 55% / 0.45) inset;
+}
+
+.timeline-event-checkpoint2-class {
+  background: hsl(265 70% 55% / 0.1);
+  border-left-color: hsl(265 70% 55%);
+}
+.timeline-event-checkpoint2-class .timeline-event-session {
+  background: hsl(265 70% 55% / 0.22);
+  color: hsl(265 70% 35%);
+  box-shadow: 0 0 0 1px hsl(265 70% 55% / 0.45) inset;
+}
+
+.timeline-event-cancelled {
+  background: hsl(var(--muted) / 0.4);
+  border-left-color: hsl(var(--muted-foreground));
+  opacity: 0.65;
+}
+.timeline-event-cancelled .timeline-event-name {
+  text-decoration: line-through;
+}
+.timeline-event-cancelled .timeline-event-session {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+.timeline-event-completed {
+  background: hsl(var(--muted) / 0.4);
+  border-left-color: hsl(var(--muted-foreground));
+  opacity: 0.85;
+}
+.timeline-event-completed .timeline-event-session {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+@media (max-width: 768px) {
+  .timeline-event-name {
+    font-size: 10px;
+  }
+}
+
+/* Timeline event tooltip (hover-driven, pure CSS) */
+.timeline-event-tooltip {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 0;
+  min-width: 220px;
+  max-width: 280px;
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  box-shadow: 0 4px 14px hsl(var(--foreground) / 0.18);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 1000;
+  transition: opacity 0.15s ease, visibility 0.15s ease,
+    transform 0.15s ease;
+  transform: translateX(-4px);
+}
+
+.timeline-event-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  right: 100%;
+  border: 5px solid transparent;
+  border-right-color: hsl(var(--popover));
+}
+
+.timeline-event:hover .timeline-event-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+/* Right edge fallback - flip to left */
+.timeline-day-col:last-child .timeline-event-tooltip {
+  left: auto;
+  right: calc(100% + 8px);
+}
+
+.timeline-day-col:last-child .timeline-event-tooltip::after {
+  right: auto;
+  left: 100%;
+  border-right-color: transparent;
+  border-left-color: hsl(var(--popover));
+}
+
+.timeline-event-tooltip-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid hsl(var(--border));
+  word-break: break-word;
+}
+
+.timeline-event-tooltip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.timeline-event-tooltip-row-meta {
+  justify-content: center;
+  margin-top: 4px;
+  padding-top: 5px;
+  border-top: 1px solid hsl(var(--border) / 0.5);
+}
+
+.timeline-event-tooltip-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: hsl(var(--muted-foreground));
+  flex-shrink: 0;
+}
+
+.timeline-event-tooltip-value {
+  font-size: 11.5px;
+  color: hsl(var(--foreground));
+  font-weight: 500;
+  text-align: right;
+  word-break: break-word;
+}
+
+.timeline-event-tooltip-muted {
+  color: hsl(var(--muted-foreground));
+  font-weight: 400;
+}

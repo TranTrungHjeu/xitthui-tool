@@ -149,7 +149,7 @@ exports.getTeacherSchedules = async (req, res) => {
       const { Class } = require("../storage/mongoModels");
       
       try {
-        const dbClasses = await Class.find({ _id: { $in: Array.from(uniqueClassIds) } }).select("name slots.index slots.startTime slots.endTime slots.date").lean();
+        const dbClasses = await Class.find({ _id: { $in: Array.from(uniqueClassIds) } }).select("name slots.index slots.startTime slots.endTime slots.date slots.teachers teachers").lean();
         dbClasses.forEach(c => classDetailsMap.set(c._id, c));
       } catch (dbClassErr) {
         console.warn(`[Controller] MongoDB Class fetch failed: ${dbClassErr.message}`);
@@ -172,14 +172,41 @@ exports.getTeacherSchedules = async (req, res) => {
 
           if (classId) {
             const classDetails = classDetailsMap.get(classId);
-            if (classDetails && classDetails.slots) {
-              const slot = classDetails.slots.find(
-                (slot) =>
-                  slot.startTime === s.startTime && slot.endTime === s.endTime,
-              );
+            if (classDetails) {
+              let slot = null;
+              if (classDetails.slots && Array.isArray(classDetails.slots)) {
+                slot = classDetails.slots.find(
+                  (slotItem) =>
+                    slotItem.startTime === s.startTime && slotItem.endTime === s.endTime,
+                );
+              }
+
+              // Determine teacher role (slot-level first, then class-level fallback)
+              let foundRole = null;
+              if (slot && slot.teachers && Array.isArray(slot.teachers)) {
+                const tAssignment = slot.teachers.find(
+                  (t) => (t.teacher?.id || t.teacher?._id) === s.teacherId
+                );
+                if (tAssignment && tAssignment.role) {
+                  foundRole = tAssignment.role.shortName || tAssignment.role.name;
+                }
+              }
+              if (!foundRole && classDetails.teachers && Array.isArray(classDetails.teachers)) {
+                const tAssignment = classDetails.teachers.find(
+                  (t) => (t.teacher?.id || t.teacher?._id) === s.teacherId
+                );
+                if (tAssignment && tAssignment.role) {
+                  foundRole = tAssignment.role.shortName || tAssignment.role.name;
+                }
+              }
+              if (foundRole) {
+                s.teacherRole = foundRole;
+              }
+
+              // Determine session index
               if (slot && typeof slot.index === "number") {
                 computedSession = slot.index + 1;
-              } else if (slot) {
+              } else if (slot && classDetails.slots) {
                 // Chronological index fallback if index is not present in slots list
                 const parseSlotDateForSorting = (dateVal, timeVal) => {
                   if (!dateVal) return 0;
@@ -202,8 +229,8 @@ exports.getTeacherSchedules = async (req, res) => {
                   return parseSlotDateForSorting(a.date, a.startTime) - parseSlotDateForSorting(b.date, b.startTime);
                 });
                 const sIdx = sortedSlots.findIndex(
-                  (slot) =>
-                    slot.startTime === s.startTime && slot.endTime === s.endTime,
+                  (slotItem) =>
+                    slotItem.startTime === s.startTime && slotItem.endTime === s.endTime,
                 );
                 if (sIdx !== -1) {
                   computedSession = sIdx + 1;

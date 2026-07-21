@@ -1,67 +1,47 @@
 import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
+
 import { cn } from "@/lib/utils"
 
-// ─── Variant maps ─────────────────────────────────────────────────────────────
-
-const variantClasses: Record<string, string> = {
-  default:
-    "bg-primary text-primary-foreground",
-  secondary:
-    "bg-secondary text-secondary-foreground",
-  destructive:
-    "bg-destructive/10 text-destructive",
-  outline:
-    "border border-border text-foreground bg-transparent",
-  ghost:
-    "text-muted-foreground hover:bg-muted hover:text-foreground",
-  link:
-    "text-primary underline-offset-4 hover:underline",
-}
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type BadgeVariant = keyof typeof variantClasses
-
-export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: BadgeVariant
-  asChild?: boolean
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
-
-function Badge({
-  className,
-  variant = "default",
-  asChild = false,
-  children,
-  ...props
-}: BadgeProps) {
-  const base =
-    "inline-flex h-6 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2.5 py-0.5 text-xs font-medium whitespace-nowrap transition-colors [&>svg]:pointer-events-none [&>svg]:size-3"
-
-  const classes = cn(
-    base,
-    variantClasses[variant] ?? variantClasses.default,
-    className,
-  )
-
-  if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(
-      children as React.ReactElement<React.HTMLAttributes<HTMLElement>>,
-      {
-        className: cn(
-          (children.props as React.HTMLAttributes<HTMLElement>).className,
-          classes,
-        ),
+const badgeVariants = cva(
+  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
+  {
+    variants: {
+      variant: {
+        default:
+          "border-transparent bg-primary text-primary-foreground shadow",
+        secondary:
+          "border-transparent bg-secondary text-secondary-foreground",
+        destructive:
+          "border-transparent bg-destructive text-destructive-foreground shadow",
+        success:
+          "border-transparent bg-success/15 text-success",
+        warning:
+          "border-transparent bg-warning/15 text-warning",
+        info:
+          "border-transparent bg-info/15 text-info",
+        outline:
+          "text-foreground",
+        soft:
+          "border-transparent bg-muted text-foreground",
+        ghost:
+          "border-transparent bg-transparent text-muted-foreground",
       },
-    )
-  }
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+)
 
+export interface BadgeProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof badgeVariants> {}
+
+function Badge({ className, variant, ...props }: BadgeProps) {
   return (
-    <span className={classes} {...props}>
-      {children}
-    </span>
+    <div className={cn(badgeVariants({ variant }), className)} {...props} />
   )
 }
 
-export { Badge }
+export { Badge, badgeVariants }

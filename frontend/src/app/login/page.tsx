@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "../../store/useAuthStore";
-import { authService } from "../../services/authService";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
-import { Mail, Lock, Loader2, ArrowRight } from "lucide-react";
+import { useAuthStore } from "@/store/useAuthStore";
+import { authService } from "@/services/authService";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
+import { Loader2, ArrowRight, Mail, Lock, Sparkles } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -47,91 +48,105 @@ export default function LoginPage() {
         login(mindxUser, lmsToken, sessionId);
         router.push("/dashboard");
       } else {
-        setError(res.error || res.message || "Login failed");
+        setError(res.error || res.message || "Đăng nhập thất bại");
       }
     } catch (err: any) {
-      setError(err.message || "Connection error");
+      setError(err.message || "Lỗi kết nối máy chủ");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="relative flex items-center justify-center min-h-screen bg-[#f8fafc] overflow-hidden p-4">
-      {/* Premium background decorative glows */}
-      <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-blue-400/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-indigo-400/10 blur-[120px] pointer-events-none" />
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-background p-4">
+      {/* Soft brand gradient background */}
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-gradient-radial pointer-events-none"
+      />
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-grid opacity-[0.35] mask-image-radial pointer-events-none"
+        style={{
+          maskImage:
+            "radial-gradient(ellipse 60% 50% at 50% 50%, black, transparent)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 60% 50% at 50% 50%, black, transparent)",
+        }}
+      />
 
-      <div className="w-full max-w-[400px] z-10">
-        {/* Center Logo with native browser img tags to prevent loading flickering */}
-        <div className="flex justify-center mb-8">
+      <div className="relative z-10 w-full max-w-md">
+        {/* Brand mark */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20 mb-4">
+            <Sparkles className="h-6 w-6 text-primary-foreground" />
+          </div>
           <img
             src="/logo.png"
-            alt="Xitthui logo"
-            width="180"
-            height="42"
-            style={{ width: "180px", height: "42px", minWidth: "180px", minHeight: "42px" }}
-            className="object-contain filter drop-shadow-sm"
+            alt="MindX Support Tools"
+            width={160}
+            height={36}
+            className="h-9 w-auto object-contain"
           />
         </div>
 
-        {/* Login Card */}
-        <div className="bg-white border border-slate-100 rounded-lg shadow-[0_8px_30px_rgba(0,0,0,0.02)] p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-xl font-bold text-slate-800 tracking-tight">Chào mừng quay trở lại</h1>
-            <p className="text-xs text-slate-500 mt-2">Đăng nhập bằng tài khoản MindX LMS của bạn</p>
+        <Card className="p-8 shadow-xl shadow-black/5">
+          <div className="space-y-1.5 mb-6">
+            <h1 className="text-xl font-semibold tracking-tight">
+              Chào mừng quay trở lại
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Đăng nhập bằng tài khoản MindX LMS của bạn
+            </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <div className="p-3 text-xs font-medium text-white bg-red-500 rounded-md">
-                {error}
-              </div>
-            )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Tài khoản / Email
+          {error && (
+            <div className="mb-4 rounded-md bg-destructive/10 px-3 py-2.5 text-sm text-destructive border border-destructive/20">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-sm">
+                Tài khoản hoặc Email
               </Label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Mail className="h-4 w-4" />
-                </div>
+                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <Input
                   id="email"
                   type="text"
-                  placeholder="Tài khoản hoặc Email"
+                  placeholder="ten.giao.vien"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 h-11 bg-slate-50/50 border-slate-200/80 rounded-md focus:bg-white transition-all duration-200"
+                  className="pl-9 h-10"
                   required
+                  autoComplete="username"
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-sm">
                 Mật khẩu
               </Label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Lock className="h-4 w-4" />
-                </div>
+                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="pl-10 h-11 bg-slate-50/50 border-slate-200/80 rounded-md focus:bg-white transition-all duration-200"
+                  className="pl-9 h-10"
                   required
+                  autoComplete="current-password"
                 />
               </div>
             </div>
 
-            <Button 
-              className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white rounded-md shadow-md font-medium transition-all duration-200 mt-6 flex items-center justify-center gap-2 hover:scale-[1.01]" 
-              type="submit" 
+            <Button
+              type="submit"
+              className="w-full h-10 mt-2"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -144,7 +159,11 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-        </div>
+        </Card>
+
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          © {new Date().getFullYear()} MindX · MindX Support Tools
+        </p>
       </div>
     </div>
   );
