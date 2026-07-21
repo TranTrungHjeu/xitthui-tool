@@ -43,7 +43,6 @@ import {
   GraduationCap,
   Search,
   Bell,
-  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -301,24 +300,33 @@ export default function DashboardLayout({
         )}
       >
         {/* Brand */}
-        <div className="flex h-16 items-center border-b border-border px-4 shrink-0">
+        <div className="flex h-16 items-center justify-center border-b border-border px-4 shrink-0">
           {!isSidebarCollapsed ? (
-            <Link href="/dashboard" className="flex items-center gap-2 min-w-0">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary shrink-0">
-                <Sparkles className="h-4 w-4 text-primary-foreground" />
-              </div>
-              <span className="font-semibold tracking-tight truncate">
-                MST
-              </span>
+            <Link href="/dashboard" className="flex items-center justify-center">
+              <Image
+                src="/logo.png"
+                alt="MindX"
+                width={160}
+                height={40}
+                className="h-10 w-auto object-contain"
+                priority
+              />
             </Link>
           ) : (
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
                 <Link
                   href="/dashboard"
-                  className="flex h-8 w-8 items-center justify-center rounded-md bg-primary mx-auto"
+                  className="flex items-center justify-center"
                 >
-                  <Sparkles className="h-4 w-4 text-primary-foreground" />
+                  <Image
+                    src="/logo.png"
+                    alt="MindX"
+                    width={40}
+                    height={40}
+                    className="h-9 w-auto object-contain"
+                    priority
+                  />
                 </Link>
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={8}>
@@ -516,10 +524,13 @@ export default function DashboardLayout({
           <aside className="fixed top-0 left-0 bottom-0 z-50 w-[280px] bg-card border-r border-border p-3 flex flex-col md:hidden animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between mb-4">
               <Link href="/dashboard" className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-                  <Sparkles className="h-4 w-4 text-primary-foreground" />
-                </div>
-                <span className="font-semibold">MST</span>
+                <Image
+                  src="/logo.png"
+                  alt="MindX"
+                  width={120}
+                  height={32}
+                  className="h-7 w-auto object-contain"
+                />
               </Link>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}

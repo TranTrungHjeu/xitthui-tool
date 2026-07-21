@@ -148,6 +148,132 @@ export default function SpreadsheetPage() {
 
   const showLoading = useMinLoading(isLoading, 1000);
 
+  // Grab to scroll horizontally - Sheet Tab
+  const sheetContainerRef = useRef<HTMLDivElement>(null);
+  const isSheetDragging = useRef(false);
+  const isSheetDraggingActive = useRef(false);
+  const sheetStartX = useRef(0);
+  const sheetScrollLeftStart = useRef(0);
+
+  const handleSheetDragMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return; // Only left click
+    const target = e.target as HTMLElement;
+    if (
+      target.closest("button") ||
+      target.closest("a") ||
+      target.closest("input") ||
+      target.closest("select") ||
+      target.closest("[role='menuitem']")
+    ) {
+      return;
+    }
+    isSheetDragging.current = true;
+    isSheetDraggingActive.current = false;
+    if (sheetContainerRef.current) {
+      sheetContainerRef.current.style.cursor = "grabbing";
+      sheetContainerRef.current.style.userSelect = "none";
+    }
+    sheetStartX.current = e.pageX - (sheetContainerRef.current?.offsetLeft || 0);
+    sheetScrollLeftStart.current = sheetContainerRef.current?.scrollLeft || 0;
+  };
+
+  const handleSheetDragMouseUpOrLeave = () => {
+    if (!isSheetDragging.current) return;
+    isSheetDragging.current = false;
+    if (sheetContainerRef.current) {
+      sheetContainerRef.current.style.cursor = "grab";
+      sheetContainerRef.current.style.userSelect = "";
+    }
+    setTimeout(() => {
+      isSheetDraggingActive.current = false;
+    }, 50);
+  };
+
+  const handleSheetDragMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isSheetDragging.current) return;
+    const x = e.pageX - (sheetContainerRef.current?.offsetLeft || 0);
+    const walk = (x - sheetStartX.current) * 1.5;
+    
+    if (Math.abs(x - sheetStartX.current) > 5) {
+      isSheetDraggingActive.current = true;
+    }
+
+    e.preventDefault();
+    if (sheetContainerRef.current) {
+      sheetContainerRef.current.scrollLeft = sheetScrollLeftStart.current - walk;
+    }
+  };
+
+  const handleSheetClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isSheetDraggingActive.current) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  };
+
+  // Grab to scroll horizontally - Trials Tab
+  const trialsContainerRef = useRef<HTMLDivElement>(null);
+  const isTrialsDragging = useRef(false);
+  const isTrialsDraggingActive = useRef(false);
+  const trialsStartX = useRef(0);
+  const trialsScrollLeftStart = useRef(0);
+
+  const handleTrialsDragMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return; // Only left click
+    const target = e.target as HTMLElement;
+    if (
+      target.closest("button") ||
+      target.closest("a") ||
+      target.closest("input") ||
+      target.closest("select") ||
+      target.closest("[role='menuitem']")
+    ) {
+      return;
+    }
+    isTrialsDragging.current = true;
+    isTrialsDraggingActive.current = false;
+    if (trialsContainerRef.current) {
+      trialsContainerRef.current.style.cursor = "grabbing";
+      trialsContainerRef.current.style.userSelect = "none";
+    }
+    trialsStartX.current = e.pageX - (trialsContainerRef.current?.offsetLeft || 0);
+    trialsScrollLeftStart.current = trialsContainerRef.current?.scrollLeft || 0;
+  };
+
+  const handleTrialsDragMouseUpOrLeave = () => {
+    if (!isTrialsDragging.current) return;
+    isTrialsDragging.current = false;
+    if (trialsContainerRef.current) {
+      trialsContainerRef.current.style.cursor = "grab";
+      trialsContainerRef.current.style.userSelect = "";
+    }
+    setTimeout(() => {
+      isTrialsDraggingActive.current = false;
+    }, 50);
+  };
+
+  const handleTrialsDragMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isTrialsDragging.current) return;
+    const x = e.pageX - (trialsContainerRef.current?.offsetLeft || 0);
+    const walk = (x - trialsStartX.current) * 1.5;
+    
+    if (Math.abs(x - trialsStartX.current) > 5) {
+      isTrialsDraggingActive.current = true;
+    }
+
+    e.preventDefault();
+    if (trialsContainerRef.current) {
+      trialsContainerRef.current.scrollLeft = trialsScrollLeftStart.current - walk;
+    }
+  };
+
+  const handleTrialsClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isTrialsDraggingActive.current) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  };
+
   const fetchSheetData = async (sheetName?: string) => {
     setIsLoading(true);
     setError(null);
@@ -484,7 +610,15 @@ export default function SpreadsheetPage() {
                 <CatLoader />
               </div>
             ) : (
-              <div className="overflow-auto flex-1 custom-scrollbar no-vertical-scrollbar">
+              <div
+                ref={sheetContainerRef}
+                className="overflow-auto flex-1 custom-scrollbar no-vertical-scrollbar cursor-grab"
+                onMouseDown={handleSheetDragMouseDown}
+                onMouseMove={handleSheetDragMouseMove}
+                onMouseUp={handleSheetDragMouseUpOrLeave}
+                onMouseLeave={handleSheetDragMouseUpOrLeave}
+                onClickCapture={handleSheetClickCapture}
+              >
                 <table className="w-max min-w-full border-collapse text-xs">
                   <thead className="sticky top-0 z-40 bg-muted shadow-[0_1px_0_#e2e8f0]">
                     <tr>
@@ -737,7 +871,15 @@ export default function SpreadsheetPage() {
                 <div className="flex-1 flex flex-col min-h-0">
                   {!isMobile ? (
                     <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm flex flex-col h-full">
-                      <div className="overflow-auto flex-1 custom-scrollbar no-vertical-scrollbar">
+                      <div
+                        ref={trialsContainerRef}
+                        className="overflow-auto flex-1 custom-scrollbar no-vertical-scrollbar cursor-grab"
+                        onMouseDown={handleTrialsDragMouseDown}
+                        onMouseMove={handleTrialsDragMouseMove}
+                        onMouseUp={handleTrialsDragMouseUpOrLeave}
+                        onMouseLeave={handleTrialsDragMouseUpOrLeave}
+                        onClickCapture={handleTrialsClickCapture}
+                      >
                         <table className="w-full min-w-[700px] md:min-w-full border-collapse text-xs text-left">
                           <thead className="bg-muted sticky top-0 z-10 border-b border-border">
                             <tr>

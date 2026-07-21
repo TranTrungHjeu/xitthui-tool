@@ -199,6 +199,70 @@ export default function SchedulesPage() {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
   const [viewingSchedule, setViewingSchedule] = useState<Schedule | null>(null);
+
+  // Grab to scroll horizontally
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const isDraggingActive = useRef(false);
+  const startX = useRef(0);
+  const scrollLeftStart = useRef(0);
+
+  const handleDragMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return; // Only left click
+    const target = e.target as HTMLElement;
+    if (
+      target.closest("button") ||
+      target.closest("a") ||
+      target.closest("input") ||
+      target.closest("select") ||
+      target.closest("[role='menuitem']")
+    ) {
+      return;
+    }
+    isDragging.current = true;
+    isDraggingActive.current = false;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.style.cursor = "grabbing";
+      scrollContainerRef.current.style.userSelect = "none";
+    }
+    startX.current = e.pageX - (scrollContainerRef.current?.offsetLeft || 0);
+    scrollLeftStart.current = scrollContainerRef.current?.scrollLeft || 0;
+  };
+
+  const handleDragMouseUpOrLeave = () => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.style.cursor = "grab";
+      scrollContainerRef.current.style.userSelect = "";
+    }
+    // Delay resetting isDraggingActive to capture and block click event
+    setTimeout(() => {
+      isDraggingActive.current = false;
+    }, 50);
+  };
+
+  const handleDragMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging.current) return;
+    const x = e.pageX - (scrollContainerRef.current?.offsetLeft || 0);
+    const walk = (x - startX.current) * 1.5; // Scroll speed multiplier
+    
+    if (Math.abs(x - startX.current) > 5) {
+      isDraggingActive.current = true;
+    }
+
+    e.preventDefault();
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = scrollLeftStart.current - walk;
+    }
+  };
+
+  const handleContainerClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isDraggingActive.current) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  };
   
   // Highlight row/column selection for comparison
   const [selectedHighlightTeacherId, setSelectedHighlightTeacherId] = useState<string | null>(null);
@@ -513,89 +577,207 @@ export default function SchedulesPage() {
     return new Set(centerSchedules.map((s) => s.teacherId));
   }, [centerSchedules]);
 
-  const filteredTeachers = teachersList.filter((t) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      t.fullName?.toLowerCase().includes(q) || t.code?.toLowerCase().includes(q)
-    );
-  });
+  const filteredTeachers = useMemo(() => {
+    return teachersList.filter((t) => {
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return (
+        t.fullName?.toLowerCase().includes(q) || t.code?.toLowerCase().includes(q)
+      );
+    });
+  }, [teachersList, search]);
 
-  const displayedTeachers = filteredTeachers.filter((t) => {
-    if (hiddenTeacherIds.has(t.id)) return false;
-    if (hideTeachersWithoutSchedules) {
-      return teachersWithSchedules.has(t.id);
-    }
-    return true;
-  });
+  const displayedTeachers = useMemo(() => {
+    return filteredTeachers.filter((t) => {
+      if (hiddenTeacherIds.has(t.id)) return false;
+      if (hideTeachersWithoutSchedules) {
+        return teachersWithSchedules.has(t.id);
+      }
+      return true;
+    });
+  }, [filteredTeachers, hiddenTeacherIds, hideTeachersWithoutSchedules, teachersWithSchedules]);
 
-  const visibleTeachersCount = teachersList.filter((t) => {
-    if (hiddenTeacherIds.has(t.id)) return false;
-    if (hideTeachersWithoutSchedules) {
-      return teachersWithSchedules.has(t.id);
-    }
-    return true;
-  }).length;
+  const visibleTeachersCount = useMemo(() => {
+    return teachersList.filter((t) => {
+      if (hiddenTeacherIds.has(t.id)) return false;
+      if (hideTeachersWithoutSchedules) {
+        return teachersWithSchedules.has(t.id);
+      }
+      return true;
+    }).length;
+  }, [teachersList, hiddenTeacherIds, hideTeachersWithoutSchedules, teachersWithSchedules]);
 
-  const activeTeacherIds = new Set(displayedTeachers.map((t) => t.id));
-  const relevantSchedules = centerSchedules.filter((s) =>
-    activeTeacherIds.has(s.teacherId),
-  );
-
-  const uniqueSlotsSet = new Set<string>();
-  relevantSchedules.forEach((sch) => {
-    const localDate = getLocalDate(sch);
-    const startLocalTime = getLocalTime(sch.startTime);
-    const endLocalTime = getLocalTime(sch.endTime);
-    if (localDate && startLocalTime) {
-      uniqueSlotsSet.add(`${localDate}_${startLocalTime}`);
-    }
-    if (localDate && endLocalTime) {
-      uniqueSlotsSet.add(`${localDate}_${endLocalTime}`);
-    }
-  });
-
-  const sortedSlots = Array.from(uniqueSlotsSet).sort((a, b) => {
-    const [dateA, timeA] = a.split("_");
-    const [dateB, timeB] = b.split("_");
-    if (dateA !== dateB) return dateA.localeCompare(dateB);
-    return timeA.localeCompare(timeB);
-  });
+  const relevantSchedules = useMemo(() => {
+    const activeTeacherIds = new Set(displayedTeachers.map((t) => t.id));
+    return centerSchedules.filter((s) => activeTeacherIds.has(s.teacherId));
+  }, [centerSchedules, displayedTeachers]);
 
   const displayedSlots = useMemo(() => {
-    return sortedSlots;
-  }, [sortedSlots]);
-
-  const getColDuration = (colIdx: number) => {
-    const currentSlot = displayedSlots[colIdx];
-    if (!currentSlot) return 120;
-    const [currentDate, currentStartStr] = currentSlot.split("_");
-    const currentStart = timeToMinutes(currentStartStr);
-    if (colIdx + 1 < displayedSlots.length) {
-      const [nextDate, nextStartStr] = displayedSlots[colIdx + 1].split("_");
-      if (nextDate === currentDate) {
-        return timeToMinutes(nextStartStr) - currentStart;
+    const uniqueSlotsSet = new Set<string>();
+    relevantSchedules.forEach((sch) => {
+      const localDate = getLocalDate(sch);
+      const startLocalTime = getLocalTime(sch.startTime);
+      const endLocalTime = getLocalTime(sch.endTime);
+      if (localDate && startLocalTime) {
+        uniqueSlotsSet.add(`${localDate}_${startLocalTime}`);
       }
-    }
-    return 120; // Default 2 hours
-  };
-
-  const schedulesByTeacher: Record<string, Record<string, Schedule[]>> = {};
-  relevantSchedules.forEach((sch) => {
-    const localDate = getLocalDate(sch);
-    const localTime = getLocalTime(sch.startTime);
-    if (localDate && localTime) {
-      const slot = `${localDate}_${localTime}`;
-
-      if (!schedulesByTeacher[sch.teacherId]) {
-        schedulesByTeacher[sch.teacherId] = {};
+      if (localDate && endLocalTime) {
+        uniqueSlotsSet.add(`${localDate}_${endLocalTime}`);
       }
-      if (!schedulesByTeacher[sch.teacherId][slot]) {
-        schedulesByTeacher[sch.teacherId][slot] = [];
+    });
+
+    return Array.from(uniqueSlotsSet).sort((a, b) => {
+      const [dateA, timeA] = a.split("_");
+      const [dateB, timeB] = b.split("_");
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      return timeA.localeCompare(timeB);
+    });
+  }, [relevantSchedules]);
+
+  const getColDuration = useMemo(() => {
+    const durations = displayedSlots.map((currentSlot, colIdx) => {
+      if (!currentSlot) return 120;
+      const [currentDate, currentStartStr] = currentSlot.split("_");
+      const currentStart = timeToMinutes(currentStartStr);
+      if (colIdx + 1 < displayedSlots.length) {
+        const [nextDate, nextStartStr] = displayedSlots[colIdx + 1].split("_");
+        if (nextDate === currentDate) {
+          return timeToMinutes(nextStartStr) - currentStart;
+        }
       }
-      schedulesByTeacher[sch.teacherId][slot].push(sch);
-    }
-  });
+      return 120; // Default 2 hours
+    });
+    return (colIdx: number) => durations[colIdx] ?? 120;
+  }, [displayedSlots]);
+
+  const schedulesByTeacher = useMemo(() => {
+    const map: Record<string, Record<string, Schedule[]>> = {};
+    relevantSchedules.forEach((sch) => {
+      const localDate = getLocalDate(sch);
+      const localTime = getLocalTime(sch.startTime);
+      if (localDate && localTime) {
+        const slot = `${localDate}_${localTime}`;
+
+        if (!map[sch.teacherId]) {
+          map[sch.teacherId] = {};
+        }
+        if (!map[sch.teacherId][slot]) {
+          map[sch.teacherId][slot] = [];
+        }
+        map[sch.teacherId][slot].push(sch);
+      }
+    });
+    return map;
+  }, [relevantSchedules]);
+
+  // Precompute grid cell rendering attributes (colspans, skip states, card position styles)
+  const computedGrid = useMemo(() => {
+    const grid: Record<string, Record<string, {
+      schedules: Schedule[];
+      colSpan: number;
+      skip: boolean;
+      cards: { left: string; width: string }[];
+    }>> = {};
+
+    displayedTeachers.forEach((teacher) => {
+      grid[teacher.id] = {};
+      
+      displayedSlots.forEach((slot) => {
+        grid[teacher.id][slot] = {
+          schedules: [],
+          colSpan: 1,
+          skip: false,
+          cards: []
+        };
+      });
+
+      const skipSlots = new Set<string>();
+
+      displayedSlots.forEach((slot, colIndex) => {
+        if (skipSlots.has(slot)) {
+          grid[teacher.id][slot].skip = true;
+          return;
+        }
+
+        const cellSchedules = schedulesByTeacher[teacher.id]?.[slot] || [];
+        grid[teacher.id][slot].schedules = cellSchedules;
+
+        if (cellSchedules.length > 0) {
+          let maxSpan = 1;
+          cellSchedules.forEach((sch) => {
+            let actualEndMin = timeToMinutes(getLocalTime(sch.endTime));
+            const [slotDate] = slot.split("_");
+
+            let span = 1;
+            for (let idx = colIndex + 1; idx < displayedSlots.length; idx++) {
+              const [nextDate, nextTimeStr] = displayedSlots[idx].split("_");
+              if (nextDate !== slotDate) break;
+              const nextTimeMin = timeToMinutes(nextTimeStr);
+              if (actualEndMin > nextTimeMin) {
+                span++;
+              } else {
+                break;
+              }
+            }
+            if (span > maxSpan) maxSpan = span;
+          });
+
+          grid[teacher.id][slot].colSpan = maxSpan;
+
+          for (let offset = 1; offset < maxSpan; offset++) {
+            const nextIdx = colIndex + offset;
+            if (nextIdx < displayedSlots.length) {
+              skipSlots.add(displayedSlots[nextIdx]);
+            }
+          }
+
+          // Compute card dimensions
+          const cards: { left: string; width: string }[] = [];
+          cellSchedules.forEach((sch) => {
+            const actualStartMin = timeToMinutes(getLocalTime(sch.startTime));
+            let actualEndMin = timeToMinutes(getLocalTime(sch.endTime));
+            const [slotDate] = slot.split("_");
+
+            const getXCoordinate = (timeMin: number) => {
+              for (let colOffset = 0; colOffset < maxSpan; colOffset++) {
+                const currentIdx = colIndex + colOffset;
+                const slotKey = displayedSlots[currentIdx];
+                const [_, currentStartStr] = slotKey.split("_");
+                const colStart = timeToMinutes(currentStartStr);
+                const colDur = getColDuration(currentIdx);
+                const colEnd = colStart + colDur;
+                
+                if (timeMin >= colStart && timeMin <= colEnd) {
+                  const posInCol = (timeMin - colStart) / colDur;
+                  return colOffset + posInCol;
+                }
+              }
+              if (timeMin < timeToMinutes(slot.split("_")[1])) return 0;
+              return maxSpan;
+            };
+
+            const xStart = getXCoordinate(actualStartMin);
+            const xEnd = getXCoordinate(actualEndMin);
+            
+            let leftPercent = (xStart / maxSpan) * 100;
+            let widthPercent = ((xEnd - xStart) / maxSpan) * 100;
+            if (leftPercent + widthPercent > 100) {
+              widthPercent = 100 - leftPercent;
+            }
+
+            cards.push({
+              left: `${leftPercent}%`,
+              width: `${widthPercent}%`
+            });
+          });
+
+          grid[teacher.id][slot].cards = cards;
+        }
+      });
+    });
+
+    return grid;
+  }, [displayedTeachers, displayedSlots, schedulesByTeacher, getColDuration]);
 
   const dayMap: Record<number, string> = {
     0: "CN",
@@ -767,102 +949,16 @@ export default function SchedulesPage() {
 
   return (
     <div className="p-3 sm:p-6 space-y-4 h-[calc(100vh-76px)] md:h-screen overflow-hidden flex flex-col">
-      <PageHeader
-        icon={CalendarClock}
-        title="Lịch làm việc"
-        description={isLoading ? "Đang tải..." : `Tuần: ${weekStr}`}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={handleRefresh}
-              disabled={isLoading}
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Tải lại</span>
-            </Button>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+        {/* Left: Week Navigator and Week label */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Week label & Status */}
+          <span className="text-sm font-bold text-foreground min-w-[130px]">
+            {isLoading ? "Đang tải..." : `Tuần: ${weekStr}`}
+          </span>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5">
-                  <Filter className="h-3.5 w-3.5" />
-                  <span>Nhân sự ({visibleTeachersCount}/{teachersList.length})</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-72 max-h-80 overflow-y-auto"
-                align="end"
-              >
-                <DropdownMenuLabel>Chọn nhân sự hiển thị</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <div className="px-2 py-2">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-1.5 rounded">
-                    <input
-                      type="checkbox"
-                      checked={hideTeachersWithoutSchedules}
-                      onChange={(e) =>
-                        setHideTeachersWithoutSchedules(e.target.checked)
-                      }
-                      className="rounded border-border text-primary focus:ring-primary"
-                    />
-                    <span>Chỉ hiện GV có lịch (trong cơ sở)</span>
-                  </label>
-                </div>
-                <DropdownMenuSeparator />
-                <div className="flex items-center justify-between p-2 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      showAllTeachers();
-                    }}
-                  >
-                    Hiện tất cả
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      hideAllTeachers();
-                    }}
-                  >
-                    Ẩn tất cả
-                  </Button>
-                </div>
-                <DropdownMenuSeparator />
-                {teachersList.length === 0 ? (
-                  <div className="p-3 text-xs text-muted-foreground text-center">
-                    Không có nhân sự nào
-                  </div>
-                ) : (
-                  teachersList.map((teacher) => (
-                    <DropdownMenuCheckboxItem
-                      key={teacher.id}
-                      checked={!hiddenTeacherIds.has(teacher.id)}
-                      onCheckedChange={() => toggleTeacherVisibility(teacher.id)}
-                      onSelect={(e) => e.preventDefault()}
-                    >
-                      {teacher.fullName} {teacher.code ? `(${teacher.code})` : ""}
-                    </DropdownMenuCheckboxItem>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        }
-      />
-
-      <div className="flex flex-col gap-3">
-        {/* Date Navigator and Search Row */}
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-stretch sm:items-center">
-          {/* Week navigator */}
-          <div className="flex items-center bg-card border border-border rounded-lg shadow-sm h-9 transition-all hover:border-border justify-between flex-1 sm:flex-none">
+          {/* Navigator buttons */}
+          <div className="flex items-center bg-card border border-border rounded-lg shadow-sm h-9 transition-all hover:border-border justify-between">
             <Button
               variant="ghost"
               size="icon"
@@ -874,12 +970,12 @@ export default function SchedulesPage() {
             </Button>
 
             <div
-              className="relative h-full border-x border-border flex-1 sm:flex-none"
+              className="relative h-full border-x border-border flex items-center"
               ref={datePickerRef}
             >
               <div
                 onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
-                className={`flex items-center justify-center gap-1.5 px-3 h-full hover:bg-muted/50 transition-colors cursor-pointer min-w-[110px] sm:min-w-[130px] select-none text-[11px] font-bold text-foreground ${isDatePickerOpen ? "bg-muted/50 ring-1 ring-primary/20" : ""}`}
+                className={`flex items-center justify-center gap-1.5 px-3 h-full hover:bg-muted/50 transition-colors cursor-pointer select-none text-[11px] font-bold text-foreground ${isDatePickerOpen ? "bg-muted/50 ring-1 ring-primary/20" : ""}`}
               >
                 <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
                 <span>{format(selectedDate, "dd/MM/yyyy")}</span>
@@ -916,9 +1012,93 @@ export default function SchedulesPage() {
               </Button>
             </div>
           </div>
+        </div>
 
-          {/* Search bar */}
-          <div className="relative flex-1 sm:w-48 lg:w-64">
+        {/* Right: Actions and Search */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={handleRefresh}
+            disabled={isLoading}
+            size="sm"
+            variant="outline"
+            className="h-9 gap-1.5"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Tải lại</span>
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-1.5">
+                <Filter className="h-3.5 w-3.5" />
+                <span>Nhân sự ({visibleTeachersCount}/{teachersList.length})</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="w-72 max-h-80 overflow-y-auto"
+              align="end"
+            >
+              <DropdownMenuLabel>Chọn nhân sự hiển thị</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-2">
+                <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-1.5 rounded">
+                  <input
+                    type="checkbox"
+                    checked={hideTeachersWithoutSchedules}
+                    onChange={(e) =>
+                      setHideTeachersWithoutSchedules(e.target.checked)
+                    }
+                    className="rounded border-border text-primary focus:ring-primary"
+                  />
+                  <span>Chỉ hiện GV có lịch (trong cơ sở)</span>
+                </label>
+              </div>
+              <DropdownMenuSeparator />
+              <div className="flex items-center justify-between p-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    showAllTeachers();
+                  }}
+                >
+                  Hiện tất cả
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    hideAllTeachers();
+                  }}
+                >
+                  Ẩn tất cả
+                </Button>
+              </div>
+              <DropdownMenuSeparator />
+              {teachersList.length === 0 ? (
+                <div className="p-3 text-xs text-muted-foreground text-center">
+                  Không có nhân sự nào
+                </div>
+              ) : (
+                teachersList.map((teacher) => (
+                  <DropdownMenuCheckboxItem
+                    key={teacher.id}
+                    checked={!hiddenTeacherIds.has(teacher.id)}
+                    onCheckedChange={() => toggleTeacherVisibility(teacher.id)}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {teacher.fullName} {teacher.code ? `(${teacher.code})` : ""}
+                  </DropdownMenuCheckboxItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <div className="relative w-full sm:w-48 lg:w-64">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Tìm theo tên giáo viên..."
@@ -943,7 +1123,15 @@ export default function SchedulesPage() {
           </div>
         )}
 
-        <div className="overflow-auto flex-1 custom-scrollbar no-vertical-scrollbar">
+        <div
+          ref={scrollContainerRef}
+          className="overflow-auto flex-1 custom-scrollbar no-vertical-scrollbar cursor-grab"
+          onMouseDown={handleDragMouseDown}
+          onMouseMove={handleDragMouseMove}
+          onMouseUp={handleDragMouseUpOrLeave}
+          onMouseLeave={handleDragMouseUpOrLeave}
+          onClickCapture={handleContainerClickCapture}
+        >
           <table className="w-max min-w-full border-collapse caption-bottom text-xs">
             <TableHeader className="sticky top-0 z-40 shadow-sm">
               <TableRow className="border-b-2 border-border">
@@ -952,7 +1140,7 @@ export default function SchedulesPage() {
                     setSelectedHighlightTeacherId(null);
                     setSelectedHighlightSlot(null);
                   }}
-                  className="sticky left-0 top-0 z-50 bg-muted min-w-[90px] max-w-[120px] md:min-w-[105px] md:max-w-[130px] border-r border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-foreground font-semibold text-[10px] md:text-[11px] py-1 px-1.5 cursor-pointer select-none hover:bg-muted transition-colors"
+                  className="sticky left-0 top-0 z-50 bg-muted min-w-[90px] max-w-[120px] md:min-w-[105px] md:max-w-[130px] border-r border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-foreground font-semibold text-[10px] md:text-[11px] py-1 px-1.5 cursor-pointer select-none"
                 >
                   Giáo viên
                 </TableHead>
@@ -960,18 +1148,11 @@ export default function SchedulesPage() {
                   <TableHead
                     key={slot}
                     onClick={() => handleHeaderClick(slot)}
-                    className={`sticky top-0 z-40 border-r border-border min-w-[70px] md:min-w-[72px] p-0.5 text-center cursor-pointer select-none transition-colors hover:bg-muted/80 ${
-                      selectedHighlightSlot === slot 
-                        ? "ring-2 ring-inset ring-destructive bg-destructive/10 text-destructive font-bold" 
-                        : getDayHeaderBg(slot)
-                    }`}
+                    className={`sticky top-0 z-40 border-r border-border min-w-[70px] md:min-w-[72px] p-0.5 text-center cursor-pointer select-none ${getDayHeaderBg(slot)}`}
                   >
                     {formatSlotHeader(slot)}
                   </TableHead>
                 ))}
-                {displayedSlots.length === 0 && (
-                  <TableHead className="bg-muted">Lịch trình</TableHead>
-                )}
               </TableRow>
             </TableHeader>
 
@@ -992,19 +1173,14 @@ export default function SchedulesPage() {
                 </TableRow>
               ) : (
                 displayedTeachers.map((teacher) => {
-                  let skipCount = 0;
                   return (
                     <TableRow
                       key={teacher.id}
-                      className="hover:bg-muted/30 group border-b border-border"
+                      className="group border-b border-border"
                     >
                       <TableCell
                         onClick={() => handleTeacherClick(teacher.id)}
-                        className={`sticky left-0 z-30 group-hover:bg-muted/50 border-r border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] font-medium text-foreground p-1 align-middle whitespace-nowrap text-[9px] md:text-[10px] leading-none min-w-[90px] max-w-[120px] md:min-w-[105px] md:max-w-[130px] overflow-hidden truncate cursor-pointer transition-colors ${
-                          selectedHighlightTeacherId === teacher.id
-                            ? "bg-destructive/10 text-destructive font-bold ring-2 ring-inset ring-destructive"
-                            : "bg-card"
-                        }`}
+                        className="sticky left-0 z-30 border-r border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] font-medium text-foreground p-1 align-middle whitespace-nowrap text-[9px] md:text-[10px] leading-none min-w-[90px] max-w-[120px] md:min-w-[105px] md:max-w-[130px] overflow-hidden truncate cursor-pointer bg-card"
                       >
                         <button
                           onClick={(e) => {
@@ -1018,62 +1194,12 @@ export default function SchedulesPage() {
                         </button>
                       </TableCell>
 
-                      {displayedSlots.map((slot, colIndex) => {
-                        if (skipCount > 0) {
-                          skipCount--;
-                          return null;
-                        }
+                      {displayedSlots.map((slot) => {
+                        const cellData = computedGrid[teacher.id]?.[slot];
+                        if (!cellData) return null;
+                        if (cellData.skip) return null;
 
-                        const cellSchedules =
-                          schedulesByTeacher[teacher.id]?.[slot] || [];
-
-                        // 1. Calculate cell colSpan based on schedules
-                        const colSpan = cellSchedules.length > 0 ? (() => {
-                          let maxSpan = 1;
-                          cellSchedules.forEach((sch) => {
-                            let actualEndMin = timeToMinutes(getLocalTime(sch.endTime));
-                            const [slotDate] = slot.split("_");
-
-                            // Extend end time if it matches a slot start
-                            const isExactEndSlot = displayedSlots.some((s) => {
-                              const [sDate, timeStr] = s.split("_");
-                              return sDate === slotDate && timeToMinutes(timeStr) === actualEndMin;
-                            });
-                            if (isExactEndSlot) {
-                              const slotIdx = displayedSlots.findIndex((s) => {
-                                const [sDate, timeStr] = s.split("_");
-                                return sDate === slotDate && timeToMinutes(timeStr) === actualEndMin;
-                              });
-                              if (slotIdx !== -1) {
-                                actualEndMin += getColDuration(slotIdx);
-                              }
-                            }
-
-                            let span = 1;
-                            for (let idx = colIndex + 1; idx < displayedSlots.length; idx++) {
-                              const [nextDate, nextTimeStr] = displayedSlots[idx].split("_");
-                              if (nextDate !== slotDate) break;
-                              const nextTimeMin = timeToMinutes(nextTimeStr);
-                              if (actualEndMin > nextTimeMin) {
-                                span++;
-                              } else {
-                                break;
-                              }
-                            }
-                            if (span > maxSpan) maxSpan = span;
-                          });
-                          return maxSpan;
-                        })() : 1;
-
-                        if (colSpan > 1) {
-                          skipCount = colSpan - 1;
-                        }
-
-                        // Calculate total duration for spanned columns
-                        let totalDuration = 0;
-                        for (let idx = colIndex; idx < colIndex + colSpan; idx++) {
-                          totalDuration += getColDuration(idx);
-                        }
+                        const { schedules: cellSchedules, colSpan } = cellData;
 
                         return (
                           <TableCell
@@ -1082,75 +1208,21 @@ export default function SchedulesPage() {
                             onClick={() => handleCellClick(teacher.id, slot)}
                             className={`relative hover:z-[60] border-r border-border p-0 align-top cursor-pointer transition-all ${
                               colSpan === 1 ? "min-w-[70px] md:min-w-[72px]" : ""
-                            } ${
-                              selectedHighlightTeacherId === teacher.id && selectedHighlightSlot === slot
-                                ? "bg-destructive/10 text-destructive font-bold ring-2 ring-inset ring-destructive z-20"
-                                : selectedHighlightTeacherId === teacher.id
-                                ? "bg-destructive/15 text-destructive font-bold"
-                                : selectedHighlightSlot === slot
-                                ? "bg-destructive/15 text-destructive font-bold"
-                                : getDayCellBg(slot)
-                            }`}
+                            } ${getDayCellBg(slot)}`}
                           >
                             {cellSchedules.length > 0 ? (
                               <div className="flex flex-col w-full h-full gap-[1px]">
                                 {cellSchedules.map((sch, i) => {
+                                  const cardData = cellData.cards[i];
                                   const isOther = checkIsOtherCentre(sch);
-                                  
-                                  const actualStartMin = timeToMinutes(getLocalTime(sch.startTime));
-                                  let actualEndMin = timeToMinutes(getLocalTime(sch.endTime));
-                                  const [slotDate] = slot.split("_");
-                                  
-                                  // Extend end time if it matches a slot start
-                                  const isExactEndSlot = displayedSlots.some((s) => {
-                                    const [sDate, timeStr] = s.split("_");
-                                    return sDate === slotDate && timeToMinutes(timeStr) === actualEndMin;
-                                  });
-                                  if (isExactEndSlot) {
-                                    const slotIdx = displayedSlots.findIndex((s) => {
-                                      const [sDate, timeStr] = s.split("_");
-                                      return sDate === slotDate && timeToMinutes(timeStr) === actualEndMin;
-                                    });
-                                    if (slotIdx !== -1) {
-                                      actualEndMin += getColDuration(slotIdx);
-                                    }
-                                  }
-
-                                  // Coordinate transformation: calculate card position relative to equal-width columns
-                                  const getXCoordinate = (timeMin: number) => {
-                                    for (let colOffset = 0; colOffset < colSpan; colOffset++) {
-                                      const currentIdx = colIndex + colOffset;
-                                      const slotKey = displayedSlots[currentIdx];
-                                      const [_, currentStartStr] = slotKey.split("_");
-                                      const colStart = timeToMinutes(currentStartStr);
-                                      const colDur = getColDuration(currentIdx);
-                                      const colEnd = colStart + colDur;
-                                      
-                                      if (timeMin >= colStart && timeMin <= colEnd) {
-                                        const posInCol = (timeMin - colStart) / colDur;
-                                        return colOffset + posInCol;
-                                      }
-                                    }
-                                    if (timeMin < timeToMinutes(slot.split("_")[1])) return 0;
-                                    return colSpan;
-                                  };
-
-                                  const xStart = getXCoordinate(actualStartMin);
-                                  const xEnd = getXCoordinate(actualEndMin);
-                                  
-                                  let leftPercent = (xStart / colSpan) * 100;
-                                  let widthPercent = ((xEnd - xStart) / colSpan) * 100;
-                                  if (leftPercent + widthPercent > 100) {
-                                    widthPercent = 100 - leftPercent;
-                                  }
 
                                   return (
                                     <div 
                                       key={i} 
                                       className="relative group/tooltip hover:z-[100] transition-all"
                                       style={{
-                                        marginLeft: `${leftPercent}%`,
-                                        width: `${widthPercent}%`
+                                        marginLeft: cardData?.left || "0%",
+                                        width: cardData?.width || "100%"
                                       }}
                                     >
                                       <div
@@ -1182,13 +1254,6 @@ export default function SchedulesPage() {
                                           )}
                                         </div>
                                       </div>
-                                      {/* Tooltip */}
-                                      <div
-                                        role="tooltip"
-                                        className="pointer-events-none absolute z-[9999] hidden group-hover/tooltip:flex bottom-full left-1/2 -translate-x-1/2 mb-2 w-[280px] sm:w-[350px] max-w-[400px] p-2.5 bg-foreground/90 text-white text-xs leading-relaxed shadow-lg whitespace-pre-line border-0 rounded-md animate-in fade-in-0 zoom-in-95 duration-150"
-                                      >
-                                        {getScheduleTitle(sch)}
-                                      </div>
                                     </div>
                                   );
                                 })}
@@ -1209,8 +1274,8 @@ export default function SchedulesPage() {
                   );
                 })
               )}
-              </TableBody>
-            </table>
+            </TableBody>
+          </table>
           </div>
       </div>
       {/* Teacher Schedule Modal */}

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Loader2, ArrowRight, Mail, Lock, Sparkles } from "lucide-react";
+import { Loader2, ArrowRight, Mail, Lock } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -78,15 +78,12 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Brand mark */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20 mb-4">
-            <Sparkles className="h-6 w-6 text-primary-foreground" />
-          </div>
           <img
             src="/logo.png"
             alt="MindX Support Tools"
-            width={160}
-            height={36}
-            className="h-9 w-auto object-contain"
+            width={180}
+            height={40}
+            className="h-12 w-auto object-contain"
           />
         </div>
 
