@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
   getSessionExamType,
   getSessionExamLabel,
+  getTeacherNameFromSlot,
 } from "@/lib/courseConfig";
 import {
   CalendarDays,
@@ -299,27 +300,14 @@ function ScheduleRow({ item }: { item: PositionedSlot }) {
 
   const sessionNum =
     slot.sessionIndex !== undefined ? slot.sessionIndex + 1 : 1;
+  const examType = getSessionExamType(slot.className, sessionNum);
   const examLabel = getSessionExamLabel(slot.className, sessionNum);
 
-  const lec = slot.classItem?.teachers?.find(
-    (t: any) => t.role?.shortName === "LEC",
-  );
-  const ta = slot.classItem?.teachers?.find(
-    (t: any) => t.role?.shortName === "TA",
-  );
-  const lecName = lec?.teacher?.fullName;
-  const taName = ta?.teacher?.fullName;
+  const lecName = getTeacherNameFromSlot(slot, "LEC");
+  const taName = getTeacherNameFromSlot(slot, "TA");
   const studentCount = slot.classItem?.students?.length ?? slot.studentCount;
   const centreName =
     slot.classItem?.centre?.shortName || slot.classItem?.centre?.name;
-
-  const startMin = toMinutes(slot.startTime);
-  const endMin = toMinutes(slot.endTime);
-  const durationMin = Math.max(endMin - startMin, 0);
-  const hours = Math.floor(durationMin / 60);
-  const mins = durationMin % 60;
-  const durationText =
-    hours > 0 ? `${hours}h${mins > 0 ? ` ${mins}p` : ""}` : `${mins}p`;
 
   const handleMouseEnter = () => {
     if (!rowRef.current) return;
@@ -339,6 +327,7 @@ function ScheduleRow({ item }: { item: PositionedSlot }) {
       <div
         className={cn(
           "schedule-list-tooltip",
+          `schedule-list-tooltip-${status}`,
           tooltipPos.placement === "bottom" && "schedule-list-tooltip-below",
         )}
         role="tooltip"
@@ -363,8 +352,7 @@ function ScheduleRow({ item }: { item: PositionedSlot }) {
         <div className="schedule-list-tooltip-row">
           <span className="schedule-list-tooltip-label">Thời gian</span>
           <span className="schedule-list-tooltip-value">
-            {slot.startTime?.slice(0, 5)} – {slot.endTime?.slice(0, 5)}{" "}
-            <span className="schedule-list-tooltip-muted">({durationText})</span>
+            {slot.startTime?.slice(0, 5)} – {slot.endTime?.slice(0, 5)}
           </span>
         </div>
 
@@ -372,8 +360,8 @@ function ScheduleRow({ item }: { item: PositionedSlot }) {
           <span className="schedule-list-tooltip-label">Buổi</span>
           <span className="schedule-list-tooltip-value">
             {sessionNum}
-            {examLabel && (
-              <span className="schedule-list-tooltip-muted"> — {examLabel}</span>
+            {examType && (
+              <span className="schedule-list-tooltip-muted"> ({examLabel})</span>
             )}
           </span>
         </div>

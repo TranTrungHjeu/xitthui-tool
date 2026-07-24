@@ -15,25 +15,31 @@ interface StatCardProps extends React.HTMLAttributes<HTMLDivElement> {
     label?: string
     positive?: boolean
   }
-  variant?: "default" | "primary" | "success" | "warning" | "destructive" | "info"
+  variant?: "default" | "primary" | "success" | "warning" | "destructive" | "info" | "crimson" | "sunglow" | "stratos"
 }
 
 const variantClasses: Record<NonNullable<StatCardProps["variant"]>, string> = {
-  default: "bg-card",
-  primary: "bg-primary/[0.04] border-primary/20",
-  success: "bg-success/[0.06] border-success/20",
-  warning: "bg-warning/[0.06] border-warning/20",
-  destructive: "bg-destructive/[0.06] border-destructive/20",
-  info: "bg-info/[0.06] border-info/20",
+  default: "bg-card border-border/60 hover:border-border/90",
+  primary: "bg-card border-border/60 hover:border-[#E31F26]/30",
+  crimson: "bg-card border-border/60 hover:border-[#E31F26]/30",
+  success: "bg-card border-border/60 hover:border-emerald-500/30",
+  warning: "bg-card border-border/60 hover:border-[#FFD62D]/40",
+  sunglow: "bg-card border-border/60 hover:border-[#FFD62D]/40",
+  destructive: "bg-card border-border/60 hover:border-red-500/30",
+  info: "bg-card border-border/60 hover:border-sky-500/30",
+  stratos: "bg-card border-border/60 hover:border-[#000056]/30",
 }
 
 const iconVariantClasses: Record<NonNullable<StatCardProps["variant"]>, string> = {
   default: "bg-muted text-foreground",
-  primary: "bg-primary/15 text-primary",
-  success: "bg-success/15 text-success",
-  warning: "bg-warning/15 text-warning",
-  destructive: "bg-destructive/15 text-destructive",
-  info: "bg-info/15 text-info",
+  primary: "bg-[#E31F26]/10 text-[#E31F26]",
+  crimson: "bg-[#E31F26]/10 text-[#E31F26]",
+  success: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  warning: "bg-[#FFD62D]/20 text-[#856404] dark:text-[#FFD62D] font-bold",
+  sunglow: "bg-[#FFD62D]/20 text-[#856404] dark:text-[#FFD62D] font-bold",
+  destructive: "bg-red-500/10 text-red-600 dark:text-red-400",
+  info: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  stratos: "bg-[#000056]/10 text-[#000056] dark:bg-[#000056]/40 dark:text-indigo-300",
 }
 
 export function StatCard({

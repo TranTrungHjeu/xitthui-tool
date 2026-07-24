@@ -190,3 +190,84 @@ export function getSessionExamLabel(
   if (type === "demo") return "Demo Cuối Khóa"; // Giờ đây type="demo" chỉ khi sessionIndex khớp với milestones.demo
   return `Buổi ${sessionIndex}`;
 }
+
+/**
+ * Trích xuất tên Giảng viên (LEC) hoặc Trợ giảng (TA) linh hoạt từ thông tin slot / classItem
+ */
+export function getTeacherNameFromSlot(
+  item: any,
+  roleCode: "LEC" | "TA",
+): string | undefined {
+  if (!item) return undefined;
+
+  const matchRole = (t: any) => {
+    if (!t) return false;
+    const r =
+      typeof t.role === "string"
+        ? t.role
+        : t.role?.shortName || t.role?.code || t.role?.name || t.roleShortName || "";
+    const upper = String(r).toUpperCase();
+    if (roleCode === "LEC") {
+      return (
+        upper === "LEC" ||
+        upper === "LECTURER" ||
+        upper.includes("GIẢNG VIÊN") ||
+        upper.includes("GIANG VIEN")
+      );
+    } else {
+      return (
+        upper === "TA" ||
+        upper === "TUTOR" ||
+        upper.includes("TRỢ GIẢNG") ||
+        upper.includes("TRO GIANG")
+      );
+    }
+  };
+
+  const getFullName = (t: any) => {
+    if (!t) return undefined;
+    return (
+      t.teacher?.fullName ||
+      t.teacher?.name ||
+      t.teacherName ||
+      t.fullName ||
+      t.name
+    );
+  };
+
+  // 1. Kiểm tra slot-level teachers (ca học cụ thể)
+  const slotObj = item.slot || item;
+  const slotTeachers = slotObj?.teachers;
+  if (Array.isArray(slotTeachers) && slotTeachers.length > 0) {
+    const activeMatch = slotTeachers.find(
+      (t: any) => matchRole(t) && t.isActive !== false,
+    );
+    const anyMatch = activeMatch || slotTeachers.find((t: any) => matchRole(t));
+    const name = getFullName(anyMatch);
+    if (name) return name;
+  }
+
+  // 2. Kiểm tra class-level teachers (danh sách giáo viên gán cho lớp)
+  const classObj = item.classItem || item;
+  const classTeachers = classObj?.teachers;
+  if (Array.isArray(classTeachers) && classTeachers.length > 0) {
+    const activeMatch = classTeachers.find(
+      (t: any) => matchRole(t) && t.isActive !== false,
+    );
+    const anyMatch = activeMatch || classTeachers.find((t: any) => matchRole(t));
+    const name = getFullName(anyMatch);
+    if (name) return name;
+  }
+
+  // 3. Fallback vào computed properties từ Backend
+  const computedName =
+    roleCode === "LEC"
+      ? classObj?.computed?.lecName || classObj?.lecName || item.lecName
+      : classObj?.computed?.taName || classObj?.taName || item.taName;
+
+  if (computedName && computedName !== "-" && computedName !== "N/A") {
+    return computedName;
+  }
+
+  return undefined;
+}

@@ -259,21 +259,6 @@ export default function DashboardLayout({
         {!compact && (
           <span className="truncate flex-1">{item.label}</span>
         )}
-        {!compact && isClassesMenu && classes.length > 0 && (
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsClassesExpanded(!isClassesExpanded);
-            }}
-            className={cn(
-              "rounded p-0.5 hover:bg-accent transition-transform",
-              isClassesExpanded ? "rotate-0" : "-rotate-90",
-            )}
-          >
-            <ChevronDown className="h-3.5 w-3.5" />
-          </button>
-        )}
       </Link>
     );
 
@@ -291,7 +276,11 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex h-dvh bg-background overflow-hidden">
+    <div className="flex flex-col h-dvh bg-background overflow-hidden">
+      {/* ─── MindX Top Brand Accent Line ───────────────────────────── */}
+      <div className="h-0.5 w-full bg-mindx-accent-gradient shrink-0 z-50" />
+
+      <div className="flex flex-1 min-h-0 overflow-hidden">
       {/* ─── Desktop Sidebar ───────────────────────────────────── */}
       <aside
         className={cn(
@@ -339,47 +328,6 @@ export default function DashboardLayout({
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-0.5">
           {navItems.map((item) => renderNavItem(item, isSidebarCollapsed))}
-
-          {/* Classes submenu (expanded only) */}
-          {!isSidebarCollapsed &&
-            pathname.startsWith("/dashboard/classes") &&
-            isClassesExpanded &&
-            classes.length > 0 && (
-              <div className="ml-4 mt-1 pl-3 border-l border-border space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
-                {classes.slice(0, 8).map((cls) => {
-                  const href = `/dashboard/classes/${cls.id}`;
-                  const isActive = pathname === href;
-                  return (
-                    <Link
-                      key={cls.id}
-                      href={href}
-                      className={cn(
-                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] truncate transition-colors",
-                        isActive
-                          ? "bg-primary/10 text-primary font-semibold"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "h-1.5 w-1.5 rounded-full shrink-0",
-                          isActive ? "bg-primary" : "bg-muted-foreground/40",
-                        )}
-                      />
-                      <span className="truncate">{cls.name}</span>
-                    </Link>
-                  );
-                })}
-                {classes.length > 8 && (
-                  <Link
-                    href="/dashboard/classes"
-                    className="block px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-primary"
-                  >
-                    Xem tất cả {classes.length} lớp →
-                  </Link>
-                )}
-              </div>
-            )}
         </nav>
 
         {/* Collapse toggle */}
@@ -572,6 +520,7 @@ export default function DashboardLayout({
           </aside>
         </>
       )}
+      </div>
     </div>
   );
 }

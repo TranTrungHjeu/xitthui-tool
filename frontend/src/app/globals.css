@@ -79,124 +79,123 @@
    LIGHT THEME — clean, calm, premium
    ============================================================ */
 :root {
-  /* Brand */
-  --primary: hsl(358 76% 51%);          /* MindX Red #E31F26 */
+  /* MindX Brand Colors */
+  --primary: hsl(358 78% 51%);          /* Alizarin Crimson #E31F26 */
   --primary-foreground: hsl(0 0% 100%);
 
-  /* Neutral base — slate-ish but cleaner */
-  --background: hsl(0 0% 100%);
-  --foreground: hsl(222 24% 12%);
+  --background: hsl(220 20% 98%);       /* Soft crisp backdrop */
+  --foreground: hsl(240 100% 12%);       /* Stratos Tinted Text #000056 */
 
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(222 24% 12%);
+  --card-foreground: hsl(240 100% 12%);
 
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(222 24% 12%);
+  --popover-foreground: hsl(240 100% 12%);
 
   /* Surfaces */
-  --secondary: hsl(220 14% 96%);
-  --secondary-foreground: hsl(220 12% 38%);
+  --secondary: hsl(240 30% 96%);
+  --secondary-foreground: hsl(240 60% 20%);
 
-  --muted: hsl(220 14% 97%);
-  --muted-foreground: hsl(220 10% 50%);
+  --muted: hsl(240 20% 95%);
+  --muted-foreground: hsl(240 15% 45%);
 
-  --accent: hsl(220 14% 96%);
-  --accent-foreground: hsl(222 24% 12%);
+  --accent: hsl(48 100% 94%);           /* Sunglow Soft Tint */
+  --accent-foreground: hsl(240 100% 14%);
 
   /* Borders & rings */
-  --border: hsl(220 13% 91%);
-  --input: hsl(220 13% 91%);
-  --ring: hsl(358 76% 51%);
+  --border: hsl(240 15% 90%);
+  --input: hsl(240 15% 90%);
+  --ring: hsl(358 78% 51%);             /* Crimson Focus Ring */
 
-  /* Semantic — single source of truth */
-  --destructive: hsl(0 72% 51%);
+  /* Semantic — MindX Tuned */
+  --destructive: hsl(358 78% 51%);      /* Alizarin Crimson */
   --destructive-foreground: hsl(0 0% 100%);
 
-  --success: hsl(142 71% 45%);
+  --success: hsl(142 71% 42%);
   --success-foreground: hsl(0 0% 100%);
 
-  --warning: hsl(38 92% 50%);
-  --warning-foreground: hsl(0 0% 100%);
+  --warning: hsl(48 100% 48%);          /* Sunglow Gold #FFD62D */
+  --warning-foreground: hsl(240 100% 12%);
 
-  --info: hsl(217 91% 60%);
+  --info: hsl(217 91% 55%);
   --info-foreground: hsl(0 0% 100%);
 
   /* Sidebar */
   --sidebar: hsl(0 0% 100%);
-  --sidebar-foreground: hsl(222 24% 12%);
-  --sidebar-primary: hsl(358 76% 51%);
+  --sidebar-foreground: hsl(240 100% 14%);
+  --sidebar-primary: hsl(358 78% 51%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(220 14% 96%);
-  --sidebar-accent-foreground: hsl(222 24% 12%);
-  --sidebar-border: hsl(220 13% 93%);
-  --sidebar-ring: hsl(358 76% 51%);
+  --sidebar-accent: hsl(240 25% 96%);
+  --sidebar-accent-foreground: hsl(358 78% 45%);
+  --sidebar-border: hsl(240 15% 92%);
+  --sidebar-ring: hsl(358 78% 51%);
 
-  /* Chart palette — cohesive, modern */
-  --chart-1: hsl(358 76% 51%);          /* brand red */
-  --chart-2: hsl(217 91% 60%);          /* info blue */
-  --chart-3: hsl(142 71% 45%);          /* success green */
-  --chart-4: hsl(38 92% 50%);           /* warning amber */
-  --chart-5: hsl(262 83% 58%);          /* accent violet */
+  /* MindX Chart Palette */
+  --chart-1: hsl(358 78% 51%);          /* Alizarin Crimson */
+  --chart-2: hsl(240 100% 25%);         /* Stratos Navy */
+  --chart-3: hsl(48 100% 48%);          /* Sunglow Gold */
+  --chart-4: hsl(142 71% 42%);          /* Success Green */
+  --chart-5: hsl(217 91% 55%);          /* Info Blue */
 
   /* Shape & elevation */
-  --radius: 0.625rem;                   /* 10px base */
+  --radius: 0.625rem;
 }
 
 /* ============================================================
-   DARK THEME — premium dark, true black for OLED-friendly
+   DARK THEME — Deep Stratos Navy (#03031d), Premium MindX Glow
    ============================================================ */
 .dark {
-  --primary: hsl(358 76% 58%);
+  --primary: hsl(358 85% 58%);          /* Vibrant Crimson in dark */
   --primary-foreground: hsl(0 0% 100%);
 
-  --background: hsl(222 24% 6%);        /* near black */
-  --foreground: hsl(220 14% 96%);
+  --background: hsl(240 70% 7%);        /* Deep Stratos Base #03031d */
+  --foreground: hsl(240 20% 96%);
 
-  --card: hsl(222 22% 9%);
-  --card-foreground: hsl(220 14% 96%);
+  --card: hsl(240 50% 11%);             /* Stratos Elevated Card #0c0c2e */
+  --card-foreground: hsl(240 20% 96%);
 
-  --popover: hsl(222 22% 9%);
-  --popover-foreground: hsl(220 14% 96%);
+  --popover: hsl(240 50% 11%);
+  --popover-foreground: hsl(240 20% 96%);
 
-  --secondary: hsl(222 18% 14%);
-  --secondary-foreground: hsl(220 12% 70%);
+  --secondary: hsl(240 40% 16%);
+  --secondary-foreground: hsl(240 20% 85%);
 
-  --muted: hsl(222 18% 12%);
-  --muted-foreground: hsl(220 10% 60%);
+  --muted: hsl(240 35% 14%);
+  --muted-foreground: hsl(240 15% 65%);
 
-  --accent: hsl(222 18% 14%);
-  --accent-foreground: hsl(220 14% 96%);
+  --accent: hsl(240 40% 18%);
+  --accent-foreground: hsl(48 100% 65%); /* Sunglow highlight */
 
-  --destructive: hsl(0 72% 58%);
+  --destructive: hsl(358 85% 58%);
   --destructive-foreground: hsl(0 0% 100%);
 
-  --success: hsl(142 71% 50%);
+  --success: hsl(142 71% 48%);
   --success-foreground: hsl(0 0% 100%);
 
-  --warning: hsl(38 92% 56%);
-  --warning-foreground: hsl(0 0% 100%);
+  --warning: hsl(48 100% 55%);
+  --warning-foreground: hsl(240 100% 10%);
 
   --info: hsl(217 91% 65%);
   --info-foreground: hsl(0 0% 100%);
 
-  --border: hsl(222 18% 16%);
-  --input: hsl(222 18% 16%);
-  --ring: hsl(358 76% 58%);
+  --border: hsl(240 35% 18%);
+  --input: hsl(240 35% 18%);
+  --ring: hsl(358 85% 58%);
 
-  --sidebar: hsl(222 24% 7%);
-  --sidebar-foreground: hsl(220 14% 90%);
-  --sidebar-primary: hsl(358 76% 58%);
+  --sidebar: hsl(240 65% 6%);           /* Darker Stratos Sidebar #02021c */
+  --sidebar-foreground: hsl(240 20% 92%);
+  --sidebar-primary: hsl(358 85% 58%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(222 18% 12%);
-  --sidebar-accent-foreground: hsl(220 14% 96%);
-  --sidebar-border: hsl(222 18% 14%);
-  --sidebar-ring: hsl(358 76% 58%);
+  --sidebar-accent: hsl(240 40% 14%);
+  --sidebar-accent-foreground: hsl(358 85% 65%);
+  --sidebar-border: hsl(240 35% 14%);
+  --sidebar-ring: hsl(358 85% 58%);
 
-  --chart-1: hsl(358 76% 58%);
-  --chart-2: hsl(217 91% 65%);
-  --chart-3: hsl(142 71% 50%);
-  --chart-4: hsl(38 92% 56%);
-  --chart-5: hsl(262 83% 65%);
+  --chart-1: hsl(358 85% 58%);
+  --chart-2: hsl(48 100% 55%);
+  --chart-3: hsl(217 91% 65%);
+  --chart-4: hsl(142 71% 48%);
+  --chart-5: hsl(280 80% 65%);
 }
 
 /* ============================================================
@@ -381,3 +380,65 @@ html, body {
 .animate-pulse-dot {
   animation: pulse-dot 2s ease-in-out infinite;
 }
+
+/* ============================================================
+   MINDX BRAND UTILITIES & GRADIENTS
+   ============================================================ */
+.bg-mindx-gradient {
+  background: linear-gradient(135deg, #000056 0%, #E31F26 100%);
+}
+
+.bg-mindx-hero-gradient {
+  background: linear-gradient(135deg, #000056 0%, #700d1e 50%, #E31F26 100%);
+}
+
+.bg-mindx-accent-gradient {
+  background: linear-gradient(135deg, #E31F26 0%, #FFD62D 100%);
+}
+
+.text-mindx-gradient {
+  background: linear-gradient(135deg, #E31F26 0%, #FFD62D 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.glass-card-stratos {
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: rgba(0, 0, 86, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.dark .glass-card-stratos {
+  background: rgba(3, 3, 29, 0.9);
+  border: 1px solid rgba(227, 31, 38, 0.2);
+}
+
+.mindx-badge-crimson {
+  background-color: rgba(227, 31, 38, 0.12);
+  color: #E31F26;
+  border: 1px solid rgba(227, 31, 38, 0.25);
+}
+
+.mindx-badge-sunglow {
+  background-color: rgba(255, 214, 45, 0.15);
+  color: #997a00;
+  border: 1px solid rgba(255, 214, 45, 0.35);
+}
+
+.dark .mindx-badge-sunglow {
+  color: #FFD62D;
+}
+
+.mindx-badge-stratos {
+  background-color: rgba(0, 0, 86, 0.1);
+  color: #000056;
+  border: 1px solid rgba(0, 0, 86, 0.2);
+}
+
+.dark .mindx-badge-stratos {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #a0a0ff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+

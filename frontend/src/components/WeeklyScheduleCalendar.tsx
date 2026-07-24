@@ -10,6 +10,7 @@ import viLocale from "@fullcalendar/core/locales/vi";
 import {
   getSessionExamType,
   getSessionExamLabel,
+  getTeacherNameFromSlot,
 } from "@/lib/courseConfig";
 import {
   Users,
@@ -221,14 +222,8 @@ const WeeklyScheduleCalendar = forwardRef<
           const examLabel = getSessionExamLabel(slot.className, sessionNum);
           const isSpecial = slotStatus !== "teaching-class";
 
-          const lec = slot.classItem?.teachers?.find(
-            (t: any) => t.role?.shortName === "LEC",
-          );
-          const ta = slot.classItem?.teachers?.find(
-            (t: any) => t.role?.shortName === "TA",
-          );
-          const lecName = lec?.teacher?.fullName;
-          const taName = ta?.teacher?.fullName;
+          const lecName = getTeacherNameFromSlot(slot, "LEC");
+          const taName = getTeacherNameFromSlot(slot, "TA");
           const studentCount =
             slot.classItem?.students?.length ?? slot.studentCount;
 

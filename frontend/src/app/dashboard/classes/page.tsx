@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import CatLoader from "@/components/CatLoader";
+import ClassDetailModal from "@/components/ClassDetailModal";
 import { useMinLoading } from "@/hooks/useMinLoading";
 import {
   Search,
@@ -258,6 +259,7 @@ function getFrontCurrentSessionIndex(slots?: any[]): number {
 export default function ClassesPage() {
   const router = useRouter();
   const { user, token } = useAuthStore();
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [enrichedClasses, setEnrichedClasses] = useState<EnrichedClassData[]>(
     [],
@@ -493,38 +495,38 @@ export default function ClassesPage() {
         title="Danh sách lớp học"
         description="Quản lý và theo dõi các lớp học bạn đang giảng dạy"
         actions={
-          <Button onClick={() => fetchClasses(true)} disabled={showLoading}>
-            <RotateCcw className={`h-4 w-4 ${showLoading ? "animate-spin" : ""}`} />
-            Làm mới
+          <Button size="sm" className="h-8 text-xs font-semibold gap-1.5" onClick={() => fetchClasses(true)} disabled={showLoading}>
+            <RotateCcw className={`h-3.5 w-3.5 ${showLoading ? "animate-spin" : ""}`} />
+            <span>Làm mới</span>
           </Button>
         }
       />
 
       {/* Main card view */}
-      <div className="flex-1 border border-border bg-card shadow-sm overflow-hidden relative flex flex-col rounded-xl">
+      <div className="flex-1 border border-border bg-card shadow-xs overflow-hidden relative flex flex-col rounded-xl">
         {/* Filters Toolbar */}
         <div className="p-1.5 bg-card border-b border-border flex flex-wrap items-center gap-1.5 shrink-0">
           {/* Search Box */}
           <div className="relative flex-[2] min-w-[200px] sm:min-w-[280px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input
               placeholder="Tìm tên lớp, khóa học..."
-              className="pl-8 h-8 text-[11px] bg-card w-full border-border focus:ring-4 focus:ring-primary/10 focus:border-primary"
+              className="pl-8 h-8 text-xs bg-card w-full border-border focus:ring-4 focus:ring-primary/10 focus:border-primary"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
           {/* Select Centre */}
-          <div className="flex-1 min-w-[130px] sm:min-w-[180px]">
+          <div className="flex-1 min-w-[130px] sm:min-w-[160px]">
             <Select
               value={centreFilter === "default_tdm" ? "all" : centreFilter}
               onValueChange={setCentreFilter}
             >
-              <SelectTrigger className="font-bold text-foreground">
+              <SelectTrigger className="h-8 text-xs font-semibold text-foreground">
                 <SelectValue placeholder="Cơ sở" />
               </SelectTrigger>
-              <SelectContent className="text-[11px]">
+              <SelectContent className="text-xs">
                 <SelectItem value="all">Tất cả cơ sở</SelectItem>
                 {availableCentres.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
@@ -538,10 +540,10 @@ export default function ClassesPage() {
           {/* Category Filter */}
           <div className="flex-1 min-w-[110px] sm:min-w-[130px]">
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="font-bold text-foreground">
+              <SelectTrigger className="h-8 text-xs font-semibold text-foreground">
                 <SelectValue placeholder="Bộ môn" />
               </SelectTrigger>
-              <SelectContent className="text-[11px]">
+              <SelectContent className="text-xs">
                 <SelectItem value="all">Tất cả bộ môn</SelectItem>
                 <SelectItem value="coding">Lập trình (Coding)</SelectItem>
                 <SelectItem value="robotics">Robotics</SelectItem>
@@ -553,10 +555,10 @@ export default function ClassesPage() {
           {/* Weekday Filter */}
           <div className="flex-1 min-w-[120px] sm:min-w-[140px]">
             <Select value={weekdayFilter} onValueChange={setWeekdayFilter}>
-              <SelectTrigger className="font-bold text-foreground">
+              <SelectTrigger className="h-8 text-xs font-semibold text-foreground">
                 <SelectValue placeholder="Thứ tự học" />
               </SelectTrigger>
-              <SelectContent className="text-[11px]">
+              <SelectContent className="text-xs">
                 <SelectItem value="all">Tất cả các thứ</SelectItem>
                 <SelectItem value="1">Thứ 2</SelectItem>
                 <SelectItem value="2">Thứ 3</SelectItem>
@@ -572,10 +574,10 @@ export default function ClassesPage() {
           {/* Status Filter */}
           <div className="flex-1 min-w-[120px] sm:min-w-[150px]">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="font-bold text-foreground">
+              <SelectTrigger className="h-8 text-xs font-semibold text-foreground">
                 <SelectValue placeholder="Trạng thái" />
               </SelectTrigger>
-              <SelectContent className="text-[11px]">
+              <SelectContent className="text-xs">
                 <SelectItem value="all">Tất cả trạng thái</SelectItem>
                 <SelectItem value="RUNNING">
                   <div className="flex items-center gap-2">
@@ -642,12 +644,12 @@ export default function ClassesPage() {
           </div>
 
           {/* Role Filter */}
-          <div className="flex-1 min-w-[120px] sm:min-w-[140px]">
+          <div className="flex-1 min-w-[120px] sm:min-w-[130px]">
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="font-bold text-foreground">
+              <SelectTrigger className="h-8 text-xs font-semibold text-foreground">
                 <SelectValue placeholder="Vai trò" />
               </SelectTrigger>
-              <SelectContent className="text-[11px]">
+              <SelectContent className="text-xs">
                 <SelectItem value="all">Tất cả vai trò</SelectItem>
                 <SelectItem value="LEC">Tôi là LEC</SelectItem>
                 <SelectItem value="TA">Tôi là TA</SelectItem>
@@ -665,7 +667,7 @@ export default function ClassesPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-2 text-[11px] font-bold gap-1 bg-card hover:bg-muted/30 active:scale-95 transition-all shrink-0 ml-auto"
+              className="h-8 px-2 text-xs font-semibold gap-1 bg-card hover:bg-muted/30 active:scale-95 transition-all shrink-0 ml-auto"
               onClick={resetFilters}
             >
               <RotateCcw className="h-3 w-3" />
@@ -677,36 +679,36 @@ export default function ClassesPage() {
         {/* Table Container */}
         <div className="flex-1 overflow-auto custom-scrollbar relative">
           {showLoading && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-card/60 dark:bg-foreground/70 backdrop-blur-[2px]">
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-card/60 dark:bg-card/80 backdrop-blur-[2px]">
               <CatLoader />
             </div>
           )}
 
           <Table className="table-fixed min-w-[1000px]">
             <TableHeader className="sticky top-0 bg-card z-10 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
-              <TableRow>
-                <TableHead className="w-[200px] min-w-[200px] md:w-[250px] md:min-w-[250px] bg-card">
+              <TableRow className="h-9">
+                <TableHead className="w-[200px] min-w-[200px] md:w-[250px] md:min-w-[250px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
                   Tên lớp
                 </TableHead>
-                <TableHead className="w-[90px] min-w-[90px] bg-card">
+                <TableHead className="w-[90px] min-w-[90px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
                   Buổi
                 </TableHead>
-                <TableHead className="w-[120px] min-w-[120px] md:w-[150px] md:min-w-[150px] bg-card">
+                <TableHead className="w-[120px] min-w-[120px] md:w-[150px] md:min-w-[150px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
                   Lịch dạy
                 </TableHead>
-                <TableHead className="w-[100px] min-w-[100px] bg-card">
-                  Ngày bắt đầu
+                <TableHead className="w-[100px] min-w-[100px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Bắt đầu
                 </TableHead>
-                <TableHead className="w-[100px] min-w-[100px] bg-card">
-                  Ngày kết thúc
+                <TableHead className="w-[100px] min-w-[100px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Kết thúc
                 </TableHead>
-                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-card">
+                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
                   LEC
                 </TableHead>
-                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-card">
+                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
                   TA
                 </TableHead>
-                <TableHead className="w-[130px] min-w-[130px] bg-card">
+                <TableHead className="w-[130px] min-w-[130px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
                   Trạng thái
                 </TableHead>
               </TableRow>
@@ -714,7 +716,7 @@ export default function ClassesPage() {
             <TableBody className="[&_tr:last-child]:border-0">
               {filteredClasses.length === 0 && !showLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-64 text-center">
+                  <TableCell colSpan={8} className="h-64 text-center text-xs text-muted-foreground">
                     Không tìm thấy lớp học nào.
                   </TableCell>
                 </TableRow>
@@ -726,37 +728,35 @@ export default function ClassesPage() {
                   return (
                     <TableRow
                       key={cls.id}
-                      className={`group cursor-pointer border-b transition-all hover:bg-accent/80 dark:hover:bg-foreground/90/80 hover:shadow-md relative ${isPendingFilter ? "opacity-50" : ""}`}
-                      onClick={() =>
-                        router.push(`/dashboard/classes/${cls.id}`)
-                      }
+                      className={`group cursor-pointer border-b transition-all hover:bg-accent/60 hover:shadow-xs relative ${isPendingFilter ? "opacity-50" : ""}`}
+                      onClick={() => setSelectedClassId(cls.id)}
                     >
                       <TableCell className="font-medium relative max-w-[200px] min-w-[150px]">
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary scale-y-0 group-hover:scale-y-100 transition-transform duration-200 ease-in-out" />
                         <div className="flex flex-col">
-                          <span className="group-hover:text-primary group-hover:translate-x-1 transition-all duration-200 inline-block font-bold truncate w-full">
+                          <span className="group-hover:text-primary group-hover:translate-x-1 transition-all duration-200 inline-block text-xs font-bold truncate w-full">
                             {cls.name}
                           </span>
-                          <span className="text-xs text-muted-foreground truncate w-full">
+                          <span className="text-[11px] text-muted-foreground truncate w-full">
                             {cls.course?.shortName || "N/A"}
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="font-semibold text-primary dark:text-indigo-400">
+                      <TableCell className="text-xs font-semibold text-primary dark:text-indigo-400">
                         Buổi {cls.computed.currentSessionIndex || 0}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-medium">
+                          <span className="text-xs font-medium">
                             {cls.computed.weekdays}
                           </span>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-[11px] text-muted-foreground">
                             {cls.computed.timeRange}
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell>{formatDate(cls.startDate)}</TableCell>
-                      <TableCell>{formatDate(cls.endDate)}</TableCell>
+                      <TableCell className="text-xs font-normal">{formatDate(cls.startDate)}</TableCell>
+                      <TableCell className="text-xs font-normal">{formatDate(cls.endDate)}</TableCell>
                       <TableCell className="max-w-[150px] truncate text-xs relative">
                         <div className="flex items-center h-6 gap-1">
                           <span className="font-semibold text-primary truncate block">
@@ -771,7 +771,7 @@ export default function ClassesPage() {
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="relative overflow-hidden pr-10">
+                      <TableCell className="relative overflow-hidden pr-10 text-xs">
                         <StatusBadge type="class" status={cls.status} />
                         {cls.computed.category && cls.computed.category !== "unknown" && (
                           <div className="absolute top-0 right-0 w-12 h-12">
@@ -821,10 +821,17 @@ export default function ClassesPage() {
         {/* Footer/Pagination summary */}
         <div className="border-t shrink-0 flex items-center justify-between px-4 py-2.5 bg-muted/30">
           <div className="text-[11px] text-muted-foreground">
-            Hiển thị tất cả <span className="font-semibold">{paginationMeta.total}</span> lớp học.
+            Hiển thị tất cả <span className="font-semibold text-foreground">{paginationMeta.total}</span> lớp học.
           </div>
         </div>
       </div>
+
+      {/* Class Detail Modal */}
+      <ClassDetailModal
+        classId={selectedClassId}
+        open={!!selectedClassId}
+        onClose={() => setSelectedClassId(null)}
+      />
     </div>
   );
 }

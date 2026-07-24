@@ -4,6 +4,7 @@ import React, { useMemo } from "react";
 import {
   getSessionExamType,
   getSessionExamLabel,
+  getTeacherNameFromSlot,
 } from "@/lib/courseConfig";
 import { CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -315,14 +316,8 @@ function TimelineEvent({
     slot.sessionIndex !== undefined ? slot.sessionIndex + 1 : 1;
   const examLabel = getSessionExamLabel(slot.className, sessionNum);
 
-  const lec = slot.classItem?.teachers?.find(
-    (t: any) => t.role?.shortName === "LEC",
-  );
-  const ta = slot.classItem?.teachers?.find(
-    (t: any) => t.role?.shortName === "TA",
-  );
-  const lecName = lec?.teacher?.fullName;
-  const taName = ta?.teacher?.fullName;
+  const lecName = getTeacherNameFromSlot(slot, "LEC");
+  const taName = getTeacherNameFromSlot(slot, "TA");
   const studentCount = slot.classItem?.students?.length ?? slot.studentCount;
   const centreName =
     slot.classItem?.centre?.shortName || slot.classItem?.centre?.name;

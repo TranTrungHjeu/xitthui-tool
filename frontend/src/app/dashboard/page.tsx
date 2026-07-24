@@ -205,6 +205,22 @@ export default function DashboardOverview() {
     lastClassesFetch,
     setClasses: setStoredClasses,
   } = useAuthStore();
+
+  const displayName =
+    user?.fullName ||
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+    user?.username ||
+    user?.email?.split("@")[0] ||
+    "Giáo viên";
+
+  const getRoleDisplay = (roles?: string[]) => {
+    if (!roles || roles.length === 0) return "Giáo viên";
+    if (roles.includes("TE")) return "Quản lý / TE";
+    if (roles.includes("TEACHER")) return "Giáo viên";
+    return roles.join(", ");
+  };
+  const roleDisplay = getRoleDisplay(user?.appRoles);
+
   const [notificationsList, setNotificationsList] = useState<NotificationItem[]>([]);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [isLoading, setIsLoading] = useState(!storedClasses);
@@ -614,11 +630,17 @@ export default function DashboardOverview() {
     return (
       <div
         key={`feedback-${index}`}
-        className="rounded-lg border bg-card p-3 hover:bg-accent/30 transition-all"
+        className="rounded-lg border border-border/60 bg-card p-3.5 hover:border-border hover:shadow-xs transition-all"
       >
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "h-2 w-2 rounded-full shrink-0",
+                  item.isLate ? "bg-[#E31F26]" : "bg-amber-400",
+                )}
+              />
               <span className="font-semibold text-sm truncate">
                 {item.className}
               </span>
@@ -638,32 +660,32 @@ export default function DashboardOverview() {
                 <TooltipContent>Sao chép mã lớp</TooltipContent>
               </Tooltip>
             </div>
-            <p className="text-xs text-muted-foreground font-mono mt-0.5">
+            <p className="text-xs text-muted-foreground font-mono mt-1 pl-4">
               {examLabel} · {formatSlotDateTime(item.date, item.startTime, item.endTime)}
             </p>
           </div>
           <div className="flex flex-col gap-1 items-end shrink-0">
             {item.isLate ? (
-              <Badge variant="destructive" className="gap-1">
+              <Badge variant="crimson" className="gap-1">
                 <Clock className="h-3 w-3" />
                 Trễ
               </Badge>
             ) : (
-              <Badge variant="warning" className="gap-1">
+              <Badge variant="sunglow" className="gap-1">
                 <Clock className="h-3 w-3" />
                 Còn hạn
               </Badge>
             )}
             {isCheckpoint && (
-              <Badge variant="info" className="text-[10px]">
+              <Badge variant="sunglow" className="text-[10px] px-1.5 py-0">
                 Checkpoint
               </Badge>
             )}
           </div>
         </div>
-        <div className="flex items-center justify-between pt-2 border-t border-border/50">
+        <div className="flex items-center justify-between pt-2 border-t border-border/40 pl-4">
           <span className="text-xs text-muted-foreground">
-            Chưa nhận xét: <span className="font-semibold text-foreground">{item.studentCount}</span> học viên
+            Chưa nhận xét: <span className="font-bold text-foreground">{item.studentCount}</span> học viên
           </span>
           {(item.lec || item.ta) && (
             <div className="flex gap-2 text-xs">
@@ -691,26 +713,26 @@ export default function DashboardOverview() {
     return (
       <div
         key={cls.classId}
-        className="rounded-lg border border-border overflow-hidden"
+        className="rounded-lg border border-border/60 hover:border-border bg-card overflow-hidden transition-all"
       >
         <button
           onClick={() => toggleClassExpand(cls.classId)}
-          className={`w-full flex items-center justify-between px-3 py-2 text-left text-sm font-medium transition-colors ${
+          className={`w-full flex items-center justify-between px-3.5 py-2.5 text-left text-sm font-medium transition-colors ${
             isExpanded
               ? "bg-muted/50"
               : "hover:bg-muted/30"
           }`}
         >
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             <span
-              className={`h-2 w-2 rounded-full shrink-0 ${
-                cls.isLate ? "bg-destructive" : "bg-success"
+              className={`h-2.5 w-2.5 rounded-full shrink-0 ${
+                cls.isLate ? "bg-[#E31F26]" : "bg-amber-400"
               }`}
             />
-            <span className="truncate">{cls.className}</span>
+            <span className="truncate font-semibold">{cls.className}</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Badge variant="secondary" className="font-mono">
+            <Badge variant={cls.isLate ? "crimson" : "sunglow"} className="font-mono text-[11px]">
               {cls.slots.length} buổi
             </Badge>
             {isExpanded ? (
@@ -785,14 +807,14 @@ export default function DashboardOverview() {
           label="Lớp đang hoạt động"
           value={stats.activeClasses}
           icon={<CalendarDays className="h-4 w-4" />}
-          variant="primary"
+          variant="crimson"
           description={`Tổng ${stats.totalClasses} lớp`}
         />
         <StatCard
           label="Buổi cần nhận xét"
           value={stats.lateNotifications + stats.ontimeNotifications}
           icon={<Inbox className="h-4 w-4" />}
-          variant="info"
+          variant="sunglow"
           description={`${stats.ontimeNotifications} còn hạn`}
         />
         <StatCard

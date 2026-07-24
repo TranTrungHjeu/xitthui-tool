@@ -34,7 +34,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Search, Users, Eye, EyeOff, Info, RefreshCw, X } from "lucide-react";
+import { Search, Users, Eye, EyeOff, Info, RefreshCw, RotateCcw, X } from "lucide-react";
 import { useMinLoading } from "@/hooks/useMinLoading";
 import { Teacher } from "@/types";
 
@@ -192,6 +192,25 @@ export default function PersonnelPage() {
     );
   }
 
+  const handleRefresh = async () => {
+    cachedTeachers = null;
+    globalFetchPromise = null;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await teacherService.getTeachers(token || "");
+      if (res.data) {
+        cachedTeachers = res.data as Teacher[];
+        setTeachers(cachedTeachers);
+        setTotalTeachers(res.pagination?.total || 0);
+      }
+    } catch (err: any) {
+      setError(err.message || "Lỗi nạp dữ liệu.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto w-full flex flex-col h-full">
       <PageHeader
@@ -202,49 +221,52 @@ export default function PersonnelPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => window.location.reload()}
+            className="h-8 text-xs font-semibold gap-1.5"
+            onClick={handleRefresh}
+            disabled={showLoading}
           >
-            <RefreshCw className="h-4 w-4" />
-            Tải lại
+            <RotateCcw className={`h-3.5 w-3.5 ${showLoading ? "animate-spin" : ""}`} />
+            <span>Làm mới</span>
           </Button>
         }
       />
 
       {error && (
-        <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive border border-destructive/20">
+        <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive border border-destructive/20 font-medium">
           {error}
         </div>
       )}
 
-      <Card className="flex-1 overflow-hidden">
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-            <div className="relative flex-1 min-w-[260px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                placeholder="Tìm theo tên, email, mã giáo viên..."
-                className="pl-9 h-10"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <Tabs value={view} onValueChange={(v) => setView(v as any)}>
-              <TabsList>
-                <TabsTrigger value="active">
-                  Đang hiển thị ({activeTeachers.length})
-                </TabsTrigger>
-                <TabsTrigger value="inactive">
-                  Đã ẩn ({inactiveTeachers.length})
-                </TabsTrigger>
-                <TabsTrigger value="all">
-                  Tất cả ({filtered.length})
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+      {/* Main card view */}
+      <div className="flex-1 border border-border bg-card shadow-xs overflow-hidden relative flex flex-col rounded-xl">
+        {/* Filters Toolbar */}
+        <div className="p-1.5 bg-card border-b border-border flex flex-wrap items-center gap-1.5 shrink-0">
+          <div className="relative flex-1 min-w-[200px] sm:min-w-[280px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Tìm theo tên, email, mã giáo viên..."
+              className="pl-8 h-8 text-xs bg-card w-full border-border focus:ring-4 focus:ring-primary/10 focus:border-primary"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
-        </CardContent>
+          <Tabs value={view} onValueChange={(v) => setView(v as any)}>
+            <TabsList className="h-8 p-0.5 bg-muted/60">
+              <TabsTrigger value="active" className="h-7 text-xs font-semibold">
+                Đang hiển thị ({activeTeachers.length})
+              </TabsTrigger>
+              <TabsTrigger value="inactive" className="h-7 text-xs font-semibold">
+                Đã ẩn ({inactiveTeachers.length})
+              </TabsTrigger>
+              <TabsTrigger value="all" className="h-7 text-xs font-semibold">
+                Tất cả ({filtered.length})
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
 
-        <div className="overflow-auto custom-scrollbar">
+        {/* Table Container */}
+        <div className="flex-1 overflow-auto custom-scrollbar relative">
           {showLoading ? (
             <div className="p-6 space-y-3">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -259,16 +281,16 @@ export default function PersonnelPage() {
             />
           ) : (
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-16">#</TableHead>
-                  <TableHead>Mã</TableHead>
-                  <TableHead>Họ và tên</TableHead>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead className="hidden md:table-cell">SĐT</TableHead>
-                  <TableHead>Giới tính</TableHead>
-                  <TableHead className="text-right">Thao tác</TableHead>
+              <TableHeader className="sticky top-0 bg-card z-10 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+                <TableRow className="h-9">
+                  <TableHead className="w-16 text-xs font-bold text-muted-foreground uppercase tracking-wider bg-card">#</TableHead>
+                  <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wider bg-card">Mã</TableHead>
+                  <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wider bg-card">Họ và tên</TableHead>
+                  <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wider bg-card">Username</TableHead>
+                  <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wider bg-card">Email</TableHead>
+                  <TableHead className="hidden md:table-cell text-xs font-bold text-muted-foreground uppercase tracking-wider bg-card">SĐT</TableHead>
+                  <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wider bg-card">Giới tính</TableHead>
+                  <TableHead className="text-right text-xs font-bold text-muted-foreground uppercase tracking-wider bg-card">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -347,7 +369,7 @@ export default function PersonnelPage() {
           )}
         </div>
 
-        <div className="border-t border-border p-4 bg-muted/30 text-xs text-muted-foreground flex items-center justify-between">
+        <div className="border-t border-border px-4 py-2.5 bg-muted/30 text-[11px] text-muted-foreground flex items-center justify-between">
           <div>
             Hiển thị <span className="font-semibold text-foreground">{filtered.length}</span> / {totalTeachers} nhân viên
           </div>
@@ -357,7 +379,7 @@ export default function PersonnelPage() {
             </div>
           )}
         </div>
-      </Card>
+      </div>
 
       <Dialog
         open={!!selectedTeacher}

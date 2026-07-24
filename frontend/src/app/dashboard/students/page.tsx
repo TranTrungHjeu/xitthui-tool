@@ -33,6 +33,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Search,
   RefreshCw,
+  RotateCcw,
   User,
   Mail,
   Phone,
@@ -235,38 +236,52 @@ export default function StudentsPage() {
         title="Học viên"
         description={`Quản lý thông tin ${totalItems} học viên đang theo học tại các cơ sở của bạn`}
         actions={
-          isTE ? (
+          <div className="flex items-center gap-2">
+            {isTE && (
+              <Button
+                size="sm"
+                className="h-8 text-xs font-semibold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={handleSyncStudents}
+                disabled={syncing}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+                <span>{syncing ? "Đang đồng bộ..." : "Đồng bộ LMS"}</span>
+              </Button>
+            )}
             <Button
               size="sm"
-              onClick={handleSyncStudents}
-              disabled={syncing}
+              variant="outline"
+              className="h-8 text-xs font-semibold gap-1.5"
+              onClick={fetchStudents}
+              disabled={showLoading}
             >
-              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Đang đồng bộ..." : "Đồng bộ LMS"}
+              <RotateCcw className={`h-3.5 w-3.5 ${showLoading ? "animate-spin" : ""}`} />
+              <span>Làm mới</span>
             </Button>
-          ) : null
+          </div>
         }
       />
 
-      {/* Filters */}
-      <Card className="overflow-hidden">
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-[2] min-w-[260px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                placeholder="Tìm tên, email, số điện thoại học viên..."
-                className="pl-9 h-10"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            {centres.length > 0 && (
+      {/* Main card view */}
+      <div className="flex-1 border border-border bg-card shadow-xs overflow-hidden relative flex flex-col rounded-xl">
+        {/* Filters Toolbar */}
+        <div className="p-1.5 bg-card border-b border-border flex flex-wrap items-center gap-1.5 shrink-0">
+          <div className="relative flex-[2] min-w-[200px] sm:min-w-[280px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Tìm tên, email, số điện thoại học viên..."
+              className="pl-8 h-8 text-xs bg-card w-full border-border focus:ring-4 focus:ring-primary/10 focus:border-primary"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          {centres.length > 0 && (
+            <div className="flex-1 min-w-[130px] sm:min-w-[160px]">
               <Select value={selectedCentre} onValueChange={setSelectedCentre}>
-                <SelectTrigger className="w-[180px] h-10">
+                <SelectTrigger className="h-8 text-xs font-semibold text-foreground">
                   <SelectValue placeholder="Cơ sở" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="text-xs">
                   <SelectItem value="all">Tất cả cơ sở</SelectItem>
                   {centres.map((c: any) => (
                     <SelectItem key={c.id} value={c.id}>
@@ -275,12 +290,14 @@ export default function StudentsPage() {
                   ))}
                 </SelectContent>
               </Select>
-            )}
+            </div>
+          )}
+          <div className="flex-1 min-w-[120px] sm:min-w-[150px]">
             <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger className="w-[150px] h-10">
+              <SelectTrigger className="h-8 text-xs font-semibold text-foreground">
                 <SelectValue placeholder="Trạng thái" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="text-xs">
                 <SelectItem value="RUNNING,OPEN,PRE_OPEN">
                   Đang hoạt động
                 </SelectItem>
@@ -288,11 +305,13 @@ export default function StudentsPage() {
                 <SelectItem value="all">Tất cả</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex-1 min-w-[140px] sm:min-w-[180px]">
             <Select value={selectedClass} onValueChange={setSelectedClass}>
-              <SelectTrigger className="w-[200px] h-10">
+              <SelectTrigger className="h-8 text-xs font-semibold text-foreground">
                 <SelectValue placeholder="Lớp học" />
               </SelectTrigger>
-              <SelectContent className="max-h-72">
+              <SelectContent className="max-h-72 text-xs">
                 <SelectItem value="all">Tất cả lớp học</SelectItem>
                 {classesList.map((cls) => (
                   <SelectItem key={cls.id} value={cls.id}>
@@ -302,12 +321,10 @@ export default function StudentsPage() {
               </SelectContent>
             </Select>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Table */}
-      <Card className="flex-1 overflow-hidden">
-        <div className="overflow-auto custom-scrollbar">
+        {/* Table Container */}
+        <div className="flex-1 overflow-auto custom-scrollbar relative">
           {showLoading ? (
             <div className="p-6 space-y-3">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -322,14 +339,14 @@ export default function StudentsPage() {
             />
           ) : (
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[30%]">Học viên</TableHead>
-                  <TableHead className="w-[35%]">Lớp học</TableHead>
-                  <TableHead className="w-[17.5%] text-center">
+              <TableHeader className="sticky top-0 bg-card z-10 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+                <TableRow className="h-9">
+                  <TableHead className="w-[30%] text-xs font-bold text-muted-foreground uppercase tracking-wider">Học viên</TableHead>
+                  <TableHead className="w-[35%] text-xs font-bold text-muted-foreground uppercase tracking-wider">Lớp học</TableHead>
+                  <TableHead className="w-[17.5%] text-center text-xs font-bold text-muted-foreground uppercase tracking-wider">
                     Chuyên cần
                   </TableHead>
-                  <TableHead className="w-[17.5%] text-center">
+                  <TableHead className="w-[17.5%] text-center text-xs font-bold text-muted-foreground uppercase tracking-wider">
                     Bài tập
                   </TableHead>
                 </TableRow>
@@ -481,7 +498,7 @@ export default function StudentsPage() {
             </div>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   );
 }

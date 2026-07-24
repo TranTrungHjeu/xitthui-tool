@@ -228,13 +228,23 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                         onClick={() => handleSelect(item)}
                         onMouseEnter={() => setActiveIndex(flatIndex)}
                         className={cn(
-                          "w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm text-left transition-colors",
+                          "w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm text-left transition-colors relative",
                           isActive
-                            ? "bg-accent text-foreground"
+                            ? "bg-primary/10 text-primary font-medium"
                             : "text-foreground/80 hover:bg-accent/50",
                         )}
                       >
-                        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-muted shrink-0">
+                        {isActive && (
+                          <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-[#E31F26]" />
+                        )}
+                        <span
+                          className={cn(
+                            "flex h-7 w-7 items-center justify-center rounded-md shrink-0 transition-colors",
+                            isActive
+                              ? "bg-[#E31F26] text-white shadow-sm"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
                           {item.icon}
                         </span>
                         <span className="flex-1 font-medium truncate">
@@ -253,7 +263,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                           </span>
                         )}
                         {isActive && (
-                          <CornerDownLeft className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <CornerDownLeft className="h-3.5 w-3.5 text-[#E31F26] shrink-0" />
                         )}
                       </button>
                     );
@@ -276,8 +286,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               chọn
             </span>
           </div>
-          <span className="flex items-center gap-1">
-            <Sparkles className="h-3 w-3" />
+          <span className="flex items-center gap-1.5 font-semibold text-[#E31F26] dark:text-[#FFD62D]">
+            <Sparkles className="h-3 w-3 text-[#FFD62D] animate-pulse" />
             <span>MindX Support Tools</span>
           </span>
         </div>

@@ -27,6 +27,7 @@ import {
   CalendarClock,
   Calendar,
   RefreshCw,
+  RotateCcw,
   Filter,
   ChevronLeft,
   ChevronRight,
@@ -791,44 +792,30 @@ export default function SchedulesPage() {
 
   const getDayHeaderBg = (slot: string) => {
     const [dateStr] = slot.split("_");
-    const dayIndex = new Date(dateStr).getDay();
-    switch (dayIndex) {
-      case 1:
-        return "bg-blue-100";
-      case 2:
-        return "bg-success/15";
-      case 3:
-        return "bg-warning/15";
-      case 4:
-        return "bg-purple-100";
-      case 5:
-        return "bg-pink-100";
-      case 6:
-        return "bg-orange-100";
-      default:
-        return "bg-muted";
+    const slotDate = new Date(dateStr);
+    const isToday = isSameDay(slotDate, new Date());
+    if (isToday) {
+      return "bg-primary/10 text-primary font-bold border-b-2 border-primary shadow-2xs";
     }
+    const dayIndex = slotDate.getDay();
+    if (dayIndex === 0 || dayIndex === 6) {
+      return "bg-muted/60 text-muted-foreground";
+    }
+    return "bg-card text-foreground";
   };
 
   const getDayCellBg = (slot: string) => {
     const [dateStr] = slot.split("_");
-    const dayIndex = new Date(dateStr).getDay();
-    switch (dayIndex) {
-      case 1:
-        return "bg-blue-50/70";
-      case 2:
-        return "bg-success/10";
-      case 3:
-        return "bg-warning/10";
-      case 4:
-        return "bg-purple-50/70";
-      case 5:
-        return "bg-pink-50/70";
-      case 6:
-        return "bg-orange-50/70";
-      default:
-        return "bg-muted/50/70";
+    const slotDate = new Date(dateStr);
+    const isToday = isSameDay(slotDate, new Date());
+    if (isToday) {
+      return "bg-primary/[0.03] dark:bg-primary/[0.06]";
     }
+    const dayIndex = slotDate.getDay();
+    if (dayIndex === 0 || dayIndex === 6) {
+      return "bg-muted/20";
+    }
+    return "bg-card hover:bg-accent/30";
   };
 
   const formatSlotHeader = (slotKey: string) => {
@@ -840,15 +827,16 @@ export default function SchedulesPage() {
         parseInt(parts[1]) - 1,
         parseInt(parts[2]),
       );
+      const isToday = isSameDay(dateObj, new Date());
       const dayLabel = dayMap[dateObj.getDay()];
       const displayDay = dayLabel.replace("Thứ ", "T");
       const dateDisplay = format(dateObj, "dd/MM");
       return (
-        <div className="flex flex-col items-center leading-none whitespace-nowrap gap-0.5">
-          <span className="font-semibold text-[8px] md:text-[9px] text-foreground">
+        <div className="flex flex-col items-center leading-none whitespace-nowrap gap-0.5 py-0.5">
+          <span className={`font-bold text-[8.5px] md:text-[9.5px] ${isToday ? "text-primary" : "text-foreground"}`}>
             {displayDay} - {dateDisplay}
           </span>
-          <span className="text-[8px] md:text-[9px] text-foreground font-mono font-bold">{timeStr}</span>
+          <span className={`text-[8px] md:text-[9px] font-mono font-bold ${isToday ? "text-primary" : "text-muted-foreground"}`}>{timeStr}</span>
         </div>
       );
     } catch {
@@ -858,27 +846,27 @@ export default function SchedulesPage() {
 
   const getScheduleStyle = (sch: Schedule) => {
     if (checkIsOtherCentre(sch)) {
-      return "bg-muted text-muted-foreground border-border/80";
+      return "bg-muted/80 text-muted-foreground border-border/80";
     }
 
     const titleLower = (sch.title || "").toLowerCase();
 
     if (sch.type === "OFFICE_HOURS") {
-      return "bg-warning text-foreground border-warning";
+      return "bg-[#eab308] text-slate-950 border-[#ca8a04] font-semibold shadow-2xs";
     }
 
     if (sch.type === "AVAILABLE") {
-      return "bg-success text-foreground border-success";
+      return "bg-emerald-600 text-white border-emerald-700 shadow-2xs";
     }
 
     if (sch.type === "CLASS_SESSION") {
       if (titleLower.includes("checkpoint")) {
-        return "bg-purple-200 text-purple-900 border-purple-300";
+        return "bg-[#d97706] text-white border-[#b45309] shadow-2xs";
       }
       if (titleLower.includes("demo")) {
-        return "bg-blue-200 text-blue-900 border-blue-300";
+        return "bg-[#059669] text-white border-[#047857] shadow-2xs";
       }
-      return "bg-orange-400 text-foreground border-orange-500";
+      return "bg-[#000056] dark:bg-[#000056] text-white border-[#000056] shadow-2xs hover:bg-[#08086b]";
     }
 
     return "bg-muted text-foreground border-border";
@@ -892,9 +880,7 @@ export default function SchedulesPage() {
     if (sch.classSite?.class?.name) {
       info = info.replace(sch.classSite.class.name, "");
     }
-    // Remove leading/trailing dashes, colons, and spaces
     info = info.replace(/^[\s-:]+|[\s-:]+$/g, "");
-    // Standardize "buổi X/Y" to "Buổi X"
     info = info.replace(/buổi\s*(\d+)(?:\/\d+)?/i, "Buổi $1");
 
     return info || "Session";
@@ -908,20 +894,20 @@ export default function SchedulesPage() {
 
     if (upper === "LEC" || upper === "LECTURER") {
       label = "GV";
-      bgClass = "bg-orange-100 text-orange-700 border-orange-200";
+      bgClass = "bg-[#E31F26] text-white border-[#E31F26] font-extrabold shadow-2xs";
     } else if (upper === "TA" || upper === "TEACHING_ASSISTANT") {
       label = "TG";
-      bgClass = "bg-blue-100 text-blue-700 border-blue-200";
+      bgClass = "bg-[#FFD62D] text-slate-950 border-[#eab308] font-extrabold shadow-2xs";
     } else if (upper === "EXAMINER" || upper === "EXAM" || upper === "GK" || upper === "JUDGE" || upper.includes("EXAM") || upper.includes("GK") || upper.includes("JUDGE")) {
       label = "GK";
-      bgClass = "bg-purple-100 text-purple-700 border-purple-200";
+      bgClass = "bg-purple-600 text-white border-purple-600 font-extrabold shadow-2xs";
     } else if (upper === "SUBSTITUTE" || upper === "COVER" || upper === "SUB" || upper === "SUPPLY" || upper.includes("SUB") || upper.includes("COVER") || upper.includes("SUPPLY")) {
       label = "DT";
-      bgClass = "bg-destructive/15 text-destructive border-destructive/30";
+      bgClass = "bg-rose-600 text-white border-rose-600 font-extrabold shadow-2xs";
     }
 
     return (
-      <span className={`text-[8.5px] md:text-[9.5px] px-1 py-0.5 rounded-[4px] font-sans font-bold uppercase shrink-0 leading-none border ${bgClass}`}>
+      <span className={`text-[8.5px] md:text-[9.5px] px-1 py-0.5 rounded-[4px] font-sans shrink-0 leading-none border ${bgClass}`}>
         {label}
       </span>
     );
@@ -1023,8 +1009,8 @@ export default function SchedulesPage() {
             variant="outline"
             className="h-9 gap-1.5"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-            <span className="hidden sm:inline">Tải lại</span>
+            <RotateCcw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Làm mới</span>
           </Button>
 
           <DropdownMenu>
