@@ -7,7 +7,9 @@ const FirestoreNotification = require("../storage/notificationStorage");
 const NotificationScheduler = require("../services/notificationScheduler");
 const FirestoreStudent = require("../storage/studentStorage");
 const StudentScheduler = require("../services/studentScheduler");
+const BoundedCache = require("../utils/boundedCache");
 const { VertexAI } = require("@google-cloud/vertexai");
+const { loadServiceAccountCredentials } = require("../utils/googleCredentials");
 const {
   getClassWeekdayIndexes,
   getRealTeacherByRole,
@@ -16,17 +18,98 @@ const {
   getCurrentSessionIndex,
 } = require("../utils/classHelpers");
 
-const serviceAccountKeyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS
-  || path.join(__dirname, "../../serviceAccountKey.json");
+// Vertex AI credentials: prefer env-injected service account, fall back to
+// GOOGLE_APPLICATION_CREDENTIALS or a local serviceAccountKey.json (deprecated).
+const vertexCredentials = (() => {
+  try {
+    return loadServiceAccountCredentials();
+  } catch (err) {
+    // Surface the error at module load (we cannot start without AI credentials
+    // in production), but fall back to legacy path resolution so existing
+    // deployments continue to work.
+    if (typeof console !== "undefined" && console.error) {
+      console.error("[classController] Failed to load Vertex AI credentials:", err.message);
+    }
+    return null;
+  }
+})();
 
-const vertexAI = new VertexAI({
+const vertexAIConfig = {
   project: process.env.VERTEX_AI_PROJECT_ID || "xitthui-tool",
   location: process.env.VERTEX_AI_LOCATION || "us-central1",
-  googleAuthOptions: {
-    keyFilename: serviceAccountKeyPath,
-    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
-  },
+  googleAuthOptions: vertexCredentials
+    ? { credentials: vertexCredentials, scopes: ["https://www.googleapis.com/auth/cloud-platform"] }
+    : {
+        keyFilename:
+          process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+          path.join(__dirname, "../../serviceAccountKey.json"),
+        scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+      },
+};
+
+const vertexAI = new VertexAI(vertexAIConfig);
+
+// =============================================================================
+// CACHE STRATEGY (SCALE-2)
+// =============================================================================
+// Three layers collaborate; each one has a single, well-defined role:
+//
+//   1. BoundedCache (in-process)        -> hot path, TTL < 5 min
+//      - Per-process in-memory caches kept here.
+//      - Bounded to prevent unbounded memory growth (LRU eviction).
+//      - Dropped on process restart; that's fine because entries are
+//        cheap to recompute (one MongoDB lookup).
+//
+//   2. MongoDB (persistent storage)     -> durable source of truth
+//      - The ONLY persistent layer; survives restarts.
+//      - Writers invalidate the in-memory cache (L1) by .del()/.flushAll().
+//      - NOT a cache: never put TTL on MongoDB reads.
+//
+//   3. LMS (external system)            -> fallback
+//      - Slowest path; reached only when L1 + L2 both miss.
+//
+// Flow on read:
+//   L1 hit  -> return cached payload
+//   L1 miss -> query L2 (MongoDB); warm L1; return
+//   L2 miss -> query LMS; persist to L2; warm L1; return
+//
+// IMPORTANT: Never introduce a sibling layer (raw Map / Object-literal) at the
+// controller level - always go through `BoundedCache` for predictable memory
+// behavior and consistent TTL semantics. See backend/src/utils/boundedCache.js.
+// =============================================================================
+
+const CLASS_DETAILS_CACHE_TTL_SECONDS = 5 * 60; // 5 min
+const NOTIFICATION_CACHE_TTL_SECONDS = 5 * 60; // 5 min
+const CLASS_NOTIF_DETAILS_CACHE_TTL_SECONDS = 30 * 60; // 30 min
+const CLASS_CACHE_MAX_KEYS = 5000;
+
+const classDetailsCache = new BoundedCache({
+  maxKeys: CLASS_CACHE_MAX_KEYS,
+  stdTTL: CLASS_DETAILS_CACHE_TTL_SECONDS,
+  checkperiod: 60,
 });
+
+const notificationCache = new BoundedCache({
+  maxKeys: CLASS_CACHE_MAX_KEYS,
+  stdTTL: NOTIFICATION_CACHE_TTL_SECONDS,
+  checkperiod: 60,
+});
+
+const classNotificationDetailsCache = new BoundedCache({
+  maxKeys: CLASS_CACHE_MAX_KEYS,
+  stdTTL: CLASS_NOTIF_DETAILS_CACHE_TTL_SECONDS,
+  checkperiod: 60,
+});
+
+// Log cache statistics periodically for monitoring
+setInterval(() => {
+  const stats = {
+    classDetails: classDetailsCache.getStats(),
+    notifications: notificationCache.getStats(),
+    classNotifDetails: classNotificationDetailsCache.getStats(),
+  };
+  console.log(`[classController] Cache stats: classDetails=${JSON.stringify(stats.classDetails)}, notifications=${JSON.stringify(stats.notifications)}, classNotifDetails=${JSON.stringify(stats.classNotifDetails)}`);
+}, 5 * 60 * 1000); // Log every 5 minutes
 
 exports.getClasses = async (req, res) => {
   console.log("[Controller] getClasses request body:", req.body);
@@ -105,16 +188,9 @@ exports.getClasses = async (req, res) => {
   }
 };
 
-const classDetailsCache = new Map();
-const CLASS_DETAILS_TTL = 5 * 60 * 1000; // 5 minutes
-
-// In-memory cache cho Notifications (chứa danh sách feedback đã tính toán)
-const notificationCache = new Map();
-const NOTIFICATION_CACHE_TTL = 5 * 60 * 1000; // 5 phút
-
-// Caches cho từng class cụ thể khi load Notifications, giúp load nhanh hơn đáng kể
-const classNotificationDetailsCache = new Map();
-const CLASS_NOTIF_DETAILS_TTL = 30 * 60 * 1000; // 30 phút
+// PERF-2 / SCALE-2: Map-based caches removed. All in-process caches are now
+// BoundedCache instances (LRU, TTL-bounded) declared above with cache strategy
+// documented in the CACHE STRATEGY block above.
 
 exports.getClassById = async (req, res) => {
   try {
@@ -128,19 +204,17 @@ exports.getClassById = async (req, res) => {
     if (!classId)
       return res.status(400).json({ error: "Class ID is required" });
 
-    const now = Date.now();
-    
-    // 1. Try to get from in-memory cache first
+    // 1. Try to get from BoundedCache first (L1)
     if (!noCache) {
       const cached = classDetailsCache.get(classId);
-      if (cached && cached.expiresAt > now) {
+      if (cached) {
         console.log(
           `[Cache] Trả về class details từ cache cho lớp: ${classId}`,
         );
-        return res.json({ success: true, data: cached.data });
+        return res.json({ success: true, data: cached });
       }
 
-      // 2. Try to get from MongoDB second
+      // 2. Try to get from MongoDB second (L2 - persistent storage)
       const { Class } = require("../storage/mongoModels");
       try {
         const dbClass = await Class.findById(classId).lean();
@@ -151,10 +225,7 @@ exports.getClassById = async (req, res) => {
             ...dbClass,
             id: dbClass._id,
           };
-          classDetailsCache.set(classId, {
-            data: formattedClass,
-            expiresAt: Date.now() + CLASS_DETAILS_TTL,
-          });
+          classDetailsCache.set(classId, formattedClass);
           return res.json({ success: true, data: formattedClass });
         }
       } catch (dbErr) {
@@ -162,15 +233,15 @@ exports.getClassById = async (req, res) => {
       }
     }
 
-    // 3. Fallback: Fetch from LMS
+    // 3. Fallback: Fetch from LMS (L3 - external source)
     const client = new LMSClient(token);
     const data = await client.getClassById(classId);
 
     if (data && data.id) {
-      // Save this detailed class to MongoDB for future queries
+      // Save this detailed class to MongoDB (L2) for future queries
       const { Class } = require("../storage/mongoModels");
       const { getCourseCategory } = require("../utils/courseConfig");
-      
+
       const weekdayIndexes = getClassWeekdayIndexes(data);
       const lecName = getRealTeacherByRole(data, "LEC") || "-";
       const taName = getRealTeacherByRole(data, "TA") || "-";
@@ -229,10 +300,7 @@ exports.getClassById = async (req, res) => {
         id: data.id,
       };
 
-      classDetailsCache.set(data.id, {
-        data: formattedClass,
-        expiresAt: Date.now() + CLASS_DETAILS_TTL,
-      });
+      classDetailsCache.set(data.id, formattedClass);
       res.json({ success: true, data: formattedClass });
     } else {
       res.json({ success: true, data });
@@ -268,27 +336,26 @@ exports.getClassesDetails = async (req, res) => {
 
     const results = [];
     const missingIds = [];
-    const now = Date.now();
 
     if (!noCache) {
-      // 1. Try to get from in-memory cache first
+      // 1. Try to get from BoundedCache first (L1)
       classIds.forEach((id) => {
         const cached = classDetailsCache.get(id);
-        if (cached && cached.expiresAt > now) {
-          results.push(cached.data);
+        if (cached) {
+          results.push(cached);
         } else {
           missingIds.push(id);
         }
       });
 
-      // 2. Try to get from MongoDB second
+      // 2. Try to get from MongoDB second (L2 - persistent storage)
       if (missingIds.length > 0) {
         const { Class } = require("../storage/mongoModels");
         try {
           const dbClasses = await Class.find({ _id: { $in: missingIds } }).lean();
           const dbClassesMap = new Map(dbClasses.map(c => [c._id, c]));
           const stillMissing = [];
-          
+
           missingIds.forEach((id) => {
             const dbClass = dbClassesMap.get(id);
             if (dbClass && dbClass.students !== undefined) {
@@ -296,10 +363,7 @@ exports.getClassesDetails = async (req, res) => {
                 ...dbClass,
                 id: dbClass._id,
               };
-              classDetailsCache.set(id, {
-                data: formattedClass,
-                expiresAt: Date.now() + CLASS_DETAILS_TTL,
-              });
+              classDetailsCache.set(id, formattedClass);
               results.push(formattedClass);
             } else {
               stillMissing.push(id);
@@ -316,7 +380,7 @@ exports.getClassesDetails = async (req, res) => {
       missingIds.push(...classIds);
     }
 
-    // 3. Fallback: Fetch from LMS for whatever is still missing
+    // 3. Fallback: Fetch from LMS for whatever is still missing (L3 - external source)
     if (missingIds.length > 0) {
       const client = new LMSClient(token);
       const fetchedData = await client.getClassesDetails(missingIds);
@@ -384,10 +448,7 @@ exports.getClassesDetails = async (req, res) => {
             id: item.id,
           };
 
-          classDetailsCache.set(item.id, {
-            data: formattedClass,
-            expiresAt: Date.now() + CLASS_DETAILS_TTL,
-          });
+          classDetailsCache.set(item.id, formattedClass);
           results.push(formattedClass);
         }
       }
@@ -418,9 +479,9 @@ exports.updateEvaluation = async (req, res) => {
 
     // Xoá cache để người dùng thấy cập nhật ngay lập tức
     if (payload.classId) {
-      classDetailsCache.delete(payload.classId);
-      classNotificationDetailsCache.delete(payload.classId);
-      notificationCache.clear();
+      classDetailsCache.del(payload.classId);
+      classNotificationDetailsCache.del(payload.classId);
+      notificationCache.flushAll();
     }
 
     res.json({ success: true, data });
@@ -746,18 +807,18 @@ exports.getClassesNotifications = async (req, res) => {
     if (!isTE && !teacherId)
       return res.status(400).json({ error: "Teacher ID is required" });
 
-    // Kiểm tra cache trước
+    // Check BoundedCache (L1) before hitting MongoDB / LMS
     const centresKey = (parsedCentreIds || []).sort().join("-");
     const rolesKey = (roles || []).sort().join("-");
     const statusKey = statusIn ? statusIn.sort().join(",") : "DEFAULT";
     const cacheKey = `notif_${teacherId || "no_id"}_${centresKey}_${rolesKey}_${statusKey}`;
 
     const cachedData = notificationCache.get(cacheKey);
-    if (cachedData && cachedData.expiresAt > Date.now()) {
+    if (cachedData) {
       console.log(
         `[Cache] Trả về notifications từ cache cho teacher: ${teacherId}`,
       );
-      return res.json({ success: true, data: cachedData.data });
+      return res.json({ success: true, data: cachedData });
     }
 
     console.time("Fetch Notifications");
@@ -973,11 +1034,8 @@ exports.getClassesNotifications = async (req, res) => {
       return parseDate(b.date) - parseDate(a.date);
     });
 
-    // Lưu vào cache RAM
-    notificationCache.set(cacheKey, {
-      data: feedbackList,
-      expiresAt: Date.now() + NOTIFICATION_CACHE_TTL,
-    });
+    // Persist into BoundedCache (L1) for fast subsequent lookups
+    notificationCache.set(cacheKey, feedbackList);
 
     res.json({ success: true, data: feedbackList });
   } catch (err) {
@@ -1008,7 +1066,7 @@ exports.syncNotifications = async (req, res) => {
     await NotificationScheduler.syncAllNotifications();
 
     // Xoá cache để lấy data mới
-    notificationCache.clear();
+    notificationCache.flushAll();
 
     res.json({ success: true, message: "Đồng bộ thông báo thành công" });
   } catch (err) {
@@ -1176,6 +1234,18 @@ exports.downloadAttachment = async (req, res) => {
       return res.status(400).send("Parameter 'key' is required.");
     }
 
+    // SSRF protection: Only allow alphanumeric, dots, slashes, and hyphens
+    // Strip any dangerous patterns or sequences
+    const SAFE_KEY_PATTERN = /^[a-zA-Z0-9._\/-]+$/;
+    if (!SAFE_KEY_PATTERN.test(key)) {
+      console.warn(`[Controller] downloadAttachment: Invalid key pattern rejected: "${key}"`);
+      return res.status(400).send("Invalid key format. Only alphanumeric, dots, slashes, and hyphens are allowed.");
+    }
+
+    // Strip dangerous patterns
+    key = key.replace(/\.\./g, ""); // Prevent path traversal
+    key = key.replace(/[<>'"`;]/g, ""); // Remove shell injection chars
+
     // Extract path starting with 'uploads/' if key is a full URL or starts with '/'
     if (key.startsWith("http://") || key.startsWith("https://")) {
       try {
@@ -1188,6 +1258,12 @@ exports.downloadAttachment = async (req, res) => {
 
     if (key.startsWith("/")) {
       key = key.substring(1);
+    }
+
+    // Final validation after path extraction
+    if (!SAFE_KEY_PATTERN.test(key) || key.includes("..")) {
+      console.warn(`[Controller] downloadAttachment: Key path traversal attempt blocked: "${key}"`);
+      return res.status(400).send("Invalid key format.");
     }
 
     console.log(`[Controller] downloadAttachment: key = "${key}"`);

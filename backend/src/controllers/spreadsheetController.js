@@ -15,7 +15,7 @@ const getSpreadsheetData = async (req, res) => {
     const sheets = googleSheetsService.getSheetsClient();
     if (!sheets) {
       throw new Error(
-        "Google Sheets client chưa được khởi tạo. Vui lòng kiểm tra file serviceAccountKey.json.",
+        "Google Sheets client chưa được khởi tạo. Vui lòng kiểm tra biến môi trường GOOGLE_SERVICE_ACCOUNT_BASE64.",
       );
     }
 
