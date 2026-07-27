@@ -3,6 +3,7 @@ const { Schedule } = require("../storage/mongoModels");
 const LMSClient = require("./lmsClient");
 const config = require("../config/index");
 const lmsAuth = require("./lmsAuth");
+const { getTdmCentreId } = require("../constants/centreIds");
 
 class ScheduleScheduler {
   static start() {
@@ -67,7 +68,7 @@ class ScheduleScheduler {
       const finalCentreIds =
         centreIds && centreIds.length > 0
           ? centreIds
-          : ["6443460f94300678908f7974"];
+          : [getTdmCentreId()];
 
       console.log(
         `[ScheduleScheduler] Master authenticated. Fetching teachers for centres:`,

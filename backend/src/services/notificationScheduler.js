@@ -4,28 +4,77 @@ const LMSClient = require("./lmsClient");
 const ClassCacheService = require("./classCache");
 const config = require("../config/index");
 const lmsAuth = require("./lmsAuth");
-const { extractHHMM } = require("../utils/classHelpers");
+const { extractHHMM, getVietnamNow } = require("../utils/classHelpers");
+const { withRetry, runWithStatusTracking } = require("../utils/schedulerUtils");
+const { getTdmCentreId } = require("../constants/centreIds");
+
+const SCHEDULER_NAME = "NotificationScheduler";
 
 class NotificationScheduler {
   static start() {
-    // Chạy mỗi 30 phút
-    cron.schedule("*/30 * * * *", async () => {
-      console.log(
-        "[NotificationScheduler] Starting periodic notification sync...",
-      );
-      await this.syncAllNotifications();
-    });
-    console.log("[NotificationScheduler] Initialized.");
+    // Chạy mỗi 30 phút theo giờ Việt Nam
+    cron.schedule(
+      "*/30 * * * *",
+      async () => {
+        console.log(
+          `[${SCHEDULER_NAME}] Starting periodic notification sync...`,
+        );
+        await this.runSyncWithRetry();
+      },
+      {
+        timezone: "Asia/Ho_Chi_Minh",
+      },
+    );
+    console.log(`[${SCHEDULER_NAME}] Initialized.`);
 
     // Chạy một lần lúc khởi động
     setTimeout(() => {
-      this.syncAllNotifications();
+      this.runSyncWithRetry();
     }, 10000); // Đợi 10s sau khi start server
+
+    // Khởi động weekly digest scheduler với retry logic
+    const WeeklyDigestScheduler = require("./weeklyDigestScheduler");
+    const MAX_SCHEDULER_RETRIES = 3;
+    const SCHEDULER_RETRY_DELAY_MS = 1000;
+
+    async function startWeeklyDigestSchedulerWithRetry(attempt = 1) {
+      try {
+        WeeklyDigestScheduler.start();
+        console.log("[NotificationScheduler] Weekly digest scheduler started successfully.");
+      } catch (e) {
+        if (attempt < MAX_SCHEDULER_RETRIES) {
+          const delay = SCHEDULER_RETRY_DELAY_MS * Math.pow(2, attempt - 1); // Exponential backoff
+          console.warn(
+            `[NotificationScheduler] Failed to start weekly digest scheduler (attempt ${attempt}/${MAX_SCHEDULER_RETRIES}): ${e.message}. Retrying in ${delay}ms...`
+          );
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return startWeeklyDigestSchedulerWithRetry(attempt + 1);
+        } else {
+          console.error(
+            `[NotificationScheduler] CRITICAL: Failed to start weekly digest scheduler after ${MAX_SCHEDULER_RETRIES} attempts. Weekly digest notifications will not be sent. Error: ${e.message}`,
+            e.stack
+          );
+        }
+      }
+    }
+
+    startWeeklyDigestSchedulerWithRetry();
+  }
+
+  /**
+   * Run the sync with retry logic and status tracking
+   */
+  static async runSyncWithRetry(forceSendEmails = false) {
+    return runWithStatusTracking(
+      SCHEDULER_NAME,
+      () => this.syncAllNotifications(forceSendEmails),
+      { maxRetries: 3, baseDelayMs: 2000 },
+    );
   }
 
   static async sendReminderEmails() {
-    console.log("[NotificationScheduler] Manual sendReminderEmails triggered.");
-    await this.syncAllNotifications(true);
+    console.log(`[${SCHEDULER_NAME}] Manual sendReminderEmails triggered.`);
+    await this.runSyncWithRetry(true);
   }
 
   static async syncAllNotifications(forceSendEmails = false) {
@@ -69,11 +118,12 @@ class NotificationScheduler {
       const { lmsToken: token, mindxUser } = authData;
       const { teacherId, centreIds, appRoles: roles } = mindxUser;
 
-      // Mặc định trung tâm Thủ Dầu Một ('6443460f94300678908f7974') nếu không có centreIds
+      // Mặc định trung tâm Thủ Dầu Một nếu không có centreIds
+      const tdmCentreId = getTdmCentreId();
       const finalCentreIds =
         centreIds && centreIds.length > 0
           ? centreIds
-          : ["6443460f94300678908f7974"];
+          : [tdmCentreId];
 
       console.log(
         `[NotificationScheduler] Master authenticated successfully. Processing classes for centres:`,
@@ -156,6 +206,7 @@ class NotificationScheduler {
 
         // Tính toán ticket
         const now = new Date();
+        const vietnamNow = getVietnamNow(now);
         const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
 
         const getTeacherNamesAndEmails = (teachersList, roleShortName) => {
@@ -169,7 +220,7 @@ class NotificationScheduler {
               .filter(Boolean)
               .join(", ");
             const emails = matched
-              .map((t) => t.teacher?.email || t.teacher?.personalEmail) // Dùng email công việc MindX, fallback về personalEmail
+              .map((t) => t.teacher?.email) // Chỉ dùng email công việc, không fallback personalEmail
               .filter(Boolean);
             return { name, emails };
           }
@@ -224,9 +275,9 @@ class NotificationScheduler {
               const hhmm = extractHHMM(slot.endTime);
               if (!hhmm) return;
 
-              // Build local-time Date (no timezone suffix → treated as Vietnam local time)
+              // Build Vietnam-time Date with explicit +07:00 offset.
               slotEndDateTime = new Date(
-                `${dateStr}T${String(hhmm.hour).padStart(2, "0")}:${String(hhmm.minute).padStart(2, "0")}:00`
+                `${dateStr}T${String(hhmm.hour).padStart(2, "0")}:${String(hhmm.minute).padStart(2, "0")}:00+07:00`,
               );
               if (isNaN(slotEndDateTime.getTime())) return;
             } catch (e) {
@@ -285,9 +336,10 @@ class NotificationScheduler {
                   });
                 };
 
-                addEmailNotifications(taData.emails, taName);
-                addEmailNotifications(lecData.emails, lecName);
-                addEmailNotifications(teData.emails, teName);
+                // Chỉ gửi email cho LEC của buổi học đó
+                if (lecData.emails.length > 0) {
+                  addEmailNotifications(lecData.emails, lecName);
+                }
 
                 // Lấy danh sách ID các giáo viên để filter
                 const teacherIdsForSlot = teachersToUse
@@ -352,26 +404,105 @@ class NotificationScheduler {
 
         // Gửi email
         const emailService = require("./emailService");
+        const NotificationEmailLog = require("../storage/emailLogModel");
 
         // Chỉ gửi email nếu đang là giờ hành chính (ví dụ 8h sáng) để tránh spam mỗi 30 phút.
-        // Tùy theo nhu cầu thực tế. Hiện tại sẽ gửi luôn khi có ticket mới.
-        // Bạn có thể comment/uncomment block kiểm tra giờ dưới đây:
+        const currentHour = vietnamNow.hour;
+        const dayKey = vietnamNow.dayKey;
 
-        const currentHour = now.getHours();
-        // Chỉ gửi email vào lúc 8h đến 9h sáng hoặc khi được gọi thủ công (forceSendEmails = true)
         if (forceSendEmails || (currentHour >= 8 && currentHour < 9)) {
+          const emails = Object.keys(emailNotificationsByTeacher);
           console.log(
-            `[NotificationScheduler] Sending emails for ${Object.keys(emailNotificationsByTeacher).length} teachers (forceSendEmails=${forceSendEmails}).`,
+            `[NotificationScheduler] Sending emails for ${emails.length} teachers (forceSendEmails=${forceSendEmails}).`,
           );
-          for (const [email, data] of Object.entries(
-            emailNotificationsByTeacher,
-          )) {
-            await emailService.sendReminderEmail(
-              email,
-              data.teacherName,
-              data.pendingClasses,
+
+          // Build list of dedupe ids for the bulk lookup. Dedupe key = dayKey
+          // so the same teacher doesn't get the same reminder twice on the
+          // same day, even across multiple 30-min cron ticks.
+          const dedupeIds = emails.map(
+            (email) => `reminder:${email}:${dayKey}`,
+          );
+
+          let alreadySent = new Set();
+          try {
+            const existing = await NotificationEmailLog.find({
+              _id: { $in: dedupeIds },
+              status: "sent",
+            })
+              .select("_id")
+              .lean();
+            alreadySent = new Set(existing.map((d) => d._id));
+          } catch (logErr) {
+            console.warn(
+              "[NotificationScheduler] Failed to read email log (continuing):",
+              logErr.message,
             );
           }
+
+          let sentCount = 0;
+          let skippedCount = 0;
+          let failedCount = 0;
+
+          for (const email of emails) {
+            const data = emailNotificationsByTeacher[email];
+            const logId = `reminder:${email}:${dayKey}`;
+            if (!forceSendEmails && alreadySent.has(logId)) {
+              skippedCount += 1;
+              continue;
+            }
+            let result;
+            try {
+              result = await emailService.sendReminderEmail(
+                email,
+                data.teacherName,
+                data.pendingClasses,
+                { dayKey, classSummary: data.pendingClasses.length },
+              );
+            } catch (sendErr) {
+              console.error(
+                `[NotificationScheduler] Unhandled send error for ${email}:`,
+                sendErr.message,
+              );
+              result = { ok: false, error: sendErr.message };
+            }
+            const ok = result === true || (result && result.ok === true);
+            const messageId = result && result.messageId ? result.messageId : null;
+            const errorMsg = ok
+              ? null
+              : (result && result.error) || "send failed";
+            if (ok) sentCount += 1;
+            else failedCount += 1;
+
+            try {
+              await NotificationEmailLog.findOneAndUpdate(
+                { _id: logId },
+                {
+                  _id: logId,
+                  kind: "reminder",
+                  email,
+                  dedupeKey: dayKey,
+                  teacherName: data.teacherName,
+                  subject: "[MindX] Nhắc nhở đánh giá học viên",
+                  messageId,
+                  status: ok ? "sent" : "failed",
+                  error: errorMsg,
+                  context: { classCount: data.pendingClasses.length },
+                  sentAt: new Date(),
+                  updatedAt: new Date(),
+                },
+                { upsert: true },
+              );
+            } catch (logErr) {
+              console.warn(
+                `[NotificationScheduler] Failed to write email log for ${email}:`,
+                logErr.message,
+              );
+            }
+          }
+
+          console.log(
+            `[NotificationScheduler] Email send summary: sent=${sentCount}, skipped=${skippedCount}, failed=${failedCount}.`,
+          );
         } else {
           console.log(
             `[NotificationScheduler] Skip sending emails (Current hour is ${currentHour}, emails are only sent between 8-9 AM).`,

@@ -1,4 +1,5 @@
 const googleSheetsService = require("../services/googleSheets");
+const { getTdmCentreId } = require("../constants/centreIds");
 
 // Mặc định là ID từ yêu cầu của người dùng
 const DEFAULT_SPREADSHEET_ID = "127e4Xljxfbar_GSpWeV4K_ntgYXEGTIHOKKOx8UNymM";
@@ -417,7 +418,7 @@ const getTrialAvailabilities = async (req, res) => {
       finalCentreIds = Array.isArray(centreIds) ? centreIds : centreIds.split(",").filter(Boolean);
     }
     if (finalCentreIds.length === 0) {
-      finalCentreIds = ["6443460f94300678908f7974"];
+      finalCentreIds = [getTdmCentreId()];
     }
 
     const client = new LMSClient(token);

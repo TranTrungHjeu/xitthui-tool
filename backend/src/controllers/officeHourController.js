@@ -1,4 +1,5 @@
 const { OfficeHour } = require("../storage/mongoModels");
+const { getTdmCentreId } = require("../constants/centreIds");
 
 exports.getOfficeHours = async (req, res) => {
   console.log("[OfficeHourController] getOfficeHours body:", req.body);
@@ -29,7 +30,7 @@ exports.getOfficeHours = async (req, res) => {
         queryFilter["centre.id"] = { $in: centreIds };
       } else {
         // Fallback to Thủ Dầu Một if centreIds is empty
-        queryFilter["centre.id"] = "6443460f94300678908f7974";
+        queryFilter["centre.id"] = getTdmCentreId();
       }
     } else {
       // Regular Teacher: Can only see their own office hours
@@ -39,9 +40,13 @@ exports.getOfficeHours = async (req, res) => {
       queryFilter["teacher.id"] = teacherId;
     }
 
-    // 2. Search filter
+    // 2. Search filter - ReDoS protection: limit input length and sanitize
     if (search && search.trim() !== "") {
-      const searchRegex = new RegExp(search.trim(), "i");
+      // WARNING: Limit search input to prevent ReDoS
+      const sanitizedSearch = search.trim().substring(0, 100); // Max 100 chars
+      // Escape regex special characters to prevent ReDoS
+      const escapedSearch = sanitizedSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const searchRegex = new RegExp(escapedSearch, "i");
       queryFilter.$or = [
         { "teacher.fullName": searchRegex },
         { "teacher.code": searchRegex },
@@ -98,6 +103,14 @@ exports.getOfficeHours = async (req, res) => {
 const axios = require("axios");
 const config = require("../config/index");
 
+// SCALE-2: Master-token TTL primitive. NOT a BoundedCache instance because we
+// only ever store one value (the master token) with a hard 50 minute cap.
+// Documenting the cache role here keeps the L1 cache story consistent:
+// - L1 BoundedCache: multi-entry caches (teachers list, class details, ...)
+// - L1 singleton:   small, single-value TTL primitives (master token)
+//
+// If a second such value is ever introduced, lift them both into a small
+// `BoundedCache({ maxKeys: 16 })` instance instead of duplicating the pattern.
 let cachedMasterToken = null;
 let cachedTokenExpiry = 0;
 

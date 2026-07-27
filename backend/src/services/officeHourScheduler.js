@@ -3,6 +3,7 @@ const { OfficeHour } = require("../storage/mongoModels");
 const config = require("../config/index");
 const lmsAuth = require("./lmsAuth");
 const axios = require("axios");
+const { getTdmCentreId } = require("../constants/centreIds");
 
 const GQL_QUERY = `query GetOfficeHours($payload: OfficeHourQuery) {
   officeHours(payload: $payload) {
@@ -122,7 +123,7 @@ class OfficeHourScheduler {
       }
 
       const token = authData.lmsToken;
-      const targetCentreId = "6443460f94300678908f7974"; // Thủ Dầu Một
+      const targetCentreId = getTdmCentreId(); // Thủ Dầu Một
 
       console.log(`[OfficeHourScheduler] Fetching office hours for Thủ Dầu Một...`);
 

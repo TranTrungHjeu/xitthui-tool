@@ -4,6 +4,7 @@ const LMSClient = require("./lmsClient");
 const ClassCacheService = require("./classCache");
 const config = require("../config/index");
 const lmsAuth = require("./lmsAuth");
+const { getTdmCentreId } = require("../constants/centreIds");
 
 class StudentScheduler {
   static start() {
@@ -68,7 +69,7 @@ class StudentScheduler {
       const finalCentreIds =
         centreIds && centreIds.length > 0
           ? centreIds
-          : ["6443460f94300678908f7974"];
+          : [getTdmCentreId()];
 
       console.log(
         `[StudentScheduler] Master authenticated. Syncing student data for centres:`,

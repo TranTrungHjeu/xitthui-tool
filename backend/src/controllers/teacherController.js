@@ -1,9 +1,20 @@
 const LMSClient = require("../services/lmsClient");
 const { isLmsAuthError } = require("../utils/authError");
 const { getSessionExamType } = require("../utils/courseConfig");
+const { TeacherVisibilityPrefs } = require("../storage/mongoModels");
+const BoundedCache = require("../utils/boundedCache");
+const { getTdmCentreId } = require("../constants/centreIds");
 
-// In-memory visibility map for demonstration. Replace with persistent DB in prod.
-const teacherVisibilityPrefs = {};
+// SCALE-2: Single source of truth for the teachers list cache.
+// Replaces the previous object-literal cache that duplicated both
+// definitions (top of file + line 316) and relied on manual TTL sweeps.
+const TEACHERS_CACHE_TTL_SECONDS = 15 * 60; // 15 minutes
+const TEACHERS_CACHE_MAX_KEYS = 50;
+const teachersCache = new BoundedCache({
+  maxKeys: TEACHERS_CACHE_MAX_KEYS,
+  stdTTL: TEACHERS_CACHE_TTL_SECONDS,
+  checkperiod: 5 * 60, // Sweep every 5 minutes
+});
 
 /**
  * POST /teachers/visibility
@@ -12,11 +23,23 @@ const teacherVisibilityPrefs = {};
 exports.saveTeacherVisibility = async (req, res) => {
   const { userId, hiddenTeacherIds } = req.body;
   if (!userId) return res.status(400).json({ error: "userId is required" });
-  teacherVisibilityPrefs[userId] = {
-    hiddenTeacherIds: hiddenTeacherIds || [],
-    updated: Date.now(),
-  };
-  res.json({ success: true, preferences: teacherVisibilityPrefs[userId] });
+  
+  try {
+    await TeacherVisibilityPrefs.findByIdAndUpdate(
+      userId,
+      {
+        _id: userId,
+        hiddenTeacherIds: hiddenTeacherIds || [],
+        updatedAt: new Date()
+      },
+      { upsert: true }
+    );
+    const prefs = { hiddenTeacherIds: hiddenTeacherIds || [], updated: Date.now() };
+    res.json({ success: true, preferences: prefs });
+  } catch (err) {
+    console.error("[TeacherController] saveTeacherVisibility failed:", err.message);
+    res.status(500).json({ error: "Failed to save visibility preferences" });
+  }
 };
 
 /**
@@ -26,8 +49,15 @@ exports.saveTeacherVisibility = async (req, res) => {
 exports.getTeacherVisibility = async (req, res) => {
   const userId = req.params.userId;
   if (!userId) return res.status(400).json({ error: "userId is required" });
-  const prefs = teacherVisibilityPrefs[userId] || { hiddenTeacherIds: [] };
-  res.json({ success: true, preferences: prefs });
+  
+  try {
+    const prefs = await TeacherVisibilityPrefs.findById(userId).lean();
+    const result = prefs ? { hiddenTeacherIds: prefs.hiddenTeacherIds || [], updated: prefs.updatedAt?.getTime() || null } : { hiddenTeacherIds: [] };
+    res.json({ success: true, preferences: result });
+  } catch (err) {
+    console.error("[TeacherController] getTeacherVisibility failed:", err.message);
+    res.status(500).json({ error: "Failed to get visibility preferences" });
+  }
 };
 
 exports.getTeacherSchedules = async (req, res) => {
@@ -268,8 +298,6 @@ exports.getTeacherSchedules = async (req, res) => {
   }
 };
 
-const teachersCache = {};
-
 exports.getTeachers = async (req, res) => {
   console.log("[Controller] getTeachers request body:", req.body);
   try {
@@ -278,7 +306,7 @@ exports.getTeachers = async (req, res) => {
       token = req.headers.authorization.split(" ")[1];
     }
     const {
-      centers = ["6443460f94300678908f7974"],
+      centers = [getTdmCentreId()],
       pageIndex = 0,
       itemsPerPage = 100,
     } = req.body;
@@ -286,10 +314,10 @@ exports.getTeachers = async (req, res) => {
     if (!token) return res.status(400).json({ error: "Token is required" });
 
     const cacheKey = `${JSON.stringify(centers)}_${pageIndex}_${itemsPerPage}`;
-    const cached = teachersCache[cacheKey];
-    if (cached && (Date.now() - cached.timestamp < 15 * 60 * 1000)) {
-      console.log(`[Controller] Serving teachers list from in-memory cache for key: ${cacheKey}`);
-      return res.json(cached.response);
+    const cached = teachersCache.get(cacheKey);
+    if (cached) {
+      console.log(`[Controller] Serving teachers list from BoundedCache for key: ${cacheKey}`);
+      return res.json(cached);
     }
 
     const client = new LMSClient(token);
@@ -301,10 +329,7 @@ exports.getTeachers = async (req, res) => {
       pagination: result.pagination || { total: 0 },
     };
 
-    teachersCache[cacheKey] = {
-      timestamp: Date.now(),
-      response
-    };
+    teachersCache.set(cacheKey, response);
 
     res.json(response);
   } catch (err) {
