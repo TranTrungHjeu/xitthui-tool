@@ -1,96 +1,81 @@
-const nodemailer = require("nodemailer");
+const { createProvider } = require("./emailProviders");
+const { renderReminderEmail } = require("./emailTemplates/reminder");
+
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("EmailService");
 
 class EmailService {
   constructor() {
     this.transporter = null;
+    this.fromAddress = null;
+    this.providerName = process.env.EMAIL_PROVIDER || "gmail";
     this.init();
   }
 
   init() {
-    const user = process.env.EMAIL_USER;
-    const pass = process.env.EMAIL_APP_PASSWORD;
-
-    if (!user || !pass) {
-      console.warn(
-        "[EmailService] EMAIL_USER or EMAIL_APP_PASSWORD not set in .env. Email feature will be disabled.",
+    try {
+      const provider = createProvider();
+      this.transporter = provider.getTransporter();
+      this.fromAddress = provider.getFromAddress();
+      log.info(
+        `[EmailService] Initialized with provider: ${this.providerName}`,
       );
-      return;
+    } catch (err) {
+      log.warn(
+        `[EmailService] ${err.message}. Email feature will be disabled.`,
+      );
+      this.transporter = null;
+      this.fromAddress = null;
     }
-
-    this.transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user,
-        pass,
-      },
-    });
-
-    console.log("[EmailService] Initialized with user:", user);
   }
 
-  async sendReminderEmail(toEmail, teacherName, pendingClasses) {
-    if (!this.transporter) {
-      console.warn(
-        "[EmailService] Cannot send email. Service not initialized.",
-      );
-      return false;
-    }
+  isReady() {
+    return Boolean(this.transporter && this.fromAddress);
+  }
 
-    if (!toEmail) {
-      console.warn("[EmailService] No destination email provided.");
-      return false;
+  // Generic send: caller passes already-rendered subject/html/text.
+  // Returns { ok: true, messageId } or { ok: false, error }.
+  async sendMail({ to, subject, html, text }) {
+    if (!this.isReady()) {
+      log.warn("[EmailService] Cannot send email. Service not initialized.");
+      return { ok: false, error: "service_not_initialized" };
     }
-
+    if (!to) {
+      log.warn("[EmailService] No destination email provided.");
+      return { ok: false, error: "no_destination" };
+    }
     try {
-      const classListHtml = pendingClasses
-        .map(
-          (c) =>
-            `<li><strong>${c.className}</strong> (Buổi học ngày: ${new Date(
-              c.date,
-            ).toLocaleDateString("vi-VN")}): ${
-              c.studentCount
-            } học viên chưa chấm. Trạng thái: ${
-              c.isLate
-                ? "<span style='color: red;'>Quá hạn</span>"
-                : "<span style='color: orange;'>Sắp tới hạn</span>"
-            }</li>`,
-        )
-        .join("");
-
-      const htmlContent = `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-          <h2 style="color: #d32f2f;">Nhắc nhở: Đánh giá học viên sau buổi học</h2>
-          <p>Chào ${teacherName},</p>
-          <p>Hệ thống ghi nhận bạn có các buổi học đã kết thúc nhưng chưa hoàn thành việc đánh giá (chấm điểm/nhận xét) học viên trên hệ thống LMS. Việc đánh giá kịp thời giúp học viên và phụ huynh nắm bắt được tình hình học tập.</p>
-          <p>Danh sách các buổi học cần đánh giá:</p>
-          <ul>
-            ${classListHtml}
-          </ul>
-          <p>Vui lòng đăng nhập vào hệ thống LMS để hoàn thành việc đánh giá trong thời gian sớm nhất.</p>
-          <br/>
-          <p>Trân trọng,</p>
-          <p><strong>Hệ thống tự động MindX Support Tools</strong></p>
-          <p><em>Đây là email tự động, vui lòng không trả lời email này.</em></p>
-        </div>
-      `;
-
-      const mailOptions = {
-        from: `"MindX Support Tools" <${process.env.EMAIL_USER}>`,
-        to: toEmail,
-        subject: "[Quan trọng] Nhắc nhở hoàn thành đánh giá học viên",
-        html: htmlContent,
-      };
-
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log(`[EmailService] Email sent to ${toEmail}: ${info.messageId}`);
-      return true;
-    } catch (error) {
-      console.error(
-        `[EmailService] Failed to send email to ${toEmail}:`,
-        error,
-      );
-      return false;
+      const info = await this.transporter.sendMail({
+        from: this.fromAddress,
+        to,
+        subject,
+        html,
+        text,
+      });
+      log.info(`[EmailService] Email sent to ${to}: ${info.messageId}`);
+      return { ok: true, messageId: info.messageId };
+    } catch (err) {
+      log.error(`[EmailService] Failed to send email to ${to}:`, err);
+      return { ok: false, error: err && err.message ? err.message : String(err) };
     }
+  }
+
+  // Convenience wrapper used by the notification scheduler.
+  // Returns boolean (legacy contract) so existing callers don't have to change,
+  // plus an optional richer object via the second param.
+  async sendReminderEmail(toEmail, teacherName, pendingClasses, meta) {
+    const rendered = renderReminderEmail({
+      teacherName,
+      pendingClasses,
+      meta,
+    });
+    const result = await this.sendMail({
+      to: toEmail,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+    });
+    return result;
   }
 }
 

@@ -1,6 +1,9 @@
 const path = require("path");
 const fs = require("fs");
 
+const { childLogger } = require("./utils/logger.js");
+const log = childLogger("Index");
+
 // Fix: System DNS (fe80::1 IPv6 link-local) does not support SRV record queries
 // required for MongoDB Atlas connection strings (mongodb+srv://). Override to use Google DNS.
 const dns = require("dns");
@@ -62,21 +65,21 @@ for (const envVar of requiredEnvVars) {
 }
 
 if (missingEnvVars.length > 0 || invalidEnvVars.length > 0) {
-  console.error("=".repeat(60));
+  log.error("=".repeat(60));
   if (missingEnvVars.length > 0) {
-    console.error("FATAL: Missing required environment variables:");
-    missingEnvVars.forEach((v) => console.error(`  - ${v}`));
+    log.error("FATAL: Missing required environment variables:");
+    missingEnvVars.forEach((v) => log.error(`  - ${v}`));
   }
   if (invalidEnvVars.length > 0) {
-    console.error("FATAL: Invalid environment variables:");
-    invalidEnvVars.forEach((v) => console.error(`  - ${v}`));
+    log.error("FATAL: Invalid environment variables:");
+    invalidEnvVars.forEach((v) => log.error(`  - ${v}`));
   }
-  console.error("=".repeat(60));
-  console.error("Server cannot start without valid configuration. Please fix your .env file or environment.");
+  log.error("=".repeat(60));
+  log.error("Server cannot start without valid configuration. Please fix your .env file or environment.");
   process.exit(1);
 }
 
-console.log("[EnvValidation] All required environment variables present and valid.");
+log.info("[EnvValidation] All required environment variables present and valid.");
 
 // ---- 1. Express API Server Setup ----
 const app = express();
@@ -103,7 +106,7 @@ app.use(
       }
       
       // Reject all other origins in production
-      console.warn(`[CORS] Rejected origin in production: ${origin}`);
+      log.warn(`[CORS] Rejected origin in production: ${origin}`);
       return callback(new Error("CORS policy violation"), false);
     },
     credentials: true,
@@ -121,7 +124,7 @@ app.use("/spreadsheet", spreadsheetRoutes);
 
 // Global Error Handler - Prevents server from crashing on unhandled errors
 app.use((err, req, res, next) => {
-  console.error("Unhandled Error:", err);
+  log.error("Unhandled Error:", err);
   res.status(500).json({
     success: false,
     error: err.message || "Internal Server Error",
@@ -137,7 +140,7 @@ async function startApp() {
     // 2.1 Start API Server
     // Lắng nghe trên "0.0.0.0" thay vì "127.0.0.1" để cho phép các kết nối từ bên ngoài Internet gọi vào API trên VPS
     const server = app.listen(PORT, "0.0.0.0", async () => {
-      console.log(`API Server is running on PORT ${PORT}`);
+      log.info(`API Server is running on PORT ${PORT}`);
 
       // Start Notification Background Sync
       NotificationScheduler.start();
@@ -165,7 +168,7 @@ async function startApp() {
     // Register shutdown handlers (SIGTERM from orchestrators, SIGINT from dev).
     registerGracefulShutdown(server);
   } catch (error) {
-    console.error("Failed to start API server:", error);
+    log.error("Failed to start API server:", error);
     process.exit(1);
   }
 }
@@ -178,35 +181,35 @@ let shuttingDown = false;
 function registerGracefulShutdown(server) {
   const shutdown = (signal) => {
     if (shuttingDown) {
-      console.warn(`[Shutdown] Received ${signal} while already shutting down. Forcing exit.`);
+      log.warn(`[Shutdown] Received ${signal} while already shutting down. Forcing exit.`);
       process.exit(1);
     }
     shuttingDown = true;
-    console.log(`[Shutdown] Received ${signal}. Draining ${activeSockets.size} active connections...`);
+    log.info(`[Shutdown] Received ${signal}. Draining ${activeSockets.size} active connections...`);
 
     // Stop accepting new connections, then wait for in-flight requests to finish.
     server.close((err) => {
       if (err) {
-        console.error(`[Shutdown] server.close() error: ${err.message}`);
+        log.error(`[Shutdown] server.close() error: ${err.message}`);
         process.exit(1);
       }
-      console.log("[Shutdown] HTTP server closed. Disconnecting MongoDB...");
+      log.info("[Shutdown] HTTP server closed. Disconnecting MongoDB...");
 
       mongoose
         .disconnect()
         .then(() => {
-          console.log("[Shutdown] MongoDB disconnected. Exiting cleanly.");
+          log.info("[Shutdown] MongoDB disconnected. Exiting cleanly.");
           process.exit(0);
         })
         .catch((disconnectErr) => {
-          console.error(`[Shutdown] MongoDB disconnect failed: ${disconnectErr.message}`);
+          log.error(`[Shutdown] MongoDB disconnect failed: ${disconnectErr.message}`);
           process.exit(1);
         });
     });
 
     // Force exit if the drain takes too long (e.g. a stuck request).
     setTimeout(() => {
-      console.error(
+      log.error(
         `[Shutdown] Forced exit after ${SHUTDOWN_TIMEOUT_MS}ms. Active sockets: ${activeSockets.size}`,
       );
       process.exit(1);
@@ -217,10 +220,10 @@ function registerGracefulShutdown(server) {
   process.on("SIGINT", () => shutdown("SIGINT"));
 
   process.on("uncaughtException", (err) => {
-    console.error("[uncaughtException]", err);
+    log.error("[uncaughtException]", err);
   });
   process.on("unhandledRejection", (reason) => {
-    console.error("[unhandledRejection]", reason);
+    log.error("[unhandledRejection]", reason);
   });
 }
 

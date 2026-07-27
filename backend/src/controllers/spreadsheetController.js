@@ -1,6 +1,9 @@
 const googleSheetsService = require("../services/googleSheets");
 const { getTdmCentreId } = require("../constants/centreIds");
 
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("SpreadsheetController");
+
 // Mặc định là ID từ yêu cầu của người dùng
 const DEFAULT_SPREADSHEET_ID = "127e4Xljxfbar_GSpWeV4K_ntgYXEGTIHOKKOx8UNymM";
 const SERVICE_ACCOUNT_EMAIL =
@@ -85,7 +88,7 @@ const getSpreadsheetData = async (req, res) => {
     // Đính kèm availableSheets vào object data hoặc truyền ra ngoài catch block
     req.availableSheets = availableSheets; // lưu tạm vào req để dùng phía dưới
   } catch (error) {
-    console.error("Lỗi gọi Google Sheets API:", error.message);
+    log.error("Lỗi gọi Google Sheets API:", error.message);
 
     // Gợi ý cho người dùng cách phân quyền
     const errorMsg =
@@ -160,7 +163,7 @@ const getSpreadsheetData = async (req, res) => {
       isFallback: false,
     });
   } catch (error) {
-    console.error("Lỗi xử lý dữ liệu:", error);
+    log.error("Lỗi xử lý dữ liệu:", error);
     res.status(500).json({
       success: false,
       error: error.message || "Lỗi xử lý dữ liệu bảng tính",
@@ -530,7 +533,7 @@ const getTrialAvailabilities = async (req, res) => {
       datesWithTrials,
     });
   } catch (error) {
-    console.error("Lỗi getTrialAvailabilities:", error);
+    log.error("Lỗi getTrialAvailabilities:", error);
     res.status(500).json({
       success: false,
       error: error.message || "Lỗi xử lý khả dụng giáo viên trực trial",
@@ -581,7 +584,7 @@ const assignTrialTeacher = async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error("Lỗi assignTrialTeacher:", error);
+    log.error("Lỗi assignTrialTeacher:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -598,7 +601,7 @@ const unassignTrialTeacher = async (req, res) => {
     await TrialBooking.findByIdAndDelete(id);
     res.json({ success: true });
   } catch (error) {
-    console.error("Lỗi unassignTrialTeacher:", error);
+    log.error("Lỗi unassignTrialTeacher:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };

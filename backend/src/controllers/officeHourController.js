@@ -1,8 +1,11 @@
 const { OfficeHour } = require("../storage/mongoModels");
 const { getTdmCentreId } = require("../constants/centreIds");
 
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("OfficeHourController");
+
 exports.getOfficeHours = async (req, res) => {
-  console.log("[OfficeHourController] getOfficeHours body:", req.body);
+  log.info("[OfficeHourController] getOfficeHours body:", req.body);
   try {
     const {
       teacherId,
@@ -72,7 +75,7 @@ exports.getOfficeHours = async (req, res) => {
     const pageNum = parseInt(page, 10) || 1;
     const skipNum = (pageNum - 1) * limitNum;
 
-    console.log("[OfficeHourController] Executing query:", JSON.stringify(queryFilter));
+    log.info("[OfficeHourController] Executing query:", JSON.stringify(queryFilter));
 
     const total = await OfficeHour.countDocuments(queryFilter);
     const data = await OfficeHour.find(queryFilter)
@@ -92,7 +95,7 @@ exports.getOfficeHours = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error("[OfficeHourController] Failed to get office hours:", err.message);
+    log.error("[OfficeHourController] Failed to get office hours:", err.message);
     res.status(500).json({
       success: false,
       error: "Không thể tải danh sách office hours"
@@ -129,7 +132,7 @@ async function getMasterToken() {
       config.lms.masterPassword
     );
   } catch (err) {
-    console.warn("[OfficeHourController] Master username login failed, trying Firebase flow...", err.message);
+    log.warn("[OfficeHourController] Master username login failed, trying Firebase flow...", err.message);
     authData = await lmsAuth.loginWithCredentials(
       config.lms.masterUsername,
       config.lms.masterPassword
@@ -161,7 +164,7 @@ exports.getOfficeHourById = async (req, res) => {
         // If not TE, user must be the assigned teacher
         const assignedTeacherId = oh.teacher?.id;
         if (!assignedTeacherId || assignedTeacherId !== teacherId) {
-          console.warn(`[OfficeHourController] Unauthorized detail access: request teacher ${teacherId} does not match assigned teacher ${assignedTeacherId}`);
+          log.warn(`[OfficeHourController] Unauthorized detail access: request teacher ${teacherId} does not match assigned teacher ${assignedTeacherId}`);
           return res.status(403).json({ error: "Bạn không có quyền xem chi tiết ca trực này" });
         }
       }
@@ -324,7 +327,7 @@ exports.getOfficeHourById = async (req, res) => {
       }
     }`;
 
-    console.log(`[OfficeHourController] Fetching detailed office hour ID: ${id} using master token`);
+    log.info(`[OfficeHourController] Fetching detailed office hour ID: ${id} using master token`);
     const response = await axios.post(
       config.lms.gatewayGraphql || "https://lms-api.mindx.edu.vn/",
       {
@@ -342,7 +345,7 @@ exports.getOfficeHourById = async (req, res) => {
     );
 
     if (response.data.errors) {
-      console.error("[OfficeHourController] GraphQL error:", response.data.errors);
+      log.error("[OfficeHourController] GraphQL error:", response.data.errors);
       return res.status(400).json({
         success: false,
         error: response.data.errors[0]?.message || "GraphQL Error"
@@ -355,7 +358,7 @@ exports.getOfficeHourById = async (req, res) => {
       data
     });
   } catch (err) {
-    console.error("[OfficeHourController] Failed to get office hour details:", err.message);
+    log.error("[OfficeHourController] Failed to get office hour details:", err.message);
     res.status(500).json({
       success: false,
       error: "Không thể tải chi tiết office hour"

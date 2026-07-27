@@ -1,5 +1,8 @@
 const { ActiveToken, NotificationTicket } = require("./mongoModels");
 
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("NotificationStorage");
+
 class NotificationStorage {
   // --- Token Management ---
   static async saveActiveToken(teacherId, token, centreIds, roles) {
@@ -15,11 +18,11 @@ class NotificationStorage {
         },
         { upsert: true, returnDocument: 'after' }
       );
-      console.log(
+      log.info(
         `[NotificationStorage] Saved active token for teacher: ${teacherId}`
       );
     } catch (error) {
-      console.error(
+      log.error(
         "[NotificationStorage] Error saving active token:",
         error
       );
@@ -36,7 +39,7 @@ class NotificationStorage {
         teacherId: doc._id
       }));
     } catch (error) {
-      console.error(
+      log.error(
         "[NotificationStorage] Error getting active tokens:",
         error
       );
@@ -57,7 +60,7 @@ class NotificationStorage {
         { upsert: true, returnDocument: 'after' }
       );
     } catch (error) {
-      console.error(
+      log.error(
         "[NotificationStorage] Error saving notification ticket:",
         error
       );
@@ -69,7 +72,7 @@ class NotificationStorage {
       const docId = `${classId}_${date.replace(/\//g, "-")}`;
       await NotificationTicket.deleteOne({ _id: docId });
     } catch (error) {
-      console.error(
+      log.error(
         "[NotificationStorage] Error deleting notification ticket:",
         error
       );
@@ -86,7 +89,7 @@ class NotificationStorage {
 
       return docs;
     } catch (error) {
-      console.error(
+      log.error(
         "[NotificationStorage] Error getting tickets for TE:",
         error
       );
@@ -103,7 +106,7 @@ class NotificationStorage {
 
       return docs;
     } catch (error) {
-      console.error(
+      log.error(
         "[NotificationStorage] Error getting tickets for teacher:",
         error
       );
@@ -114,11 +117,11 @@ class NotificationStorage {
   static async clearAllTicketsForClass(classId) {
     try {
       await NotificationTicket.deleteMany({ classId });
-      console.log(
+      log.info(
         `[NotificationStorage] Cleared all tickets for class: ${classId}`
       );
     } catch (error) {
-      console.error(
+      log.error(
         "[NotificationStorage] Error clearing tickets for class:",
         error
       );
@@ -139,11 +142,11 @@ class NotificationStorage {
       }));
 
       await NotificationTicket.insertMany(docs);
-      console.log(
+      log.info(
         `[NotificationStorage] Batch saved ${tickets.length} tickets for class: ${classId}`
       );
     } catch (error) {
-      console.error(
+      log.error(
         "[NotificationStorage] Error batch saving tickets:",
         error
       );

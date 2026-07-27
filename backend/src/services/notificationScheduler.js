@@ -8,6 +8,9 @@ const { extractHHMM, getVietnamNow } = require("../utils/classHelpers");
 const { withRetry, runWithStatusTracking } = require("../utils/schedulerUtils");
 const { getTdmCentreId } = require("../constants/centreIds");
 
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("NotificationScheduler");
+
 const SCHEDULER_NAME = "NotificationScheduler";
 
 class NotificationScheduler {
@@ -16,7 +19,7 @@ class NotificationScheduler {
     cron.schedule(
       "*/30 * * * *",
       async () => {
-        console.log(
+        log.info(
           `[${SCHEDULER_NAME}] Starting periodic notification sync...`,
         );
         await this.runSyncWithRetry();
@@ -25,7 +28,7 @@ class NotificationScheduler {
         timezone: "Asia/Ho_Chi_Minh",
       },
     );
-    console.log(`[${SCHEDULER_NAME}] Initialized.`);
+    log.info(`[${SCHEDULER_NAME}] Initialized.`);
 
     // Chạy một lần lúc khởi động
     setTimeout(() => {
@@ -40,17 +43,17 @@ class NotificationScheduler {
     async function startWeeklyDigestSchedulerWithRetry(attempt = 1) {
       try {
         WeeklyDigestScheduler.start();
-        console.log("[NotificationScheduler] Weekly digest scheduler started successfully.");
+        log.info("[NotificationScheduler] Weekly digest scheduler started successfully.");
       } catch (e) {
         if (attempt < MAX_SCHEDULER_RETRIES) {
           const delay = SCHEDULER_RETRY_DELAY_MS * Math.pow(2, attempt - 1); // Exponential backoff
-          console.warn(
+          log.warn(
             `[NotificationScheduler] Failed to start weekly digest scheduler (attempt ${attempt}/${MAX_SCHEDULER_RETRIES}): ${e.message}. Retrying in ${delay}ms...`
           );
           await new Promise(resolve => setTimeout(resolve, delay));
           return startWeeklyDigestSchedulerWithRetry(attempt + 1);
         } else {
-          console.error(
+          log.error(
             `[NotificationScheduler] CRITICAL: Failed to start weekly digest scheduler after ${MAX_SCHEDULER_RETRIES} attempts. Weekly digest notifications will not be sent. Error: ${e.message}`,
             e.stack
           );
@@ -73,20 +76,20 @@ class NotificationScheduler {
   }
 
   static async sendReminderEmails() {
-    console.log(`[${SCHEDULER_NAME}] Manual sendReminderEmails triggered.`);
+    log.info(`[${SCHEDULER_NAME}] Manual sendReminderEmails triggered.`);
     await this.runSyncWithRetry(true);
   }
 
   static async syncAllNotifications(forceSendEmails = false) {
     try {
       if (!config.lms.masterUsername || !config.lms.masterPassword) {
-        console.warn(
+        log.warn(
           "[NotificationScheduler] LMS_MASTER_USERNAME or LMS_MASTER_PASSWORD not configured. Skipping background sync.",
         );
         return;
       }
 
-      console.log(
+      log.info(
         "[NotificationScheduler] Authenticating with Master Account...",
       );
       let authData;
@@ -97,7 +100,7 @@ class NotificationScheduler {
           config.lms.masterPassword,
         );
       } catch (authErr) {
-        console.warn(
+        log.warn(
           "[NotificationScheduler] Username login failed, trying Firebase flow...",
         );
         try {
@@ -107,7 +110,7 @@ class NotificationScheduler {
             config.lms.masterPassword,
           );
         } catch (fallbackErr) {
-          console.error(
+          log.error(
             "[NotificationScheduler] Master authentication failed on both flows. Skipping sync.",
             fallbackErr.message,
           );
@@ -125,7 +128,7 @@ class NotificationScheduler {
           ? centreIds
           : [tdmCentreId];
 
-      console.log(
+      log.info(
         `[NotificationScheduler] Master authenticated successfully. Processing classes for centres:`,
         finalCentreIds,
       );
@@ -177,7 +180,7 @@ class NotificationScheduler {
         }
 
         if (classIdsToFetch.length === 0) {
-          console.log("[NotificationScheduler] No classes to process.");
+          log.info("[NotificationScheduler] No classes to process.");
           return;
         }
 
@@ -197,7 +200,7 @@ class NotificationScheduler {
             const results = await Promise.all(fetchPromises);
             fetchedDetails.push(...results.flat());
           } catch (err) {
-            console.error(
+            log.error(
               `[NotificationScheduler] Error fetching chunk details for teacher ${teacherId}:`,
               err.message,
             );
@@ -396,10 +399,10 @@ class NotificationScheduler {
           const activeClassIds = activeClasses.map(c => c._id);
           const deleteResult = await NotificationTicket.deleteMany({ classId: { $nin: activeClassIds } });
           if (deleteResult.deletedCount > 0) {
-            console.log(`[NotificationScheduler] Cleared ${deleteResult.deletedCount} orphaned tickets for non-active classes.`);
+            log.info(`[NotificationScheduler] Cleared ${deleteResult.deletedCount} orphaned tickets for non-active classes.`);
           }
         } catch (cleanupErr) {
-          console.error("[NotificationScheduler] Error cleaning up orphaned tickets:", cleanupErr.message);
+          log.error("[NotificationScheduler] Error cleaning up orphaned tickets:", cleanupErr.message);
         }
 
         // Gửi email
@@ -412,7 +415,7 @@ class NotificationScheduler {
 
         if (forceSendEmails || (currentHour >= 8 && currentHour < 9)) {
           const emails = Object.keys(emailNotificationsByTeacher);
-          console.log(
+          log.info(
             `[NotificationScheduler] Sending emails for ${emails.length} teachers (forceSendEmails=${forceSendEmails}).`,
           );
 
@@ -433,7 +436,7 @@ class NotificationScheduler {
               .lean();
             alreadySent = new Set(existing.map((d) => d._id));
           } catch (logErr) {
-            console.warn(
+            log.warn(
               "[NotificationScheduler] Failed to read email log (continuing):",
               logErr.message,
             );
@@ -459,7 +462,7 @@ class NotificationScheduler {
                 { dayKey, classSummary: data.pendingClasses.length },
               );
             } catch (sendErr) {
-              console.error(
+              log.error(
                 `[NotificationScheduler] Unhandled send error for ${email}:`,
                 sendErr.message,
               );
@@ -493,33 +496,33 @@ class NotificationScheduler {
                 { upsert: true },
               );
             } catch (logErr) {
-              console.warn(
+              log.warn(
                 `[NotificationScheduler] Failed to write email log for ${email}:`,
                 logErr.message,
               );
             }
           }
 
-          console.log(
+          log.info(
             `[NotificationScheduler] Email send summary: sent=${sentCount}, skipped=${skippedCount}, failed=${failedCount}.`,
           );
         } else {
-          console.log(
+          log.info(
             `[NotificationScheduler] Skip sending emails (Current hour is ${currentHour}, emails are only sent between 8-9 AM).`,
           );
         }
       } catch (err) {
-        console.error(
+        log.error(
           `[NotificationScheduler] Error syncing for Master Account:`,
           err.message,
         );
       }
 
-      console.log(
+      log.info(
         `[NotificationScheduler] Completed sync. Processed ${processedClassIds.size} classes.`,
       );
     } catch (err) {
-      console.error(
+      log.error(
         "[NotificationScheduler] Fatal error during sync:",
         err.message,
       );

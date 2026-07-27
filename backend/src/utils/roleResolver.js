@@ -2,6 +2,9 @@ const { ROLES, getPermissionsForRoles } = require("../constants/roles");
 const { isSpecialAccount } = require("./roleUtils");
 const { DEFAULT_TDM_CENTRE_ID, getTdmCentreId } = require("../constants/centreIds");
 
+const { childLogger } = require("./logger.js");
+const log = childLogger("RoleResolver");
+
 /**
  * Default centre ID for TDM (Thủ Dầu Một)
  * Re-exported for backward compatibility; the canonical definition lives in
@@ -41,7 +44,7 @@ function resolveUserRolesAndProfile(baseUser, roleInfos = []) {
 
   // 1. Phân tích các role trả về từ lms-api.mindx.edu.vn (Profile Giảng viên)
   if (Array.isArray(roleInfos)) {
-    console.log(
+    log.info(
       "[RoleResolver] User roleInfos:",
       JSON.stringify(
         roleInfos.map((r) => ({
@@ -91,7 +94,7 @@ function resolveUserRolesAndProfile(baseUser, roleInfos = []) {
         }
       }
     });
-    console.log("[RoleResolver] Resolved teacherId:", teacherId);
+    log.info("[RoleResolver] Resolved teacherId:", teacherId);
   }
 
   // 2. Rule gán Role thủ công (Đặc quyền cho tài khoản TE đặc biệt)

@@ -6,13 +6,16 @@ const config = require("../config/index");
 const lmsAuth = require("./lmsAuth");
 const { getTdmCentreId } = require("../constants/centreIds");
 
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("StudentScheduler");
+
 class StudentScheduler {
   static start() {
     // Run once a day at 2:05 AM (Asia/Ho_Chi_Minh)
     cron.schedule(
       "5 2 * * *",
       async () => {
-        console.log("[StudentScheduler] Starting periodic student data sync...");
+        log.info("[StudentScheduler] Starting periodic student data sync...");
         await this.syncAllStudents();
       },
       {
@@ -20,7 +23,7 @@ class StudentScheduler {
         timezone: "Asia/Ho_Chi_Minh",
       }
     );
-    console.log("[StudentScheduler] Initialized (scheduled daily at 2:05 AM).");
+    log.info("[StudentScheduler] Initialized (scheduled daily at 2:05 AM).");
 
     // Run once on startup after 15 seconds
     setTimeout(() => {
@@ -31,13 +34,13 @@ class StudentScheduler {
   static async syncAllStudents() {
     try {
       if (!config.lms.masterUsername || !config.lms.masterPassword) {
-        console.warn(
+        log.warn(
           "[StudentScheduler] LMS_MASTER_USERNAME or LMS_MASTER_PASSWORD not configured. Skipping background sync.",
         );
         return;
       }
 
-      console.log("[StudentScheduler] Authenticating with Master Account...");
+      log.info("[StudentScheduler] Authenticating with Master Account...");
       let authData;
       try {
         authData = await lmsAuth.loginWithUsernameFlow(
@@ -45,7 +48,7 @@ class StudentScheduler {
           config.lms.masterPassword,
         );
       } catch (authErr) {
-        console.warn(
+        log.warn(
           "[StudentScheduler] Username login failed, trying Firebase flow...",
         );
         try {
@@ -54,7 +57,7 @@ class StudentScheduler {
             config.lms.masterPassword,
           );
         } catch (fallbackErr) {
-          console.error(
+          log.error(
             "[StudentScheduler] Master authentication failed on both flows. Skipping sync.",
             fallbackErr.message,
           );
@@ -71,7 +74,7 @@ class StudentScheduler {
           ? centreIds
           : [getTdmCentreId()];
 
-      console.log(
+      log.info(
         `[StudentScheduler] Master authenticated. Syncing student data for centres:`,
         finalCentreIds,
       );
@@ -92,7 +95,7 @@ class StudentScheduler {
       const classIdsToFetch = activeClasses.map((cls) => cls.id);
 
       if (classIdsToFetch.length === 0) {
-        console.log("[StudentScheduler] No classes to process.");
+        log.info("[StudentScheduler] No classes to process.");
         return;
       }
 
@@ -112,7 +115,7 @@ class StudentScheduler {
           try {
             submissionsData = await client.getStudentSubmissionsByClass(classId);
           } catch (subErr) {
-            console.warn(
+            log.warn(
               `[StudentScheduler] Failed to get submissions for class ${classId}:`,
               subErr.message
             );
@@ -334,7 +337,7 @@ class StudentScheduler {
             });
           }
         } catch (clsErr) {
-          console.error(
+          log.error(
             `[StudentScheduler] Error processing class ${classId}:`,
             clsErr.message
           );
@@ -350,11 +353,11 @@ class StudentScheduler {
         await FirestoreStudent.cleanStaleStudents();
       }
 
-      console.log(
+      log.info(
         `[StudentScheduler] Background student sync complete. Synced ${allStudents.length} students.`
       );
     } catch (err) {
-      console.error("[StudentScheduler] syncAllStudents failed:", err.message);
+      log.error("[StudentScheduler] syncAllStudents failed:", err.message);
     }
   }
 }

@@ -1,6 +1,9 @@
 const { google } = require("googleapis");
 const { loadServiceAccountCredentials } = require("../utils/googleCredentials");
 
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("GoogleSheets");
+
 let sheetsClient = null;
 
 const getSheetsClient = () => {
@@ -12,7 +15,7 @@ const getSheetsClient = () => {
       // Use console.warn since structured logger is not yet adopted everywhere
       // (Item 4 will replace this with logger.warn).
       if (typeof console !== "undefined" && console.warn) {
-        console.warn(
+        log.warn(
           "[googleSheets] No service account credentials found. " +
             "Set GOOGLE_SERVICE_ACCOUNT_BASE64 or GOOGLE_APPLICATION_CREDENTIALS in env.",
         );
@@ -29,7 +32,7 @@ const getSheetsClient = () => {
     return sheetsClient;
   } catch (error) {
     if (typeof console !== "undefined" && console.error) {
-      console.error("[googleSheets] Error initializing client:", error);
+      log.error("[googleSheets] Error initializing client:", error);
     }
     return null;
   }
@@ -54,7 +57,7 @@ const getSheetData = async (spreadsheetId, range) => {
     return response.data.values || [];
   } catch (error) {
     if (typeof console !== "undefined" && console.error) {
-      console.error("[googleSheets] Error fetching data:", error);
+      log.error("[googleSheets] Error fetching data:", error);
     }
     throw error;
   }

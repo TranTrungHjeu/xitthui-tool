@@ -1,3 +1,14 @@
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("UserSession");
+
+/**
+ * @deprecated This file-based session manager is DEPRECATED and should not be used.
+ * All session management now uses MongoDB via SessionStorage and mongoModels.js.
+ * This file will be removed in a future version.
+ * 
+ * Last used: Unknown (no longer imported anywhere in the codebase)
+ */
+
 const fs = require("fs");
 const path = require("path");
 
@@ -18,7 +29,7 @@ class UserSessionManager {
         return JSON.parse(data);
       }
     } catch (err) {
-      console.error(
+      log.error(
         "[UserSessionManager] Error loading sessions:",
         err.message,
       );

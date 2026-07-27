@@ -4,6 +4,9 @@ const LMSClient = require("../services/lmsClient");
 const FirestoreNotification = require("../storage/notificationStorage");
 const FirestoreSession = require("../storage/sessionStorage");
 
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("AuthController");
+
 exports.login = async (req, res) => {
   let { email, password } = req.body;
   if (!email || !password) {
@@ -29,7 +32,7 @@ exports.login = async (req, res) => {
           teacher = await client.getTeacherByUserId(result.mindxUser.id);
           teacherId = teacher?.id || null;
         } catch (e) {
-          console.warn("[Auth] No teacher record found:", e.message);
+          log.warn("[Auth] No teacher record found:", e.message);
         }
 
         profile = await client.getProfile(result.mindxUser.id);
@@ -49,7 +52,7 @@ exports.login = async (req, res) => {
         // DO NOT override teacherCentres with all centres for TE.
         // roleResolver.js already sets the correct teacherCentres based on RoleInfo or custom rules.
       } catch (e) {
-        console.error(
+        log.error(
           "[Auth] Error fetching additional teacher info:",
           e.message,
         );
@@ -147,7 +150,7 @@ exports.refreshToken = async (req, res) => {
       sessionId: sessionId,
     });
   } catch (err) {
-    console.error("[Auth] Refresh token error:", err.message);
+    log.error("[Auth] Refresh token error:", err.message);
     res.status(err.response?.status || 500).json({
       success: false,
       error: err.response?.data || err.message,
@@ -169,7 +172,7 @@ exports.logout = async (req, res) => {
       message: "Successfully logged out",
     });
   } catch (err) {
-    console.error("[Auth] Logout error:", err.message);
+    log.error("[Auth] Logout error:", err.message);
     res.status(500).json({
       success: false,
       error: err.message,

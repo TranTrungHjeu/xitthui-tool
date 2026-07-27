@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { encryptToken, decryptToken } = require("../utils/tokenEncryption");
 
 // 1. Session Schema
 const SessionSchema = new mongoose.Schema(
@@ -15,6 +16,29 @@ const SessionSchema = new mongoose.Schema(
   },
   { timestamps: { createdAt: false, updatedAt: true } }
 );
+
+// Encrypt token before saving (Mongoose 9: use async instead of next())
+SessionSchema.pre("save", async function() {
+  if (this.isModified("lmsRefreshToken") && this.lmsRefreshToken) {
+    this.lmsRefreshToken = encryptToken(this.lmsRefreshToken);
+  }
+});
+
+// Decrypt token after finding
+SessionSchema.post("findOne", function(doc) {
+  if (doc && doc.lmsRefreshToken) {
+    doc.lmsRefreshToken = decryptToken(doc.lmsRefreshToken);
+  }
+});
+SessionSchema.post("find", function(docs) {
+  if (Array.isArray(docs)) {
+    docs.forEach(doc => {
+      if (doc && doc.lmsRefreshToken) {
+        doc.lmsRefreshToken = decryptToken(doc.lmsRefreshToken);
+      }
+    });
+  }
+});
 
 // 2. Active Token Schema
 const ActiveTokenSchema = new mongoose.Schema(
@@ -75,33 +99,7 @@ const StudentSchema = new mongoose.Schema(
   { timestamps: { createdAt: false, updatedAt: true } }
 );
 
-// 5. Zalo Session Schema
-const ZaloSessionSchema = new mongoose.Schema(
-  {
-    _id: { type: String, required: true }, // zaloUserId
-    lmsToken: { type: String, default: "" },
-    lmsRefreshToken: { type: String, default: "" },
-    mindxUser: { type: mongoose.Schema.Types.Mixed, default: null },
-    firebaseUid: { type: String, default: "" },
-    updatedAt: { type: Date, default: Date.now, expires: "30d" } // Auto-delete after 30 days
-  },
-  { timestamps: { createdAt: false, updatedAt: true } }
-);
-
-// 6. Zalo Config Schema
-const ZaloConfigSchema = new mongoose.Schema(
-  {
-    _id: { type: String, required: true }, // 'global_config'
-    targetChatId: { type: String, default: null },
-    lmsToken: { type: String, default: null },
-    lmsRefreshToken: { type: String, default: null },
-    mindxUser: { type: mongoose.Schema.Types.Mixed, default: null },
-    reminderTimes: { type: [String], default: [] }
-  },
-  { timestamps: { createdAt: false, updatedAt: true } }
-);
-
-// 7. Class Schema
+// 5. Class Schema
 const ClassSchema = new mongoose.Schema(
   {
     _id: { type: String, required: true }, // LMS classId
@@ -256,16 +254,25 @@ const OfficeHourSchema = new mongoose.Schema(
   { timestamps: { createdAt: false, updatedAt: true } }
 );
 
+// 11. Teacher Visibility Preferences Schema
+const TeacherVisibilityPrefsSchema = new mongoose.Schema(
+  {
+    _id: { type: String, required: true }, // userId
+    hiddenTeacherIds: { type: [String], default: [] },
+    updatedAt: { type: Date, default: Date.now }
+  },
+  { timestamps: { createdAt: false, updatedAt: true } }
+);
+
 module.exports = {
   Session: mongoose.model("Session", SessionSchema),
   ActiveToken: mongoose.model("ActiveToken", ActiveTokenSchema),
   NotificationTicket: mongoose.model("NotificationTicket", NotificationTicketSchema),
   Student: mongoose.model("Student", StudentSchema),
-  ZaloSession: mongoose.model("ZaloSession", ZaloSessionSchema),
-  ZaloConfig: mongoose.model("ZaloConfig", ZaloConfigSchema),
   Class: mongoose.model("Class", ClassSchema),
   Schedule: mongoose.model("Schedule", ScheduleSchema),
   TrialBooking: mongoose.model("TrialBooking", TrialBookingSchema),
-  OfficeHour: mongoose.model("OfficeHour", OfficeHourSchema)
+  OfficeHour: mongoose.model("OfficeHour", OfficeHourSchema),
+  TeacherVisibilityPrefs: mongoose.model("TeacherVisibilityPrefs", TeacherVisibilityPrefsSchema)
 };
 

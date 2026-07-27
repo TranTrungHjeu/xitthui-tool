@@ -3,6 +3,9 @@ const config = require("../config/index");
 const { resolveUserRolesAndProfile } = require("../utils/roleResolver");
 const { ROLES } = require("../constants/roles");
 
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("LmsAuth");
+
 // Firebase project config extracted from config
 const FIREBASE_API_KEY = config.firebase.apiKey;
 
@@ -78,7 +81,7 @@ async function getUserByFirebaseId(firebaseIdToken, firebaseUid) {
       return res.data.data.User_getByFirebaseId;
     }
   } catch (err) {
-    console.log(
+    log.info(
       "[Auth] GraphQL User_getByFirebaseId failed, falling back to decoding JWT...",
     );
   }
@@ -99,7 +102,7 @@ async function getUserByFirebaseId(firebaseIdToken, firebaseUid) {
       permissions: payload.roles || [],
     };
   } catch (decodeErr) {
-    console.error("[Auth] Failed to decode JWT:", decodeErr);
+    log.error("[Auth] Failed to decode JWT:", decodeErr);
     throw new Error("Cannot get user info from API or JWT.");
   }
 }
@@ -129,7 +132,7 @@ async function getTeacherIdByUserId(lmsIdToken, mindxUserId) {
     );
     return res.data?.data?.teacherByUserId?.id || null;
   } catch (err) {
-    console.log("[Auth] teacherByUserId failed:", err.message);
+    log.info("[Auth] teacherByUserId failed:", err.message);
     return null;
   }
 }
@@ -160,7 +163,7 @@ async function getLmsRoleInfo(lmsIdToken, mindxUserId) {
     }
     return [];
   } catch (err) {
-    console.log("[Auth] FindInfoInRoleById failed:", err.message);
+    log.info("[Auth] FindInfoInRoleById failed:", err.message);
     return [];
   }
 }
@@ -188,7 +191,7 @@ async function getCustomToken(firebaseIdToken) {
       },
     );
 
-    console.log(
+    log.info(
       "[Auth] GetCustomToken response:",
       JSON.stringify(res.data, null, 2),
     );
@@ -220,7 +223,7 @@ async function getCustomToken(firebaseIdToken) {
 
     return token;
   } catch (err) {
-    console.error("[Auth] GetCustomToken error response:", err.response?.data);
+    log.error("[Auth] GetCustomToken error response:", err.response?.data);
     throw err;
   }
 }
@@ -242,12 +245,12 @@ async function signInWithCustomToken(customToken) {
 async function loginWithCredentials(email, password) {
   try {
     // 1. Firebase sign-in
-    console.log("[Auth] Step 1: Signing in with Firebase...");
+    log.info("[Auth] Step 1: Signing in with Firebase...");
     let firebaseAuth;
     try {
       firebaseAuth = await firebaseSignIn(email, password);
     } catch (err) {
-      console.error(
+      log.error(
         "[Auth] Firebase login failed:",
         err.response?.data || err.message,
       );
@@ -256,15 +259,15 @@ async function loginWithCredentials(email, password) {
       );
     }
     const { idToken: firebaseToken, localId: firebaseUid } = firebaseAuth;
-    console.log("[Auth] Firebase login successful. UID:", firebaseUid);
+    log.info("[Auth] Firebase login successful. UID:", firebaseUid);
 
     // 2. Get MindX user info
-    console.log("[Auth] Step 2: Getting MindX user info...");
+    log.info("[Auth] Step 2: Getting MindX user info...");
     let mindxUser;
     try {
       mindxUser = await getUserByFirebaseId(firebaseToken, firebaseUid);
     } catch (err) {
-      console.error(
+      log.error(
         "[Auth] Failed to get user info:",
         err.response?.data || err.message,
       );
@@ -272,24 +275,24 @@ async function loginWithCredentials(email, password) {
     }
     if (!mindxUser) throw new Error("Không tìm thấy tài khoản MindX");
     if (!mindxUser.isActive) throw new Error("Tài khoản đã bị vô hiệu hóa");
-    console.log("[Auth] MindX user found:", mindxUser.username);
+    log.info("[Auth] MindX user found:", mindxUser.username);
 
     // 3. Try to get custom token for LMS (optional - may fail without session)
-    console.log("[Auth] Step 3: Trying to get custom token...");
+    log.info("[Auth] Step 3: Trying to get custom token...");
     let lmsToken = firebaseToken; // Fallback to Firebase token
     let lmsRefreshToken = "";
 
     try {
       const customToken = await getCustomToken(firebaseToken);
       if (customToken) {
-        console.log("[Auth] Custom token obtained, exchanging...");
+        log.info("[Auth] Custom token obtained, exchanging...");
         // 4. Sign in LMS with custom token
         const lmsAuth = await signInWithCustomToken(customToken);
         lmsToken = lmsAuth.idToken;
         lmsRefreshToken = lmsAuth.refreshToken;
-        console.log("[Auth] LMS login with custom token successful!");
+        log.info("[Auth] LMS login with custom token successful!");
       } else {
-        console.log("[Auth] Custom token empty, using Firebase token directly");
+        log.info("[Auth] Custom token empty, using Firebase token directly");
       }
     } catch (err) {
       // Check if it's the specific "No session cookie found" error
@@ -303,11 +306,11 @@ async function loginWithCredentials(email, password) {
         err.message === "No session cookie found";
 
       if (isSessionError) {
-        console.log(
+        log.info(
           "[Auth] 'No session cookie found' detected. Using Firebase token as fallback.",
         );
       } else {
-        console.log(
+        log.info(
           "[Auth] Could not get custom token, using Firebase token directly:",
           err.message,
         );
@@ -316,7 +319,7 @@ async function loginWithCredentials(email, password) {
     }
 
     // 5. Get detailed Role-Based info from LMS API
-    console.log("[Auth] Step 5: Getting LMS Role Info...");
+    log.info("[Auth] Step 5: Getting LMS Role Info...");
     const roleInfos = await getLmsRoleInfo(lmsToken, mindxUser.id);
 
     // 6. Resolve final profile & roles
@@ -324,7 +327,7 @@ async function loginWithCredentials(email, password) {
 
     // Fallback: If teacherId is null, try getting it directly
     if (!finalProfile.teacherId) {
-      console.log(
+      log.info(
         "[Auth] Step 6.5: teacherId still null, trying teacherByUserId fallback...",
       );
       const directTeacherId = await getTeacherIdByUserId(
@@ -332,7 +335,7 @@ async function loginWithCredentials(email, password) {
         mindxUser.id,
       );
       if (directTeacherId) {
-        console.log("[Auth] Found teacherId via fallback:", directTeacherId);
+        log.info("[Auth] Found teacherId via fallback:", directTeacherId);
         finalProfile.teacherId = directTeacherId;
         // Also ensure Teacher role is added if it was missing but teacherId exists
         if (!finalProfile.appRoles.includes(ROLES.TEACHER)) {
@@ -342,7 +345,7 @@ async function loginWithCredentials(email, password) {
     }
 
     if (!finalProfile.appRoles || finalProfile.appRoles.length === 0) {
-      console.error(
+      log.error(
         "[Auth] Login rejected: No valid roles resolved for user",
         mindxUser.username,
       );
@@ -351,7 +354,7 @@ async function loginWithCredentials(email, password) {
       );
     }
 
-    console.log("[Auth] ✅ Login successful for roles:", finalProfile.appRoles);
+    log.info("[Auth] ✅ Login successful for roles:", finalProfile.appRoles);
     return {
       lmsToken,
       lmsRefreshToken,
@@ -359,7 +362,7 @@ async function loginWithCredentials(email, password) {
       firebaseUid,
     };
   } catch (err) {
-    console.error("[Auth] Login flow error:", err.message);
+    log.error("[Auth] Login flow error:", err.message);
     throw err;
   }
 }
@@ -384,7 +387,7 @@ async function refreshLmsToken(refreshToken) {
  */
 async function loginWithUsernameFlow(username, password) {
   try {
-    console.log(
+    log.info(
       `[Auth] Step 1: Requesting customToken for username: ${username}...`,
     );
     const query = `mutation loginWithUsername($username: String!, $password: String!) {
@@ -424,7 +427,7 @@ async function loginWithUsernameFlow(username, password) {
       throw new Error("Tài khoản hoặc mật khẩu không chính xác");
     }
 
-    console.log(
+    log.info(
       "[Auth] Step 2: Custom token obtained, exchanging for Firebase token...",
     );
     const lmsAuth = await signInWithCustomToken(customToken);
@@ -439,14 +442,14 @@ async function loginWithUsernameFlow(username, password) {
       firebaseUid = payload.sub || payload.user_id;
     }
 
-    console.log("[Auth] Step 3: Getting MindX user info...");
+    log.info("[Auth] Step 3: Getting MindX user info...");
     const mindxUser = await getUserByFirebaseId(lmsToken, firebaseUid);
 
     if (!mindxUser) throw new Error("Không tìm thấy tài khoản MindX");
     if (!mindxUser.isActive) throw new Error("Tài khoản đã bị vô hiệu hóa");
-    console.log("[Auth] MindX user found:", mindxUser.username);
+    log.info("[Auth] MindX user found:", mindxUser.username);
 
-    console.log("[Auth] Step 4: Getting LMS Role Info...");
+    log.info("[Auth] Step 4: Getting LMS Role Info...");
     const roleInfos = await getLmsRoleInfo(lmsToken, mindxUser.id);
 
     // 5. Resolve final profile & roles
@@ -454,7 +457,7 @@ async function loginWithUsernameFlow(username, password) {
 
     // Fallback: If teacherId is null, try getting it directly
     if (!finalProfile.teacherId) {
-      console.log(
+      log.info(
         "[Auth] Step 5.5: teacherId still null, trying teacherByUserId fallback...",
       );
       const directTeacherId = await getTeacherIdByUserId(
@@ -462,7 +465,7 @@ async function loginWithUsernameFlow(username, password) {
         mindxUser.id,
       );
       if (directTeacherId) {
-        console.log("[Auth] Found teacherId via fallback:", directTeacherId);
+        log.info("[Auth] Found teacherId via fallback:", directTeacherId);
         finalProfile.teacherId = directTeacherId;
         if (!finalProfile.appRoles.includes(ROLES.TEACHER)) {
           finalProfile.appRoles.push(ROLES.TEACHER);
@@ -471,7 +474,7 @@ async function loginWithUsernameFlow(username, password) {
     }
 
     if (!finalProfile.appRoles || finalProfile.appRoles.length === 0) {
-      console.error(
+      log.error(
         "[Auth] Login rejected: No valid roles resolved for user",
         mindxUser.username,
       );
@@ -480,7 +483,7 @@ async function loginWithUsernameFlow(username, password) {
       );
     }
 
-    console.log("[Auth] ✅ Login successful for roles:", finalProfile.appRoles);
+    log.info("[Auth] ✅ Login successful for roles:", finalProfile.appRoles);
     return {
       lmsToken,
       lmsRefreshToken,
@@ -488,9 +491,9 @@ async function loginWithUsernameFlow(username, password) {
       firebaseUid,
     };
   } catch (err) {
-    console.error("[Auth] Username Login flow error:", err.message);
+    log.error("[Auth] Username Login flow error:", err.message);
     if (err.response && err.response.data) {
-      console.error(
+      log.error(
         "[Auth] Response data:",
         JSON.stringify(err.response.data, null, 2),
       );

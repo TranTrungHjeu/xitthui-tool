@@ -1,3 +1,6 @@
+const { childLogger } = require("./logger.js");
+const log = childLogger("GoogleCredentials");
+
 /**
  * Google Service Account Loader
  *
@@ -94,7 +97,7 @@ function loadServiceAccountCredentials() {
   if (fs.existsSync(FALLBACK_PATH)) {
     // Legacy fallback. Logs once via console.warn (still present pre-logger refactor).
     if (typeof console !== "undefined" && console.warn) {
-      console.warn(
+      log.warn(
         `[googleCredentials] Falling back to legacy file at ${FALLBACK_PATH}. ` +
           "Migrate to GOOGLE_SERVICE_ACCOUNT_BASE64 and remove the file.",
       );

@@ -10,6 +10,9 @@ const StudentScheduler = require("../services/studentScheduler");
 const BoundedCache = require("../utils/boundedCache");
 const { VertexAI } = require("@google-cloud/vertexai");
 const { loadServiceAccountCredentials } = require("../utils/googleCredentials");
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("ClassController");
+
 const {
   getClassWeekdayIndexes,
   getRealTeacherByRole,
@@ -28,7 +31,7 @@ const vertexCredentials = (() => {
     // in production), but fall back to legacy path resolution so existing
     // deployments continue to work.
     if (typeof console !== "undefined" && console.error) {
-      console.error("[classController] Failed to load Vertex AI credentials:", err.message);
+      log.error("[classController] Failed to load Vertex AI credentials:", err.message);
     }
     return null;
   }
@@ -108,11 +111,11 @@ setInterval(() => {
     notifications: notificationCache.getStats(),
     classNotifDetails: classNotificationDetailsCache.getStats(),
   };
-  console.log(`[classController] Cache stats: classDetails=${JSON.stringify(stats.classDetails)}, notifications=${JSON.stringify(stats.notifications)}, classNotifDetails=${JSON.stringify(stats.classNotifDetails)}`);
+  log.info(`[classController] Cache stats: classDetails=${JSON.stringify(stats.classDetails)}, notifications=${JSON.stringify(stats.notifications)}, classNotifDetails=${JSON.stringify(stats.classNotifDetails)}`);
 }, 5 * 60 * 1000); // Log every 5 minutes
 
 exports.getClasses = async (req, res) => {
-  console.log("[Controller] getClasses request body:", req.body);
+  log.info("[Controller] getClasses request body:", req.body);
   try {
     // Try to get token from body or Authorization header
     let token = req.body.token;
@@ -173,8 +176,8 @@ exports.getClasses = async (req, res) => {
       meta: paginatedResult.meta,
     });
   } catch (err) {
-    console.error("[Controller] getClasses failed:", err.message);
-    console.error(
+    log.error("[Controller] getClasses failed:", err.message);
+    log.error(
       "[Controller] LMS error response:",
       JSON.stringify(err.response?.data || {}, null, 2),
     );
@@ -208,7 +211,7 @@ exports.getClassById = async (req, res) => {
     if (!noCache) {
       const cached = classDetailsCache.get(classId);
       if (cached) {
-        console.log(
+        log.info(
           `[Cache] Trả về class details từ cache cho lớp: ${classId}`,
         );
         return res.json({ success: true, data: cached });
@@ -220,7 +223,7 @@ exports.getClassById = async (req, res) => {
         const dbClass = await Class.findById(classId).lean();
         // Check if detailed information (like students roster) is already synced
         if (dbClass && dbClass.students !== undefined) {
-          console.log(`[MongoDB] Trả về class details từ MongoDB cho lớp: ${classId}`);
+          log.info(`[MongoDB] Trả về class details từ MongoDB cho lớp: ${classId}`);
           const formattedClass = {
             ...dbClass,
             id: dbClass._id,
@@ -229,7 +232,7 @@ exports.getClassById = async (req, res) => {
           return res.json({ success: true, data: formattedClass });
         }
       } catch (dbErr) {
-        console.warn(`[MongoDB] Failed to find class details: ${dbErr.message}`);
+        log.warn(`[MongoDB] Failed to find class details: ${dbErr.message}`);
       }
     }
 
@@ -290,9 +293,9 @@ exports.getClassById = async (req, res) => {
           { $set: doc },
           { upsert: true }
         );
-        console.log(`[MongoDB] Saved detailed class ${data.id} to MongoDB`);
+        log.info(`[MongoDB] Saved detailed class ${data.id} to MongoDB`);
       } catch (saveErr) {
-        console.error(`[MongoDB] Failed to save detailed class ${data.id}:`, saveErr.message);
+        log.error(`[MongoDB] Failed to save detailed class ${data.id}:`, saveErr.message);
       }
 
       const formattedClass = {
@@ -306,8 +309,8 @@ exports.getClassById = async (req, res) => {
       res.json({ success: true, data });
     }
   } catch (err) {
-    console.error("[Controller] getClassById failed:", err.message);
-    console.error(
+    log.error("[Controller] getClassById failed:", err.message);
+    log.error(
       "[Controller] LMS error response:",
       JSON.stringify(err.response?.data || {}, null, 2),
     );
@@ -373,7 +376,7 @@ exports.getClassesDetails = async (req, res) => {
           missingIds.length = 0;
           missingIds.push(...stillMissing);
         } catch (dbErr) {
-          console.warn(`[MongoDB] Failed to find multiple class details: ${dbErr.message}`);
+          log.warn(`[MongoDB] Failed to find multiple class details: ${dbErr.message}`);
         }
       }
     } else {
@@ -438,9 +441,9 @@ exports.getClassesDetails = async (req, res) => {
               { $set: doc },
               { upsert: true }
             );
-            console.log(`[MongoDB] Saved detailed class ${item.id} to MongoDB`);
+            log.info(`[MongoDB] Saved detailed class ${item.id} to MongoDB`);
           } catch (saveErr) {
-            console.error(`[MongoDB] Failed to save detailed class ${item.id}:`, saveErr.message);
+            log.error(`[MongoDB] Failed to save detailed class ${item.id}:`, saveErr.message);
           }
 
           const formattedClass = {
@@ -509,7 +512,7 @@ exports.getCourseVersion = async (req, res) => {
     const data = await client.getCourseVersionByClass(classId);
     res.json({ success: true, data });
   } catch (err) {
-    console.error("[Controller] getCourseVersion failed:", err.message);
+    log.error("[Controller] getCourseVersion failed:", err.message);
     const statusCode = isLmsAuthError(err) ? 401 : 200;
     res.status(statusCode).json({
       success: false,
@@ -575,8 +578,8 @@ exports.getSubmissions = async (req, res) => {
 
     res.json({ success: true, data });
   } catch (err) {
-    console.error("[Controller] getSubmissions failed:", err.message);
-    console.error(
+    log.error("[Controller] getSubmissions failed:", err.message);
+    log.error(
       "[Controller] LMS error response:",
       JSON.stringify(err.response?.data || {}, null, 2),
     );
@@ -771,7 +774,7 @@ exports.getStudentAIReport = async (req, res) => {
     const jsonEnd = cleanedText.lastIndexOf("}");
 
     if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
-      console.error("[Controller] AI raw response:", responseText);
+      log.error("[Controller] AI raw response:", responseText);
       throw new Error("AI response is not valid JSON");
     }
 
@@ -780,7 +783,7 @@ exports.getStudentAIReport = async (req, res) => {
 
     res.json({ success: true, data: aiResult });
   } catch (err) {
-    console.error("[Controller] getStudentAIReport failed:", err.message);
+    log.error("[Controller] getStudentAIReport failed:", err.message);
     const statusCode = isLmsAuthError(err) ? 401 : 200;
     res.status(statusCode).json({
       success: false,
@@ -815,7 +818,7 @@ exports.getClassesNotifications = async (req, res) => {
 
     const cachedData = notificationCache.get(cacheKey);
     if (cachedData) {
-      console.log(
+      log.info(
         `[Cache] Trả về notifications từ cache cho teacher: ${teacherId}`,
       );
       return res.json({ success: true, data: cachedData });
@@ -837,10 +840,10 @@ exports.getClassesNotifications = async (req, res) => {
         const activeClassIds = activeClasses.map(c => c._id);
         const deleteResult = await NotificationTicket.deleteMany({ classId: { $nin: activeClassIds } });
         if (deleteResult.deletedCount > 0) {
-          console.log(`[classController] Cleared ${deleteResult.deletedCount} orphaned class tickets from database.`);
+          log.info(`[classController] Cleared ${deleteResult.deletedCount} orphaned class tickets from database.`);
         }
       } catch (cleanupErr) {
-        console.error("[classController] Failed to cleanup finished tickets", cleanupErr.message);
+        log.error("[classController] Failed to cleanup finished tickets", cleanupErr.message);
       }
       tickets = await FirestoreNotification.getTicketsForTE(parsedCentreIds);
     } else {
@@ -1039,7 +1042,7 @@ exports.getClassesNotifications = async (req, res) => {
 
     res.json({ success: true, data: feedbackList });
   } catch (err) {
-    console.error("[Controller] getClassesNotifications failed:", err.message);
+    log.error("[Controller] getClassesNotifications failed:", err.message);
     const statusCode = isLmsAuthError(err) ? 401 : 500;
     res.status(statusCode).json({ success: false, error: err.message, data: [] });
   }
@@ -1060,7 +1063,7 @@ exports.syncNotifications = async (req, res) => {
         .status(403)
         .json({ error: "Access denied. TE role required." });
 
-    console.log("[Controller] Manual notification sync triggered by TE");
+    log.info("[Controller] Manual notification sync triggered by TE");
 
     // Chạy đồng bộ thông báo
     await NotificationScheduler.syncAllNotifications();
@@ -1070,7 +1073,7 @@ exports.syncNotifications = async (req, res) => {
 
     res.json({ success: true, message: "Đồng bộ thông báo thành công" });
   } catch (err) {
-    console.error("[Controller] syncNotifications failed:", err.message);
+    log.error("[Controller] syncNotifications failed:", err.message);
     const statusCode = isLmsAuthError(err) ? 401 : 500;
     res.status(statusCode).json({ success: false, error: err.message });
   }
@@ -1091,14 +1094,14 @@ exports.sendNotificationEmails = async (req, res) => {
         .status(403)
         .json({ error: "Access denied. TE role required." });
 
-    console.log("[Controller] Manual email notification triggered by TE");
+    log.info("[Controller] Manual email notification triggered by TE");
 
     // Chỉ gọi hàm gửi mail từ scheduler (đã viết sẵn logic nhóm và gửi)
     await NotificationScheduler.sendReminderEmails();
 
     res.json({ success: true, message: "Đã gửi email nhắc nhở thành công" });
   } catch (err) {
-    console.error("[Controller] sendNotificationEmails failed:", err.message);
+    log.error("[Controller] sendNotificationEmails failed:", err.message);
     const statusCode = isLmsAuthError(err) ? 401 : 500;
     res.status(statusCode).json({ success: false, error: err.message });
   }
@@ -1190,7 +1193,7 @@ exports.getStudents = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("[Controller] getStudents failed:", err.message);
+    log.error("[Controller] getStudents failed:", err.message);
     const statusCode = isLmsAuthError(err) ? 401 : 500;
     res.status(statusCode).json({ success: false, error: err.message });
   }
@@ -1211,7 +1214,7 @@ exports.syncStudents = async (req, res) => {
         .status(403)
         .json({ error: "Access denied. TE role required." });
 
-    console.log("[Controller] Manual student sync triggered by TE");
+    log.info("[Controller] Manual student sync triggered by TE");
 
     // Return early to not block UI
     res.json({ success: true, message: "Đồng bộ học viên đang chạy ngầm..." });
@@ -1219,7 +1222,7 @@ exports.syncStudents = async (req, res) => {
     // Run sync in background
     StudentScheduler.syncAllStudents();
   } catch (err) {
-    console.error("[Controller] syncStudents failed:", err.message);
+    log.error("[Controller] syncStudents failed:", err.message);
     if (!res.headersSent) {
       const statusCode = isLmsAuthError(err) ? 401 : 500;
       res.status(statusCode).json({ success: false, error: err.message });
@@ -1238,7 +1241,7 @@ exports.downloadAttachment = async (req, res) => {
     // Strip any dangerous patterns or sequences
     const SAFE_KEY_PATTERN = /^[a-zA-Z0-9._\/-]+$/;
     if (!SAFE_KEY_PATTERN.test(key)) {
-      console.warn(`[Controller] downloadAttachment: Invalid key pattern rejected: "${key}"`);
+      log.warn(`[Controller] downloadAttachment: Invalid key pattern rejected: "${key}"`);
       return res.status(400).send("Invalid key format. Only alphanumeric, dots, slashes, and hyphens are allowed.");
     }
 
@@ -1262,11 +1265,11 @@ exports.downloadAttachment = async (req, res) => {
 
     // Final validation after path extraction
     if (!SAFE_KEY_PATTERN.test(key) || key.includes("..")) {
-      console.warn(`[Controller] downloadAttachment: Key path traversal attempt blocked: "${key}"`);
+      log.warn(`[Controller] downloadAttachment: Key path traversal attempt blocked: "${key}"`);
       return res.status(400).send("Invalid key format.");
     }
 
-    console.log(`[Controller] downloadAttachment: key = "${key}"`);
+    log.info(`[Controller] downloadAttachment: key = "${key}"`);
 
     // Fetch the presigned URL from MindX resources API
     const response = await axios.get("https://resources.mindx.edu.vn/api/v1/get-presigned-url", {
@@ -1276,11 +1279,11 @@ exports.downloadAttachment = async (req, res) => {
     if (response.data && response.data.success && response.data.url) {
       return res.redirect(response.data.url);
     } else {
-      console.error("[Controller] Failed to get presigned URL:", response.data);
+      log.error("[Controller] Failed to get presigned URL:", response.data);
       return res.status(500).send("Could not retrieve download link from MindX API.");
     }
   } catch (err) {
-    console.error("[Controller] downloadAttachment error:", err.message);
+    log.error("[Controller] downloadAttachment error:", err.message);
     return res.status(500).send(`Error processing download: ${err.message}`);
   }
 };

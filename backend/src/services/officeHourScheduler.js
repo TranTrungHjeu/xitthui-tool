@@ -5,6 +5,9 @@ const lmsAuth = require("./lmsAuth");
 const axios = require("axios");
 const { getTdmCentreId } = require("../constants/centreIds");
 
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("OfficeHourScheduler");
+
 const GQL_QUERY = `query GetOfficeHours($payload: OfficeHourQuery) {
   officeHours(payload: $payload) {
     data {
@@ -72,7 +75,7 @@ class OfficeHourScheduler {
     cron.schedule(
       "20 2 * * *",
       async () => {
-        console.log("[OfficeHourScheduler] Starting periodic office hours sync...");
+        log.info("[OfficeHourScheduler] Starting periodic office hours sync...");
         await this.syncAllOfficeHours();
       },
       {
@@ -80,7 +83,7 @@ class OfficeHourScheduler {
         timezone: "Asia/Ho_Chi_Minh",
       }
     );
-    console.log("[OfficeHourScheduler] Initialized (scheduled daily at 2:20 AM).");
+    log.info("[OfficeHourScheduler] Initialized (scheduled daily at 2:20 AM).");
 
     // Run once on startup after 25 seconds
     setTimeout(() => {
@@ -91,13 +94,13 @@ class OfficeHourScheduler {
   static async syncAllOfficeHours() {
     try {
       if (!config.lms.masterUsername || !config.lms.masterPassword) {
-        console.warn(
+        log.warn(
           "[OfficeHourScheduler] LMS_MASTER_USERNAME or LMS_MASTER_PASSWORD not configured. Skipping sync."
         );
         return;
       }
 
-      console.log("[OfficeHourScheduler] Authenticating with LMS...");
+      log.info("[OfficeHourScheduler] Authenticating with LMS...");
       let authData;
       try {
         authData = await lmsAuth.loginWithUsernameFlow(
@@ -105,7 +108,7 @@ class OfficeHourScheduler {
           config.lms.masterPassword
         );
       } catch (authErr) {
-        console.warn(
+        log.warn(
           "[OfficeHourScheduler] Username login failed, trying Firebase flow..."
         );
         try {
@@ -114,7 +117,7 @@ class OfficeHourScheduler {
             config.lms.masterPassword
           );
         } catch (fallbackErr) {
-          console.error(
+          log.error(
             "[OfficeHourScheduler] Authentication failed. Skipping sync.",
             fallbackErr.message
           );
@@ -125,7 +128,7 @@ class OfficeHourScheduler {
       const token = authData.lmsToken;
       const targetCentreId = getTdmCentreId(); // Thủ Dầu Một
 
-      console.log(`[OfficeHourScheduler] Fetching office hours for Thủ Dầu Một...`);
+      log.info(`[OfficeHourScheduler] Fetching office hours for Thủ Dầu Một...`);
 
       // Fetch all pages dynamically until we get an empty page
       const itemsPerPage = 100;
@@ -134,7 +137,7 @@ class OfficeHourScheduler {
       let hasMore = true;
 
       while (hasMore) {
-        console.log(`[OfficeHourScheduler] Fetching page ${pageIndex + 1}...`);
+        log.info(`[OfficeHourScheduler] Fetching page ${pageIndex + 1}...`);
         
         const payload = {
           pageIndex,
@@ -165,7 +168,7 @@ class OfficeHourScheduler {
         );
 
         if (response.data.errors) {
-          console.error(`[OfficeHourScheduler] GraphQL Errors on page ${pageIndex}:`, response.data.errors);
+          log.error(`[OfficeHourScheduler] GraphQL Errors on page ${pageIndex}:`, response.data.errors);
           break;
         }
 
@@ -183,10 +186,10 @@ class OfficeHourScheduler {
         }
       }
 
-      console.log(`[OfficeHourScheduler] Fetched ${allFetched.length} office hours from LMS.`);
+      log.info(`[OfficeHourScheduler] Fetched ${allFetched.length} office hours from LMS.`);
 
       if (allFetched.length === 0) {
-        console.log("[OfficeHourScheduler] No office hours to sync.");
+        log.info("[OfficeHourScheduler] No office hours to sync.");
         return;
       }
 
@@ -223,9 +226,9 @@ class OfficeHourScheduler {
         };
       });
 
-      console.log(`[OfficeHourScheduler] Writing ${bulkOps.length} office hours to MongoDB...`);
+      log.info(`[OfficeHourScheduler] Writing ${bulkOps.length} office hours to MongoDB...`);
       const result = await OfficeHour.bulkWrite(bulkOps);
-      console.log(
+      log.info(
         `[OfficeHourScheduler] Sync completed. Upserted/updated ${result.upsertedCount + result.modifiedCount} office hours.`
       );
 
@@ -233,14 +236,14 @@ class OfficeHourScheduler {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - 1095);
 
-      console.log(`[OfficeHourScheduler] Purging office hours older than ${cutoffDate.toISOString()}...`);
+      log.info(`[OfficeHourScheduler] Purging office hours older than ${cutoffDate.toISOString()}...`);
       const deleteResult = await OfficeHour.deleteMany({
         startTime: { $lt: cutoffDate }
       });
-      console.log(`[OfficeHourScheduler] Purged ${deleteResult.deletedCount} old office hours from MongoDB.`);
+      log.info(`[OfficeHourScheduler] Purged ${deleteResult.deletedCount} old office hours from MongoDB.`);
 
     } catch (err) {
-      console.error("[OfficeHourScheduler] Sync failed:", err.message);
+      log.error("[OfficeHourScheduler] Sync failed:", err.message);
     }
   }
 }
