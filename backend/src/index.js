@@ -19,19 +19,64 @@ if (fs.existsSync(localEnvPath)) {
 
 const express = require("express");
 const cors = require("cors");
+const mongoose = require("mongoose");
 const config = require("./config");
+const healthRoutes = require("./routes/healthRoutes");
 const authRoutes = require("./routes/authRoutes");
 const classRoutes = require("./routes/classRoutes");
 const sessionRoutes = require("./routes/sessionRoutes");
 const teacherRoutes = require("./routes/teacherRoutes");
-const zaloRoutes = require("./routes/zaloRoutes");
 const spreadsheetRoutes = require("./routes/spreadsheetRoutes");
-const { startScheduler } = require("./services/zaloScheduler");
-const { startPolling } = require("./services/zaloPolling");
 const NotificationScheduler = require("./services/notificationScheduler");
 const StudentScheduler = require("./services/studentScheduler");
 const { ScheduleScheduler } = require("./services/scheduleScheduler");
 const { connectMongoDB } = require("./config/mongodb");
+
+// ---- 0. Required Environment Variables Validation ----
+const requiredEnvVars = [
+  { name: "MONGODB_URI", description: "MongoDB connection string", format: "mongodb://" },
+  { name: "FIREBASE_API_KEY", description: "Firebase API key" },
+  { name: "INTERNAL_API_KEY", description: "Internal API key for session management" },
+  { name: "NODE_ENV", description: "Environment (development/production)", values: ["development", "production"] },
+  { name: "LMS_MASTER_USERNAME", description: "LMS master account username", required: false },
+  { name: "LMS_MASTER_PASSWORD", description: "LMS master account password", required: false },
+  { name: "TOKEN_ENCRYPTION_KEY", description: "32-byte hex key for token encryption (64 hex chars)", required: false, format: "64hex" },
+];
+
+const missingEnvVars = [];
+const invalidEnvVars = [];
+
+for (const envVar of requiredEnvVars) {
+  if (envVar.required !== false && !process.env[envVar.name]) {
+    missingEnvVars.push(`${envVar.name} (${envVar.description})`);
+  } else if (envVar.format && !process.env[envVar.name]?.startsWith(envVar.format)) {
+    invalidEnvVars.push(`${envVar.name} must start with ${envVar.format}`);
+  } else if (envVar.values && !envVar.values.includes(process.env[envVar.name])) {
+    invalidEnvVars.push(`${envVar.name} must be one of: ${envVar.values.join(", ")}`);
+  } else if (envVar.format === "64hex" && process.env[envVar.name]) {
+    // Validate hex format (64 hex characters = 32 bytes)
+    if (!/^[a-fA-F0-9]{64}$/.test(process.env[envVar.name])) {
+      invalidEnvVars.push(`${envVar.name} must be exactly 64 hexadecimal characters (32 bytes)`);
+    }
+  }
+}
+
+if (missingEnvVars.length > 0 || invalidEnvVars.length > 0) {
+  console.error("=".repeat(60));
+  if (missingEnvVars.length > 0) {
+    console.error("FATAL: Missing required environment variables:");
+    missingEnvVars.forEach((v) => console.error(`  - ${v}`));
+  }
+  if (invalidEnvVars.length > 0) {
+    console.error("FATAL: Invalid environment variables:");
+    invalidEnvVars.forEach((v) => console.error(`  - ${v}`));
+  }
+  console.error("=".repeat(60));
+  console.error("Server cannot start without valid configuration. Please fix your .env file or environment.");
+  process.exit(1);
+}
+
+console.log("[EnvValidation] All required environment variables present and valid.");
 
 // ---- 1. Express API Server Setup ----
 const app = express();
@@ -46,12 +91,19 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
-      if (
-        allowedOrigins.indexOf(origin) !== -1 ||
-        process.env.NODE_ENV !== "production"
-      ) {
+      
+      // In development/test environments, allow all origins
+      if (process.env.NODE_ENV !== "production") {
         return callback(null, true);
       }
+      
+      // In production, ONLY allow explicitly whitelisted origins
+      if (allowedOrigins && allowedOrigins.indexOf(origin) !== -1) {
+        return callback(null, true);
+      }
+      
+      // Reject all other origins in production
+      console.warn(`[CORS] Rejected origin in production: ${origin}`);
       return callback(new Error("CORS policy violation"), false);
     },
     credentials: true,
@@ -60,11 +112,11 @@ app.use(
 app.use(express.json({ limit: "200kb" }));
 
 // API Routes
+app.use("/", healthRoutes);
 app.use("/", authRoutes);
 app.use("/", classRoutes);
 app.use("/", sessionRoutes);
 app.use("/", teacherRoutes);
-app.use("/zalo", zaloRoutes); // Dashboard APIs & Webhook
 app.use("/spreadsheet", spreadsheetRoutes);
 
 // Global Error Handler - Prevents server from crashing on unhandled errors
@@ -84,12 +136,8 @@ async function startApp() {
 
     // 2.1 Start API Server
     // Lắng nghe trên "0.0.0.0" thay vì "127.0.0.1" để cho phép các kết nối từ bên ngoài Internet gọi vào API trên VPS
-    app.listen(PORT, "0.0.0.0", async () => {
+    const server = app.listen(PORT, "0.0.0.0", async () => {
       console.log(`API Server is running on PORT ${PORT}`);
-      // Start Zalo Bot polling (reads messages from users)
-      startPolling();
-      // Start Zalo reminder scheduler (sends proactive reminders)
-      await startScheduler();
 
       // Start Notification Background Sync
       NotificationScheduler.start();
@@ -106,10 +154,74 @@ async function startApp() {
       // Start Office Hour Background Sync
       require("./services/officeHourScheduler").start();
     });
+
+    // Track active connections so we can drain them gracefully.
+    server.on("connection", (conn) => {
+      const key = `${conn.remoteAddress}:${conn.remotePort}`;
+      activeSockets.set(key, conn);
+      conn.on("close", () => activeSockets.delete(key));
+    });
+
+    // Register shutdown handlers (SIGTERM from orchestrators, SIGINT from dev).
+    registerGracefulShutdown(server);
   } catch (error) {
     console.error("Failed to start API server:", error);
     process.exit(1);
   }
+}
+
+// ---- 3. Graceful Shutdown ----
+const SHUTDOWN_TIMEOUT_MS = 30_000;
+const activeSockets = new Map();
+let shuttingDown = false;
+
+function registerGracefulShutdown(server) {
+  const shutdown = (signal) => {
+    if (shuttingDown) {
+      console.warn(`[Shutdown] Received ${signal} while already shutting down. Forcing exit.`);
+      process.exit(1);
+    }
+    shuttingDown = true;
+    console.log(`[Shutdown] Received ${signal}. Draining ${activeSockets.size} active connections...`);
+
+    // Stop accepting new connections, then wait for in-flight requests to finish.
+    server.close((err) => {
+      if (err) {
+        console.error(`[Shutdown] server.close() error: ${err.message}`);
+        process.exit(1);
+      }
+      console.log("[Shutdown] HTTP server closed. Disconnecting MongoDB...");
+
+      mongoose
+        .disconnect()
+        .then(() => {
+          console.log("[Shutdown] MongoDB disconnected. Exiting cleanly.");
+          process.exit(0);
+        })
+        .catch((disconnectErr) => {
+          console.error(`[Shutdown] MongoDB disconnect failed: ${disconnectErr.message}`);
+          process.exit(1);
+        });
+    });
+
+    // Force exit if the drain takes too long (e.g. a stuck request).
+    setTimeout(() => {
+      console.error(
+        `[Shutdown] Forced exit after ${SHUTDOWN_TIMEOUT_MS}ms. Active sockets: ${activeSockets.size}`,
+      );
+      process.exit(1);
+    }, SHUTDOWN_TIMEOUT_MS).unref();
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+
+  process.on("uncaughtException", (err) => {
+    console.error("[uncaughtException]", err);
+  });
+  process.on("unhandledRejection", (reason) => {
+    console.error("[unhandledRejection]", reason);
+  });
 }
 
 // Start everything
