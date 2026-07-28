@@ -1,5 +1,6 @@
 const { childLogger } = require("./logger.js");
 const log = childLogger("SchedulerUtils");
+const { notifyAlert } = require("./slackNotifier");
 
 /**
  * Scheduler Utilities - Retry Logic and Status Tracking
@@ -93,6 +94,14 @@ async function withRetry(fn, options = {}) {
 }
 
 /**
+ * Track last alerted failure count per scheduler to avoid spamming Slack.
+ * Maps schedulerName -> lastTotalFailuresWhenAlerted.
+ */
+const alertedFailureCount = new Map();
+
+const ALERT_INTERVAL_FAILURES = 5; // Alert every 5 new failures
+
+/**
  * Records scheduler run status to MongoDB
  * @param {string} schedulerName - Name of the scheduler
  * @param {Object} status - Status info
@@ -122,6 +131,37 @@ async function recordSchedulerStatus(schedulerName, status) {
       update,
       { upsert: true },
     );
+
+    // Fire a Slack alert when failure count crosses an interval threshold.
+    if (!status.success) {
+      // Look up current totalFailures so we can detect when we cross the alert threshold.
+      let currentTotalFailures = 0;
+      try {
+        const doc = await SchedulerStatus.findById(schedulerName).select("totalFailures").lean();
+        if (doc) currentTotalFailures = doc.totalFailures || 0;
+      } catch (_) {
+        // ignore lookup errors
+      }
+
+      const lastAlertedAt = alertedFailureCount.get(schedulerName) || 0;
+      if (currentTotalFailures - lastAlertedAt >= ALERT_INTERVAL_FAILURES) {
+        alertedFailureCount.set(schedulerName, currentTotalFailures);
+        // Async, non-blocking — don't await so we don't slow the scheduler.
+        notifyAlert(
+          "warning",
+          `Scheduler failure spike: ${schedulerName}`,
+          `Scheduler *${schedulerName}* has accumulated *${currentTotalFailures}* total failures. Last error:\n\`${status.error || "Unknown error"}\``,
+          {
+            Scheduler: schedulerName,
+            "Total failures": String(currentTotalFailures),
+            "Last error": status.error || "Unknown",
+            "Retries": String(status.attempts || 1),
+          },
+        ).catch((err) => {
+          log.warn("[SchedulerStatus] Slack alert failed:", err.message);
+        });
+      }
+    }
   } catch (err) {
     log.warn(
       `[SchedulerStatus] Failed to record status for ${schedulerName}:`,
