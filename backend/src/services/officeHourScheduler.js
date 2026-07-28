@@ -2,7 +2,7 @@ const cron = require("node-cron");
 const { OfficeHour } = require("../storage/mongoModels");
 const config = require("../config/index");
 const lmsAuth = require("./lmsAuth");
-const axios = require("axios");
+const { graphqlClient } = require("../utils/httpClient");
 const { getTdmCentreId } = require("../constants/centreIds");
 
 const { childLogger } = require("../utils/logger.js");
@@ -151,7 +151,7 @@ class OfficeHourScheduler {
           searchString_wordSearch: ""
         };
 
-        const response = await axios.post(
+        const response = await graphqlClient.post(
           config.lms.gatewayGraphql || "https://lms-api.mindx.edu.vn/",
           {
             operationName: "GetOfficeHours",

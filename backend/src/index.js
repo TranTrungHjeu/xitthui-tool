@@ -170,6 +170,10 @@ async function startApp() {
     // 2.1 Initialize rotating API keys (Redis-backed; falls back to legacy static key)
     await initializeKeys();
 
+    // 2.2 Warm cache: sync from LMS if MongoDB Class collection is empty
+    const ClassCacheService = require("./services/classCache");
+    await ClassCacheService.bootstrapCache();
+
     // 2.1 Start API Server
     // Lắng nghe trên "0.0.0.0" thay vì "127.0.0.1" để cho phép các kết nối từ bên ngoài Internet gọi vào API trên VPS
     const server = app.listen(PORT, "0.0.0.0", async () => {

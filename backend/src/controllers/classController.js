@@ -1,4 +1,4 @@
-const axios = require("axios");
+const { httpClient } = require("../utils/httpClient");
 const path = require("path");
 const LMSClient = require("../services/lmsClient");
 const { isLmsAuthError } = require("../utils/authError");
@@ -1272,7 +1272,7 @@ exports.downloadAttachment = async (req, res) => {
     log.info(`[Controller] downloadAttachment: key = "${key}"`);
 
     // Fetch the presigned URL from MindX resources API
-    const response = await axios.get("https://resources.mindx.edu.vn/api/v1/get-presigned-url", {
+    const response = await httpClient.get("https://resources.mindx.edu.vn/api/v1/get-presigned-url", {
       params: { key }
     });
 

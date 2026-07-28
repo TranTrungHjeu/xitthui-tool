@@ -7,6 +7,7 @@ const lmsAuth = require("./lmsAuth");
 const { extractHHMM, getVietnamNow } = require("../utils/classHelpers");
 const { withRetry, runWithStatusTracking } = require("../utils/schedulerUtils");
 const { getTdmCentreId } = require("../constants/centreIds");
+const { ATTENDANCE_STATUS } = require("../constants/attendanceStatuses");
 
 const { childLogger } = require("../utils/logger.js");
 const log = childLogger("NotificationScheduler");
@@ -294,10 +295,7 @@ class NotificationScheduler {
                 slot.studentAttendance || []
               ).filter(
                 (sa) =>
-                  (sa.status === "PRESENT" ||
-                    sa.status === "ATTENDED" ||
-                    sa.status === "LATE" ||
-                    sa.status === "LATE_ARRIVED") &&
+                  [ATTENDANCE_STATUS.PRESENT, ATTENDANCE_STATUS.ATTENDED, ATTENDANCE_STATUS.LATE, ATTENDANCE_STATUS.LATE_ARRIVED].includes(sa.status) &&
                   (!sa.comment || sa.comment.trim() === ""),
               );
 

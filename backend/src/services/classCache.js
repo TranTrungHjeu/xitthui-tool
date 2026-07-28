@@ -43,6 +43,34 @@ setInterval(() => {
 
 class ClassCacheService {
   /**
+   * Bootstrap cache on startup: if MongoDB Class collection is empty,
+   * proactively sync from LMS before the first request arrives.
+   *
+   * Called from index.js after MongoDB connects.
+   * @returns {Promise<{warmed: boolean, classCount: number}>}
+   */
+  static async bootstrapCache() {
+    try {
+      const { Class } = require("../storage/mongoModels");
+      const count = await Class.countDocuments();
+      if (count > 0) {
+        log.info(`[ClassCache] Bootstrap: ${count} classes found in MongoDB. Cache is warm.`);
+        return { warmed: false, classCount: count };
+      }
+
+      log.info("[ClassCache] Bootstrap: MongoDB Class collection is empty. Warming cache from LMS...");
+      const ClassScheduler = require("./classScheduler");
+      await ClassScheduler.syncAllClasses();
+      const newCount = await Class.countDocuments();
+      log.info(`[ClassCache] Bootstrap complete: ${newCount} classes loaded into cache.`);
+      return { warmed: true, classCount: newCount };
+    } catch (err) {
+      log.error("[ClassCache] Bootstrap failed:", err.message);
+      return { warmed: false, classCount: 0 };
+    }
+  }
+
+  /**
    * Fetch all classes (enriched) from MongoDB (and sync immediately if empty)
    */
   static async getEnrichedClasses(

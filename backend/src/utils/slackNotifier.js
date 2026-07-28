@@ -9,7 +9,7 @@
  *                       If not set, all notifySlack calls become no-ops (safe to call).
  */
 
-const axios = require("axios");
+const { httpClient } = require("../utils/httpClient");
 const { childLogger } = require("./logger.js");
 
 const log = childLogger("SlackNotifier");
@@ -35,7 +35,7 @@ async function notifySlack(text, extra = {}) {
       ...extra,
     };
 
-    await axios.post(WEBHOOK_URL, payload, {
+    await httpClient.post(WEBHOOK_URL, payload, {
       headers: { "Content-Type": "application/json" },
       timeout: 5000, // 5s — don't block schedulers on Slack being slow
     });

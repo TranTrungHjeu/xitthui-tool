@@ -1,4 +1,4 @@
-const axios = require("axios");
+const { graphqlClient } = require("../utils/httpClient");
 const config = require("../config/index");
 const { resolveUserRolesAndProfile } = require("../utils/roleResolver");
 const { ROLES } = require("../constants/roles");
@@ -26,7 +26,7 @@ function getCookies() {
  * Step 1: Sign in with email/password via Firebase REST API
  */
 async function firebaseSignIn(email, password) {
-  const res = await axios.post(
+  const res = await graphqlClient.post(
     `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
     { email, password, returnSecureToken: true },
   );
@@ -38,7 +38,7 @@ async function firebaseSignIn(email, password) {
  */
 async function getUserByFirebaseId(firebaseIdToken, firebaseUid) {
   try {
-    const res = await axios.post(
+    const res = await graphqlClient.post(
       config.lms.baseGraphql,
       {
         operationName: "User_getByFirebaseId",
@@ -112,7 +112,7 @@ async function getUserByFirebaseId(firebaseIdToken, firebaseUid) {
  */
 async function getTeacherIdByUserId(lmsIdToken, mindxUserId) {
   try {
-    const res = await axios.post(
+    const res = await graphqlClient.post(
       config.lms.gatewayGraphql || "https://lms-api.mindx.edu.vn/",
       {
         operationName: "teacherByUserId",
@@ -139,7 +139,7 @@ async function getTeacherIdByUserId(lmsIdToken, mindxUserId) {
 
 async function getLmsRoleInfo(lmsIdToken, mindxUserId) {
   try {
-    const res = await axios.post(
+    const res = await graphqlClient.post(
       config.lms.gatewayGraphql || "https://lms-api.mindx.edu.vn/",
       {
         operationName: "FindInfoInRoleById",
@@ -175,7 +175,7 @@ async function getCustomToken(firebaseIdToken) {
   const query = `mutation GetCustomToken { users { getCustomToken { customToken } } }`;
 
   try {
-    const res = await axios.post(
+    const res = await graphqlClient.post(
       config.lms.baseGraphql,
       {
         operationName: "GetCustomToken",
@@ -232,7 +232,7 @@ async function getCustomToken(firebaseIdToken) {
  * Step 4: Exchange custom token for Firebase ID token (LMS token)
  */
 async function signInWithCustomToken(customToken) {
-  const res = await axios.post(
+  const res = await graphqlClient.post(
     `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_API_KEY}`,
     { token: customToken, returnSecureToken: true },
   );
@@ -371,7 +371,7 @@ async function loginWithCredentials(email, password) {
  * Refresh LMS token using refresh token
  */
 async function refreshLmsToken(refreshToken) {
-  const res = await axios.post(
+  const res = await graphqlClient.post(
     `https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`,
     `grant_type=refresh_token&refresh_token=${refreshToken}`,
     { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
@@ -402,7 +402,7 @@ async function loginWithUsernameFlow(username, password) {
   }
 }
 `;
-    const res = await axios.post(
+    const res = await graphqlClient.post(
       "https://base-api.mindx.edu.vn/",
       {
         operationName: "loginWithUsername",

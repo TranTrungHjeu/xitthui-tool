@@ -103,7 +103,7 @@ exports.getOfficeHours = async (req, res) => {
   }
 };
 
-const axios = require("axios");
+const { graphqlClient } = require("../utils/httpClient");
 const config = require("../config/index");
 
 // SCALE-2: Master-token TTL primitive. NOT a BoundedCache instance because we
@@ -328,7 +328,7 @@ exports.getOfficeHourById = async (req, res) => {
     }`;
 
     log.info(`[OfficeHourController] Fetching detailed office hour ID: ${id} using master token`);
-    const response = await axios.post(
+    const response = await graphqlClient.post(
       config.lms.gatewayGraphql || "https://lms-api.mindx.edu.vn/",
       {
         operationName: "GetOficeHourById",

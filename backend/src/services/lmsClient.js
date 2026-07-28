@@ -1,4 +1,4 @@
-const axios = require("axios");
+const { graphqlClient } = require("../utils/httpClient");
 const config = require("../config/index");
 
 const { childLogger } = require("../utils/logger.js");
@@ -50,7 +50,7 @@ class LMSClient {
       }
     `;
     try {
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.baseUrl,
         {
           operationName: "User_getByFirebaseId",
@@ -95,7 +95,7 @@ class LMSClient {
     `;
 
     try {
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName: "teacherByUserId",
@@ -261,7 +261,7 @@ class LMSClient {
         let retries = 2;
         while (retries >= 0) {
           try {
-            res = await axios.post(
+            res = await graphqlClient.post(
               this.gatewayUrl,
               {
                 operationName: "GetClasses",
@@ -376,7 +376,7 @@ class LMSClient {
       `;
       const variables = { id: classId };
 
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName: "GetClassByIdForNotifications",
@@ -622,7 +622,7 @@ class LMSClient {
       let delay = 1000;
       while (retries >= 0) {
         try {
-          res = await axios.post(
+          res = await graphqlClient.post(
             this.gatewayUrl,
             {
               operationName: "GetClassById",
@@ -675,7 +675,7 @@ class LMSClient {
       }
     `;
 
-    const res = await axios.post(
+    const res = await graphqlClient.post(
       this.gatewayUrl,
       {
         operationName: "UpdateSlotComment",
@@ -723,7 +723,7 @@ class LMSClient {
       }
       `;
 
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName: "FindCourseVersionByClass",
@@ -827,7 +827,7 @@ class LMSClient {
       }
       `;
 
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName: "FindStudentSubmissionByClass",
@@ -869,7 +869,7 @@ class LMSClient {
   async getProfile(userId) {
     try {
       const query = `query GetProfile($id: String!) { User_getById(id: $id) { id email firstName lastName givenName username isActive } }`;
-      const profileRes = await axios.post(
+      const profileRes = await graphqlClient.post(
         this.baseUrl,
         {
           operationName: "GetProfile",
@@ -931,7 +931,7 @@ class LMSClient {
         teacherId: teacherId.toString(),
       };
 
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName: "findTeacherSchedule",
@@ -1017,7 +1017,7 @@ class LMSClient {
           type: ["CLASS_SESSION", "OFFICE_HOURS"],
         };
 
-        const res = await axios.post(
+        const res = await graphqlClient.post(
           this.gatewayUrl,
           {
             operationName: "findMultipleTeacherSchedules",
@@ -1148,7 +1148,7 @@ class LMSClient {
         joinedDate: [null, null],
       };
 
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName: "GetTeachers",
@@ -1180,7 +1180,7 @@ class LMSClient {
 
   async query(operationName, query, variables, retries = 2) {
     try {
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName,
