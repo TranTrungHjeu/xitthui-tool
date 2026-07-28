@@ -1,0 +1,89 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "confirm": "Confirm",
+    "search": "Search",
+    "noData": "No data",
+    "retry": "Retry"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "classes": "Classes",
+    "schedules": "Schedules",
+    "students": "Students",
+    "teachers": "Teachers",
+    "officeHours": "Office Hours",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "welcome": "Welcome!",
+    "invalidCredentials": "Invalid username or password"
+  },
+  "classes": {
+    "title": "Class List",
+    "searchPlaceholder": "Search classes...",
+    "noClasses": "No classes found",
+    "status": "Status",
+    "sessions": "Sessions",
+    "teacher": "Teacher",
+    "ta": "Teaching Assistant",
+    "te": "Manager",
+    "schedule": "Schedule",
+    "students": "Students",
+    "detail": "Class Details",
+    "evaluate": "Evaluate"
+  },
+  "schedules": {
+    "title": "Teaching Schedule",
+    "today": "Today",
+    "thisWeek": "This Week",
+    "noSchedule": "No schedule found"
+  },
+  "students": {
+    "title": "Student List",
+    "searchPlaceholder": "Search students...",
+    "noStudents": "No students found",
+    "attendance": "Attendance",
+    "present": "Present",
+    "absent": "Absent",
+    "late": "Late",
+    "feedback": "Feedback"
+  },
+  "officeHours": {
+    "title": "Office Hours",
+    "book": "Book Slot",
+    "noSlots": "No available slots"
+  },
+  "evaluation": {
+    "title": "Student Evaluation",
+    "placeholder": "Enter feedback for the student...",
+    "submit": "Submit Evaluation",
+    "success": "Evaluation saved",
+    "error": "Failed to save evaluation"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "pendingFeedback": "{{count}} sessions pending evaluation",
+    "reminderSent": "Reminder sent"
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile",
+    "notifications": "Notifications",
+    "language": "Language"
+  },
+  "errors": {
+    "networkError": "Network error",
+    "serverError": "Server error",
+    "unauthorized": "Unauthorized",
+    "notFound": "Not found"
+  }
+}
