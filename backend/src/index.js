@@ -22,9 +22,12 @@ if (fs.existsSync(localEnvPath)) {
 
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
 const config = require("./config");
 const healthRoutes = require("./routes/healthRoutes");
+const securityRoutes = require("./routes/securityRoutes");
 const authRoutes = require("./routes/authRoutes");
 const classRoutes = require("./routes/classRoutes");
 const sessionRoutes = require("./routes/sessionRoutes");
@@ -83,8 +86,23 @@ log.info("[EnvValidation] All required environment variables present and valid."
 
 // ---- 1. Express API Server Setup ----
 const app = express();
-// Sử dụng SERVER_PORT cho Backend API
 const PORT = process.env.SERVER_PORT;
+
+// Security headers (Helmet). Disable some defaults that conflict with SPA patterns.
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+  }),
+);
+
+// Parse cookies (needed for CSRF cookie).
+app.use(cookieParser());
+
+// ---- 1b. CSRF Protection ----
+// csurf is imported here (after cookie-parser) so it can read/write cookies.
+const { buildCsrfMiddleware } = require("./middleware/csrfMiddleware");
+const csrfMiddleware = buildCsrfMiddleware();
 
 // Cấu hình các domain được phép truy cập API (CORS)
 const allowedOrigins = process.env.ALLOWED_ORIGINS;
@@ -116,6 +134,8 @@ app.use(express.json({ limit: "200kb" }));
 
 // API Routes
 app.use("/", healthRoutes);
+app.use("/", securityRoutes);
+app.use(csrfMiddleware); // CSRF validation on all mutations (except exempt paths)
 app.use("/", authRoutes);
 app.use("/", classRoutes);
 app.use("/", sessionRoutes);
@@ -124,6 +144,15 @@ app.use("/spreadsheet", spreadsheetRoutes);
 
 // Global Error Handler - Prevents server from crashing on unhandled errors
 app.use((err, req, res, next) => {
+  // Handle CSRF token errors with a user-friendly response.
+  if (err.code === "EBADCSRFTOKEN") {
+    log.warn("[CSRF] Invalid or missing CSRF token from %s %s", req.method, req.path);
+    return res.status(403).json({
+      success: false,
+      error: "Invalid or missing CSRF token. Please refresh the page and try again.",
+      code: "EBADCSRFTOKEN",
+    });
+  }
   log.error("Unhandled Error:", err);
   res.status(500).json({
     success: false,
