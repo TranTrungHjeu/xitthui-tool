@@ -1,8 +1,10 @@
 const { graphqlClient } = require("../utils/httpClient");
 const config = require("../config/index");
-
 const { childLogger } = require("../utils/logger.js");
 const log = childLogger("LmsClient");
+
+// Re-export all GraphQL query strings so callers can inspect them.
+const QUERIES = require("./lms/queries");
 
 class LMSClient {
   constructor(token) {
@@ -39,100 +41,46 @@ class LMSClient {
   }
 
   async getUserIdByFirebaseId(firebaseUid) {
-    log.info(
-      `[LMSClient] Getting MindX User ID from Firebase UID: ${firebaseUid}`,
-    );
-    const query = `
-      query User_getByFirebaseId($id: String!) {
-        User_getByFirebaseId(firebaseId: $id) {
-          id
-        }
-      }
-    `;
+    log.info(`[LMSClient] Getting MindX User ID from Firebase UID: ${firebaseUid}`);
     try {
       const res = await graphqlClient.post(
         this.baseUrl,
-        {
-          operationName: "User_getByFirebaseId",
-          query,
-          variables: { id: firebaseUid },
-        },
+        { operationName: "User_getByFirebaseId", query: QUERIES.GET_USER_BY_FIREBASE_ID, variables: { id: firebaseUid } },
         { headers: this.headers },
       );
-
       if (res.data.errors) {
-        log.error(
-          `[LMSClient] User_getByFirebaseId errors:`,
-          JSON.stringify(res.data.errors, null, 2),
-        );
+        log.error(`[LMSClient] User_getByFirebaseId errors:`, JSON.stringify(res.data.errors, null, 2));
       }
-
       return res.data.data?.User_getByFirebaseId?.id;
     } catch (err) {
       log.error(`[LMSClient] User_getByFirebaseId failed: ${err.message}`);
-      if (err.response) {
-        log.error(
-          `[LMSClient] Response data:`,
-          JSON.stringify(err.response.data, null, 2),
-        );
-      }
+      if (err.response) log.error(`[LMSClient] Response data:`, JSON.stringify(err.response.data, null, 2));
       return null;
     }
   }
 
   async getTeacherByUserId(userId) {
-    log.info(
-      `[LMSClient] Getting Teacher info from MindX User ID: ${userId}`,
-    );
-    const query = `
-      query teacherByUserId($user: String) {
-        teacherByUserId(payload: { user: $user }) {
-          id
-          email
-          fullName
-        }
-      }
-    `;
-
+    log.info(`[LMSClient] Getting Teacher info from MindX User ID: ${userId}`);
     try {
       const res = await graphqlClient.post(
         this.gatewayUrl,
-        {
-          operationName: "teacherByUserId",
-          query,
-          variables: { user: userId },
-        },
+        { operationName: "teacherByUserId", query: QUERIES.GET_TEACHER_BY_USER_ID, variables: { user: userId } },
         { headers: this.headers },
       );
-
       if (res.data.errors) {
-        log.error(
-          `[LMSClient] teacherByUserId errors:`,
-          JSON.stringify(res.data.errors, null, 2),
-        );
+        log.error(`[LMSClient] teacherByUserId errors:`, JSON.stringify(res.data.errors, null, 2));
         throw new Error(res.data.errors[0].message);
       }
-
       const teacher = res.data.data?.teacherByUserId;
       if (teacher && teacher.id) {
-        log.info(
-          `[LMSClient] Found Teacher: ${teacher.email} (ID: ${teacher.id})`,
-        );
+        log.info(`[LMSClient] Found Teacher: ${teacher.email} (ID: ${teacher.id})`);
         return teacher;
       }
-
       log.warn(`[LMSClient] No teacher found for User ID: ${userId}`);
       throw new Error(`Không tìm thấy Teacher ID cho User ${userId}`);
     } catch (err) {
-      log.error(
-        `[LMSClient] teacherByUserId request failed: ${err.message}`,
-      );
-      if (err.response) {
-        log.error(
-          `[LMSClient] Error response body:`,
-          JSON.stringify(err.response.data, null, 2),
-        );
-      }
+      log.error(`[LMSClient] teacherByUserId request failed: ${err.message}`);
+      if (err.response) log.error(`[LMSClient] Error response body:`, JSON.stringify(err.response.data, null, 2));
       throw err;
     }
   }
@@ -181,67 +129,7 @@ class LMSClient {
       const payloadStr = payloadFields.join(", ");
       const signatureStr = signatureFields.join(", ");
 
-      const query = `
-      query GetClasses(${signatureStr}) {
-        classes(payload: {${payloadStr}}) {
-          data {
-            id
-            name
-            level
-            status
-            startDate
-            endDate
-            numberOfSessions
-            sessionHour
-            totalHour
-            course {
-              id
-              name
-              shortName
-            }
-            centre {
-              id
-              name
-              shortName
-            }
-            teachers {
-              _id
-              teacher {
-                id
-                username
-                fullName
-                email
-              }
-              role {
-                id
-                name
-                shortName
-              }
-              isActive
-            }
-            slots {
-              _id
-              date
-              startTime
-              endTime
-              teachers {
-                teacher {
-                  id
-                  fullName
-                }
-                role {
-                  shortName
-                }
-                isActive
-              }
-            }
-          }
-          pagination {
-            total
-          }
-        }
-      }
-    `;
+      const query = QUERIES.GET_CLASSES;
       let allData = [];
       let currentPageIndex = 0;
       const itemsPerPage = 100;
@@ -332,48 +220,7 @@ class LMSClient {
   async getClassByIdForNotifications(classId) {
     // Tối ưu hoá câu query GraphQL, CHỈ lấy những trường cần thiết cho việc tính Notifications
     try {
-      const query = `
-      query GetClassByIdForNotifications($id: ID!) {
-        classesById(id: $id) {
-          id
-          name
-          status
-          slots {
-            date
-            startTime
-            endTime
-            index
-            studentAttendance {
-              comment
-              status
-            }
-            teachers {
-              teacher {
-                id
-                email
-                personalEmail
-                fullName
-              }
-              role {
-                shortName
-              }
-              isActive
-            }
-          }
-          teachers {
-            teacher {
-              id
-              email
-              personalEmail
-              fullName
-            }
-            role {
-              shortName
-            }
-          }
-        }
-      }
-      `;
+      const query = QUERIES.GET_CLASS_BY_ID_FOR_NOTIFICATIONS;
       const variables = { id: classId };
 
       const res = await graphqlClient.post(
@@ -504,116 +351,7 @@ class LMSClient {
     log.info("[LMSClient] getClassById start. ClassId:", classId);
     try {
       // Sử dụng query GetClassById chuẩn lms để lấy đầy đủ chi tiết lớp học phục vụ trang chi tiết (bao gồm slots, teachers, studentAttendance,...)
-      const query = `
-      query GetClassById($id: ID!) {
-        classesById(id: $id) {
-          id
-          name
-          level
-          rejectNote
-          course {
-            id
-            name
-            shortName
-            isActive
-            numberOfSession
-            sessionHour
-            description
-            minStudents
-            maxEnrollSession
-            maxStudents
-            optimalStudents
-          }
-          startDate
-          endDate
-          status
-          centre {
-            id
-            name
-            shortName
-          }
-          numberOfSessions
-          sessionHour
-          totalHour
-          slots {
-            _id
-            date
-            startTime
-            endTime
-            index
-            sessionHour
-            summary
-            homework
-            learningLessonId
-            teachers {
-              _id
-              teacher {
-                id
-                username
-                code
-                fullName
-                email
-                phoneNumber
-                imageUrl
-              }
-              role {
-                id
-                name
-                shortName
-              }
-              isActive
-            }
-            studentAttendance {
-              _id
-              student {
-                id
-                fullName
-                phoneNumber
-                email
-                gender
-                imageUrl
-              }
-              comment
-              sendCommentStatus
-              status
-            }
-          }
-          students {
-            _id
-            student {
-              id
-              fullName
-              status
-              phoneNumber
-              email
-              gender
-              imageUrl
-            }
-            note
-            activeInClass
-            completed
-          }
-          teachers {
-            _id
-            teacher {
-              id
-              username
-              code
-              fullName
-              email
-              phoneNumber
-              imageUrl
-            }
-            role {
-              id
-              name
-              shortName
-            }
-            isActive
-          }
-        }
-      }
-      `;
+      const query = QUERIES.GET_CLASS_BY_ID;
       const variables = { id: classId };
 
       // Thêm retry đơn giản cho lỗi 502 với Exponential Backoff
@@ -665,15 +403,7 @@ class LMSClient {
   }
 
   async updateEvaluation(payload) {
-    const query = `
-      mutation UpdateSlotComment($payload: UpdateSlotCommentCommand!) {
-        classes {
-          updateSlotComment(payload: $payload) {
-            id
-          }
-        }
-      }
-    `;
+    const query = QUERIES.UPDATE_SLOT_COMMENT;
 
     const res = await graphqlClient.post(
       this.gatewayUrl,
@@ -693,42 +423,15 @@ class LMSClient {
   async getCourseVersionByClass(classId) {
     log.info("[LMSClient] getCourseVersionByClass start. ClassId:", classId);
     try {
-      const query = `
-      query FindCourseVersionByClass($classId: String!) {
-        findCourseVersionByClass(payload: { classId: $classId }) {
-          usedVersion {
-            id
-            name
-            isEnabled
-            learningCourseId
-            description
-          }
-          lessons {
-            id
-            name
-            type
-            isActive
-            learningCourseId
-            displayOrder
-            courseVersionId
-          }
-          versions {
-            id
-            name
-            isEnabled
-            learningCourseId
-            description
-          }
-        }
-      }
-      `;
+      const query = QUERIES.FIND_COURSE_VERSION_BY_CLASS;
+      const variables = { classId };
 
       const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName: "FindCourseVersionByClass",
           query,
-          variables: { classId },
+          variables,
         },
         { headers: this.headers },
       );
@@ -778,63 +481,15 @@ class LMSClient {
       classId,
     );
     try {
-      const query = `
-      query FindStudentSubmissionByClass($payload: FindStudentSubmissionByClassQuery) {
-        findStudentSubmissionByClass(payload: $payload) {
-          students {
-            id
-            displayName
-            studentUid
-            __typename
-          }
-          lessons {
-            id
-            name
-            type
-            isActive
-            displayOrder
-            __typename
-          }
-          submissions {
-            id
-            type
-            note
-            score
-            status
-            category
-            classId
-            lessonId
-            learningCourseId
-            studentUid
-            markedAt
-            markedBy
-            createdAt
-            submittedAt
-            submittedCount
-            content {
-              scratchState
-              type
-              attachments
-              totalQuiz
-              submitQuiz
-              correctAnswer
-              __typename
-            }
-            __typename
-          }
-          __typename
-        }
-      }
-      `;
+      const query = QUERIES.FIND_STUDENT_SUBMISSION_BY_CLASS;
+      const variables = { payload: { classId } };
 
       const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName: "FindStudentSubmissionByClass",
           query,
-          variables: {
-            payload: { classId },
-          },
+          variables,
         },
         { headers: this.headers },
       );
@@ -868,7 +523,7 @@ class LMSClient {
 
   async getProfile(userId) {
     try {
-      const query = `query GetProfile($id: String!) { User_getById(id: $id) { id email firstName lastName givenName username isActive } }`;
+      const query = QUERIES.GET_PROFILE;
       const profileRes = await graphqlClient.post(
         this.baseUrl,
         {
@@ -890,44 +545,13 @@ class LMSClient {
   }
 
   async getTeacherSchedules(teacherId, dateGte, dateLte) {
-    log.info(
-      `[LMSClient] getTeacherSchedules start for teacher: ${teacherId}`,
-    );
+    log.info(`[LMSClient] getTeacherSchedules start for teacher: ${teacherId}`);
     try {
-      const query = `
-        query findTeacherSchedule($dateGte: String!, $dateLte: String!, $type: [String], $teacherId: String!) {
-          findTeacherSchedule(payload: {
-            date_gte: $dateGte,
-            date_lte: $dateLte,
-            type_in: $type,
-            teacherId_eq: $teacherId
-          }) {
-            data {
-              id
-              teacherId
-              title
-              description
-              date
-              startTime
-              endTime
-              type
-              classSite {
-                class { id name }
-                centre { id name }
-              }
-              officeHour {
-                type
-                centre { id name }
-              }
-            }
-          }
-        }
-      `;
-
+      const query = QUERIES.FIND_TEACHER_SCHEDULE;
       const variables = {
         dateGte,
         dateLte,
-        type: ["CLASS_SESSION", "OFFICE_HOURS"], // Loại bỏ "AVAILABLE" khỏi request để server không trả về dữ liệu rỗng
+        type: ["CLASS_SESSION", "OFFICE_HOURS"],
         teacherId: teacherId.toString(),
       };
 
@@ -1066,79 +690,7 @@ class LMSClient {
   async getTeachers(centers = [], pageIndex = 0, itemsPerPage = 100) {
     log.info("[LMSClient] getTeachers start. Centers:", centers);
     try {
-      const query = `
-        query GetTeachers($search: String, $isActive: Boolean, $courseLine: String, $course: String, $pageIndex: Int!, $itemsPerPage: Int!, $orderBy: String, $idNotIn: [String], $centers: [String], $teacherPointFrom: Float, $teacherPointTo: Float, $joinedDate: [String]) {
-          teachers(payload: {
-            searchString_wordSearch: $search,
-            isActive_eq: $isActive,
-            courseLines_eq: $courseLine,
-            courses_eq: $course,
-            id_nin: $idNotIn,
-            pageIndex: $pageIndex,
-            itemsPerPage: $itemsPerPage,
-            orderBy: $orderBy,
-            centres_in: $centers,
-            teacherPoint_gte: $teacherPointFrom,
-            teacherPoint_lte: $teacherPointTo,
-            joinedDate: $joinedDate
-          }) {
-            data {
-              id
-              handleScore
-              hourlyRate
-              username
-              user
-              firebaseId
-              fullName
-              code
-              phoneNumber
-              email
-              personalEmail
-              gender
-              dob
-              imageUrl
-              address
-              socialMediaLink
-              courseLines {
-                id
-                name
-                __typename
-              }
-              courses {
-                id
-                name
-                shortName
-                courseTopic {
-                  id
-                  name
-                  __typename
-                }
-                __typename
-              }
-              notes
-              isActive
-              createdAt
-              createdBy
-              lastModifiedAt
-              lastModifiedBy
-              teacherPoint
-              joinedDate
-              centres {
-                id
-                name
-                __typename
-              }
-              __typename
-            }
-            pagination {
-              type
-              total
-              __typename
-            }
-            __typename
-          }
-        }
-      `;
+      const query = QUERIES.GET_TEACHERS;
       const variables = {
         search: "",
         pageIndex,
