@@ -28,9 +28,4 @@ module.exports = {
     checkInterval: 5,
     reminderHours: 24,
   },
-  zalo: {
-    oaAccessToken: process.env.ZALO_OA_ACCESS_TOKEN,
-    oaId: process.env.ZALO_OA_ID,
-    webhookSecret: process.env.ZALO_WEBHOOK_SECRET,
-  },
 };

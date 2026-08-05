@@ -67,4 +67,15 @@ export const teacherService = {
       throw error;
     }
   },
+  syncPersonnel: async (
+    roles?: string[],
+  ): Promise<{ success: boolean; message?: string; error?: string }> => {
+    try {
+      const response = await api.post("/teachers/sync", { roles });
+      return response.data;
+    } catch (error) {
+      console.error("Error triggering teacher sync:", error);
+      throw error;
+    }
+  },
 };

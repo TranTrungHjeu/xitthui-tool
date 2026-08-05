@@ -34,7 +34,7 @@ import { authService } from "@/services/authService";
 import { useRouter } from "next/navigation";
 import { isKhiemAccount } from "@/lib/utils";
 import { useTheme } from "next-themes";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 export default function SettingsPage() {
   const { user, logout } = useAuthStore();
@@ -76,7 +76,6 @@ export default function SettingsPage() {
 
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
-    toast.success(`Đã sao chép ${label}`);
   };
 
   if (!user) {
@@ -283,10 +282,6 @@ export default function SettingsPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <SettingRow
-            label="Thông báo Zalo"
-            description="Nhận thông báo nhắc nhở qua Zalo Bot"
-          />
           <SettingRow
             label="Nhắc lịch dạy"
             description="Thông báo trước buổi học 30 phút"

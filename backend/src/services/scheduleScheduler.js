@@ -3,6 +3,10 @@ const { Schedule } = require("../storage/mongoModels");
 const LMSClient = require("./lmsClient");
 const config = require("../config/index");
 const lmsAuth = require("./lmsAuth");
+const { getTdmCentreId } = require("../constants/centreIds");
+
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("ScheduleScheduler");
 
 class ScheduleScheduler {
   static start() {
@@ -10,7 +14,7 @@ class ScheduleScheduler {
     cron.schedule(
       "10 2 * * *",
       async () => {
-        console.log("[ScheduleScheduler] Starting periodic teacher schedules sync...");
+        log.info("[ScheduleScheduler] Starting periodic teacher schedules sync...");
         await this.syncAllSchedules();
       },
       {
@@ -18,7 +22,7 @@ class ScheduleScheduler {
         timezone: "Asia/Ho_Chi_Minh",
       }
     );
-    console.log("[ScheduleScheduler] Initialized (scheduled daily at 2:10 AM).");
+    log.info("[ScheduleScheduler] Initialized (scheduled daily at 2:10 AM).");
 
     // Run once on startup after 20 seconds
     setTimeout(() => {
@@ -29,13 +33,13 @@ class ScheduleScheduler {
   static async syncAllSchedules() {
     try {
       if (!config.lms.masterUsername || !config.lms.masterPassword) {
-        console.warn(
+        log.warn(
           "[ScheduleScheduler] LMS_MASTER_USERNAME or LMS_MASTER_PASSWORD not configured. Skipping schedule sync.",
         );
         return;
       }
 
-      console.log("[ScheduleScheduler] Authenticating with Master Account...");
+      log.info("[ScheduleScheduler] Authenticating with Master Account...");
       let authData;
       try {
         authData = await lmsAuth.loginWithUsernameFlow(
@@ -43,7 +47,7 @@ class ScheduleScheduler {
           config.lms.masterPassword,
         );
       } catch (authErr) {
-        console.warn(
+        log.warn(
           "[ScheduleScheduler] Username login failed, trying Firebase flow...",
         );
         try {
@@ -52,7 +56,7 @@ class ScheduleScheduler {
             config.lms.masterPassword,
           );
         } catch (fallbackErr) {
-          console.error(
+          log.error(
             "[ScheduleScheduler] Master authentication failed on both flows. Skipping schedule sync.",
             fallbackErr.message,
           );
@@ -67,9 +71,9 @@ class ScheduleScheduler {
       const finalCentreIds =
         centreIds && centreIds.length > 0
           ? centreIds
-          : ["6443460f94300678908f7974"];
+          : [getTdmCentreId()];
 
-      console.log(
+      log.info(
         `[ScheduleScheduler] Master authenticated. Fetching teachers for centres:`,
         finalCentreIds,
       );
@@ -81,7 +85,7 @@ class ScheduleScheduler {
       const teacherIds = teachers.map((t) => t.id).filter(Boolean);
 
       if (teacherIds.length === 0) {
-        console.log("[ScheduleScheduler] No teachers found to sync schedules.");
+        log.info("[ScheduleScheduler] No teachers found to sync schedules.");
         return;
       }
 
@@ -90,7 +94,7 @@ class ScheduleScheduler {
       const dateGte = startDate.toISOString();
       const dateLte = endDate.toISOString();
 
-      console.log(
+      log.info(
         `[ScheduleScheduler] Fetching schedules for ${teacherIds.length} teachers in range: ${dateGte} -> ${dateLte}`
       );
 
@@ -100,7 +104,7 @@ class ScheduleScheduler {
         dateLte
       );
 
-      console.log(
+      log.info(
         `[ScheduleScheduler] Got ${rawSchedules.length} schedules from LMS. Syncing to MongoDB...`
       );
 
@@ -130,7 +134,7 @@ class ScheduleScheduler {
 
       if (bulkOps.length > 0) {
         const writeResult = await Schedule.bulkWrite(bulkOps);
-        console.log(
+        log.info(
           `[ScheduleScheduler] Upserted/modified ${
             writeResult.upsertedCount + writeResult.modifiedCount
           } schedules in MongoDB.`
@@ -147,12 +151,12 @@ class ScheduleScheduler {
       });
 
       if (deleteResult.deletedCount > 0) {
-        console.log(
+        log.info(
           `[ScheduleScheduler] Deleted ${deleteResult.deletedCount} obsolete/cancelled schedules from MongoDB.`
         );
       }
     } catch (err) {
-      console.error("[ScheduleScheduler] syncAllSchedules failed:", err.message);
+      log.error("[ScheduleScheduler] syncAllSchedules failed:", err.message);
     }
   }
 }

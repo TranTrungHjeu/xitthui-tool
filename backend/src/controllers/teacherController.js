@@ -1,9 +1,25 @@
 const LMSClient = require("../services/lmsClient");
 const { isLmsAuthError } = require("../utils/authError");
 const { getSessionExamType } = require("../utils/courseConfig");
+const { TeacherVisibilityPrefs } = require("../storage/mongoModels");
+const TeacherStorage = require("../storage/teacherStorage");
+const TeacherScheduler = require("../services/teacherScheduler");
+const BoundedCache = require("../utils/boundedCache");
+const { getTdmCentreId } = require("../constants/centreIds");
 
-// In-memory visibility map for demonstration. Replace with persistent DB in prod.
-const teacherVisibilityPrefs = {};
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("TeacherController");
+
+// SCALE-2: Single source of truth for the teachers list cache.
+// Replaces the previous object-literal cache that duplicated both
+// definitions (top of file + line 316) and relied on manual TTL sweeps.
+const TEACHERS_CACHE_TTL_SECONDS = 15 * 60; // 15 minutes
+const TEACHERS_CACHE_MAX_KEYS = 50;
+const teachersCache = new BoundedCache({
+  maxKeys: TEACHERS_CACHE_MAX_KEYS,
+  stdTTL: TEACHERS_CACHE_TTL_SECONDS,
+  checkperiod: 5 * 60, // Sweep every 5 minutes
+});
 
 /**
  * POST /teachers/visibility
@@ -12,11 +28,23 @@ const teacherVisibilityPrefs = {};
 exports.saveTeacherVisibility = async (req, res) => {
   const { userId, hiddenTeacherIds } = req.body;
   if (!userId) return res.status(400).json({ error: "userId is required" });
-  teacherVisibilityPrefs[userId] = {
-    hiddenTeacherIds: hiddenTeacherIds || [],
-    updated: Date.now(),
-  };
-  res.json({ success: true, preferences: teacherVisibilityPrefs[userId] });
+  
+  try {
+    await TeacherVisibilityPrefs.findByIdAndUpdate(
+      userId,
+      {
+        _id: userId,
+        hiddenTeacherIds: hiddenTeacherIds || [],
+        updatedAt: new Date()
+      },
+      { upsert: true }
+    );
+    const prefs = { hiddenTeacherIds: hiddenTeacherIds || [], updated: Date.now() };
+    res.json({ success: true, preferences: prefs });
+  } catch (err) {
+    log.error("[TeacherController] saveTeacherVisibility failed:", err.message);
+    res.status(500).json({ error: "Failed to save visibility preferences" });
+  }
 };
 
 /**
@@ -26,12 +54,19 @@ exports.saveTeacherVisibility = async (req, res) => {
 exports.getTeacherVisibility = async (req, res) => {
   const userId = req.params.userId;
   if (!userId) return res.status(400).json({ error: "userId is required" });
-  const prefs = teacherVisibilityPrefs[userId] || { hiddenTeacherIds: [] };
-  res.json({ success: true, preferences: prefs });
+  
+  try {
+    const prefs = await TeacherVisibilityPrefs.findById(userId).lean();
+    const result = prefs ? { hiddenTeacherIds: prefs.hiddenTeacherIds || [], updated: prefs.updatedAt?.getTime() || null } : { hiddenTeacherIds: [] };
+    res.json({ success: true, preferences: result });
+  } catch (err) {
+    log.error("[TeacherController] getTeacherVisibility failed:", err.message);
+    res.status(500).json({ error: "Failed to get visibility preferences" });
+  }
 };
 
 exports.getTeacherSchedules = async (req, res) => {
-  console.log("[Controller] getTeacherSchedules request body:", req.body);
+  log.info("[Controller] getTeacherSchedules request body:", req.body);
   try {
     let token = req.body.token;
     if (!token && req.headers.authorization) {
@@ -75,7 +110,7 @@ exports.getTeacherSchedules = async (req, res) => {
       try {
         const dbCount = await Schedule.countDocuments();
         if (dbCount > 0) {
-          console.log(`[Controller] Querying schedules from MongoDB for range ${dateGte} -> ${dateLte}...`);
+          log.info(`[Controller] Querying schedules from MongoDB for range ${dateGte} -> ${dateLte}...`);
           const dbSchedules = await Schedule.find({
             teacherId: { $in: teacherIds },
             startTime: { $gte: dateGte },
@@ -87,16 +122,16 @@ exports.getTeacherSchedules = async (req, res) => {
             id: s._id
           }));
           fetchedFromDb = true;
-          console.log(`[Controller] Served ${allSchedules.length} schedules from MongoDB.`);
+          log.info(`[Controller] Served ${allSchedules.length} schedules from MongoDB.`);
         }
       } catch (dbErr) {
-        console.warn(`[Controller] MongoDB Schedule fetch failed: ${dbErr.message}`);
+        log.warn(`[Controller] MongoDB Schedule fetch failed: ${dbErr.message}`);
       }
     }
 
     // 3. Fallback: Query LMS directly
     if (!fetchedFromDb) {
-      console.log(`[Controller] Fetching schedules from LMS directly...`);
+      log.info(`[Controller] Fetching schedules from LMS directly...`);
       const client = new LMSClient(token);
       allSchedules = await client.getTeacherSchedulesBatch(
         teacherIds,
@@ -130,7 +165,7 @@ exports.getTeacherSchedules = async (req, res) => {
 
         if (bulkOps.length > 0) {
           Schedule.bulkWrite(bulkOps).catch(err => {
-            console.error("[Controller] Failed to write fetched schedules to MongoDB:", err.message);
+            log.error("[Controller] Failed to write fetched schedules to MongoDB:", err.message);
           });
         }
       }
@@ -152,13 +187,13 @@ exports.getTeacherSchedules = async (req, res) => {
         const dbClasses = await Class.find({ _id: { $in: Array.from(uniqueClassIds) } }).select("name slots.index slots.startTime slots.endTime slots.date slots.teachers teachers").lean();
         dbClasses.forEach(c => classDetailsMap.set(c._id, c));
       } catch (dbClassErr) {
-        console.warn(`[Controller] MongoDB Class fetch failed: ${dbClassErr.message}`);
+        log.warn(`[Controller] MongoDB Class fetch failed: ${dbClassErr.message}`);
       }
 
       // Identify missing classes not cached in MongoDB
       const missingClassIds = Array.from(uniqueClassIds).filter(id => !classDetailsMap.has(id));
       if (missingClassIds.length > 0) {
-        console.log(`[Controller] Skipping fetching ${missingClassIds.length} missing classes from LMS to optimize response time.`);
+        log.info(`[Controller] Skipping fetching ${missingClassIds.length} missing classes from LMS to optimize response time.`);
       }
 
       // Map session index and format titles
@@ -258,7 +293,7 @@ exports.getTeacherSchedules = async (req, res) => {
 
     res.json({ success: true, data: allSchedules });
   } catch (err) {
-    console.error("[Controller] getTeacherSchedules failed:", err.message);
+    log.error("[Controller] getTeacherSchedules failed:", err.message);
     const statusCode = isLmsAuthError(err) ? 401 : 200;
     res.status(statusCode).json({
       success: false,
@@ -268,28 +303,67 @@ exports.getTeacherSchedules = async (req, res) => {
   }
 };
 
-const teachersCache = {};
-
 exports.getTeachers = async (req, res) => {
-  console.log("[Controller] getTeachers request body:", req.body);
+  log.info("[Controller] getTeachers request body:", req.body);
   try {
     let token = req.body.token;
     if (!token && req.headers.authorization) {
       token = req.headers.authorization.split(" ")[1];
     }
     const {
-      centers = ["6443460f94300678908f7974"],
+      centers = [getTdmCentreId()],
       pageIndex = 0,
       itemsPerPage = 100,
     } = req.body;
 
     if (!token) return res.status(400).json({ error: "Token is required" });
 
+    // 1. Try MongoDB first (the source of truth after the first successful sync).
+    try {
+      const dbCount = await TeacherStorage.getTeachersCount();
+      if (dbCount > 0) {
+        log.info(
+          `[Controller] Serving teachers list from MongoDB (${dbCount} records).`,
+        );
+        const docs = await TeacherStorage.getAllTeachers();
+
+        // Optional centre filter, mirroring the LMS API surface.
+        const wantedCentres = new Set(
+          (Array.isArray(centers) ? centers : [centers])
+            .filter(Boolean)
+            .map((c) => c.toString()),
+        );
+        const filtered = wantedCentres.size
+          ? docs.filter((t) => {
+              const teacherCentres = Array.isArray(t.centres) ? t.centres : [];
+              return teacherCentres.some((c) => wantedCentres.has(String(c?.id)));
+            })
+          : docs;
+
+        const start = pageIndex * itemsPerPage;
+        const paginated = filtered.slice(start, start + itemsPerPage);
+
+        return res.json({
+          success: true,
+          data: paginated,
+          pagination: { total: filtered.length },
+          source: "mongodb",
+        });
+      }
+    } catch (dbErr) {
+      log.warn(
+        `[Controller] MongoDB Teacher fetch failed, falling back to LMS: ${dbErr.message}`,
+      );
+    }
+
+    // 2. Cold-start fallback: serve from LMS live and reuse the existing BoundedCache.
     const cacheKey = `${JSON.stringify(centers)}_${pageIndex}_${itemsPerPage}`;
-    const cached = teachersCache[cacheKey];
-    if (cached && (Date.now() - cached.timestamp < 15 * 60 * 1000)) {
-      console.log(`[Controller] Serving teachers list from in-memory cache for key: ${cacheKey}`);
-      return res.json(cached.response);
+    const cached = teachersCache.get(cacheKey);
+    if (cached) {
+      log.info(
+        `[Controller] Serving teachers list from BoundedCache for key: ${cacheKey}`,
+      );
+      return res.json({ ...cached, source: "cache" });
     }
 
     const client = new LMSClient(token);
@@ -299,16 +373,14 @@ exports.getTeachers = async (req, res) => {
       success: true,
       data: result.data || [],
       pagination: result.pagination || { total: 0 },
+      source: "lms",
     };
 
-    teachersCache[cacheKey] = {
-      timestamp: Date.now(),
-      response
-    };
+    teachersCache.set(cacheKey, response);
 
     res.json(response);
   } catch (err) {
-    console.error("[Controller] getTeachers failed:", err.message);
+    log.error("[Controller] getTeachers failed:", err.message);
     const statusCode = isLmsAuthError(err) ? 401 : 200;
     res.status(statusCode).json({
       success: false,
@@ -316,5 +388,51 @@ exports.getTeachers = async (req, res) => {
       pagination: { total: 0 },
       error: err.response?.data?.errors?.[0]?.message || err.message,
     });
+  }
+};
+
+/**
+ * POST /teachers/sync
+ * Fire-and-forget teacher sync from LMS → MongoDB.
+ * Requires TE role. The actual LMS fetch happens in the background; we
+ * respond immediately and invalidate the BoundedCache so the next
+ * `getTeachers` call will read from MongoDB.
+ */
+exports.syncPersonnel = async (req, res) => {
+  try {
+    const { roles } = req.body || {};
+    const isTE =
+      (Array.isArray(roles) && roles.includes("TE")) ||
+      (req.user && Array.isArray(req.user.appRoles) && req.user.appRoles.includes("TE"));
+
+    if (!isTE) {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. TE role required.",
+      });
+    }
+
+    log.info("[Controller] Manual teacher sync triggered by TE");
+
+    // Fire-and-forget: respond immediately, then kick off the sync.
+    res.json({
+      success: true,
+      message: "Đang đồng bộ nhân sự từ LMS...",
+    });
+
+    TeacherScheduler.syncAllPersonnel()
+      .then(() => {
+        // Invalidate cache so the next read goes through MongoDB.
+        teachersCache.flushAll();
+      })
+      .catch((err) => {
+        log.error("[Controller] syncPersonnel background job failed:", err.message);
+      });
+  } catch (err) {
+    log.error("[Controller] syncPersonnel failed:", err.message);
+    if (!res.headersSent) {
+      const statusCode = isLmsAuthError(err) ? 401 : 500;
+      res.status(statusCode).json({ success: false, error: err.message });
+    }
   }
 };

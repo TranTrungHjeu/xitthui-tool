@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { teacherService } from "../../../services/teacherService";
+import api from "../../../services/api";
 import { isActualKhiemAccount } from "../../../lib/utils";
 import { extractHHMM, extractDatePart } from "../../../lib/date";
 import {
@@ -33,6 +34,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Button } from "../../../components/ui/button";
+import { AlertModal } from "../../../components/ui/alert-modal";
 import {
   startOfWeek,
   endOfWeek,
@@ -316,6 +318,34 @@ export default function SchedulesPage() {
 
   const showLoading = useMinLoading(isLoading, 1000);
 
+  // Map of sessionDate_str to set of classIds/scheduleIds that have a GK assigned (examiner booking)
+  const [gkAssignedSessionKeys, setGkAssignedSessionKeys] = useState<Set<string>>(new Set());
+  const gkFetchTokenRef = useRef(0);
+
+  const fetchGkAssignmentsForWeek = async (date: Date) => {
+    const tokenId = ++gkFetchTokenRef.current;
+    try {
+      const monday = startOfWeek(date, { weekStartsOn: 1 });
+      const sunday = endOfWeek(date, { weekStartsOn: 1 });
+      const params = new URLSearchParams({
+        dateGte: monday.toISOString().split("T")[0],
+        dateLte: sunday.toISOString().split("T")[0],
+      });
+      const response = await api.get(`/spreadsheet/gk-assignments?${params.toString()}`);
+      if (tokenId !== gkFetchTokenRef.current) return;
+      if (response.data?.success) {
+        const keys = new Set<string>((response.data.keys || []) as string[]);
+        setGkAssignedSessionKeys(keys);
+      } else {
+        setGkAssignedSessionKeys(new Set());
+      }
+    } catch (err) {
+      if (tokenId !== gkFetchTokenRef.current) return;
+      console.warn("Failed to fetch GK assignments:", err);
+      setGkAssignedSessionKeys(new Set());
+    }
+  };
+
   const teacherCentreIds = useMemo(() => {
     const centres = user?.teacherCentres;
     if (!Array.isArray(centres) || centres.length === 0) {
@@ -426,6 +456,7 @@ export default function SchedulesPage() {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       fetchSchedulesForDate(selectedDate);
+      fetchGkAssignmentsForWeek(selectedDate);
     }, 0);
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -913,12 +944,20 @@ export default function SchedulesPage() {
     );
   };
 
+  const sessionHasExaminer = (sch: Schedule): boolean => {
+    if (sch.type !== "CLASS_SESSION") return false;
+    const titleLower = (sch.title || "").toLowerCase();
+    if (!titleLower.includes("demo")) return false;
+    const sessionKey = `${(sch as any)._id || sch.id}`;
+    return gkAssignedSessionKeys.has(sessionKey);
+  };
+
   const getScheduleTitle = (sch: Schedule) => {
     const centerName =
       sch.classSite?.centre?.name || sch.officeHour?.centre?.name || "—";
     const start = getLocalTime(sch.startTime);
     const end = getLocalTime(sch.endTime);
-    
+
     let roleName = sch.teacherRole;
     if (roleName) {
       const upper = roleName.toUpperCase();
@@ -1096,11 +1135,17 @@ export default function SchedulesPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="p-3 text-sm bg-destructive/10 text-destructive rounded-lg shrink-0 border border-destructive/20">
-          {error}
-        </div>
-      )}
+      {/* Errors surface as <AlertModal>; banner removed for visual
+          consistency with the rest of the app. */}
+
+      <AlertModal
+        variant="error"
+        open={!!error}
+        onOpenChange={(open) => {
+          if (!open) setError(null);
+        }}
+        message={error ?? ""}
+      />
 
       <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden relative flex-1 flex flex-col">
         {showLoading && (
@@ -1217,6 +1262,7 @@ export default function SchedulesPage() {
                                           setViewingSchedule(sch);
                                         }}
                                         className={`w-full cursor-pointer overflow-hidden p-1.5 transition-all hover:brightness-95 rounded ${getScheduleStyle(sch)}`}
+                                        title={getScheduleTitle(sch)}
                                       >
                                         <div className="flex flex-col gap-0.5 w-full">
                                           <div className="flex items-center justify-between gap-1 w-full">
@@ -1225,7 +1271,17 @@ export default function SchedulesPage() {
                                                 ? getShortClassName(sch.classSite.class.name)
                                                 : (sch.type === "OFFICE_HOURS" ? "OFFICE" : sch.type)}
                                             </span>
-                                            {sch.teacherRole && renderRoleBadge(sch.teacherRole)}
+                                            <div className="flex items-center gap-1 shrink-0">
+                                              {sessionHasExaminer(sch) && (
+                                                <span
+                                                  className="bg-orange-500 text-white text-[8px] px-1 rounded font-bold shadow-2xs"
+                                                  title="Đã có giám khảo"
+                                                >
+                                                  GK
+                                                </span>
+                                              )}
+                                              {sch.teacherRole && renderRoleBadge(sch.teacherRole)}
+                                            </div>
                                           </div>
                                           {isOther ? (
                                             <span className="truncate text-[7.5px] md:text-[8px] block text-muted-foreground font-normal leading-none">

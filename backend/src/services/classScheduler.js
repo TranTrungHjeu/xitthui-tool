@@ -4,6 +4,9 @@ const LMSClient = require("./lmsClient");
 const config = require("../config/index");
 const lmsAuth = require("./lmsAuth");
 const { getCourseCategory } = require("../utils/courseConfig");
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("ClassScheduler");
+
 const {
   getClassWeekdayIndexes,
   getRealTeacherByRole,
@@ -18,7 +21,7 @@ class ClassScheduler {
     cron.schedule(
       "0 2 * * *",
       async () => {
-        console.log("[ClassScheduler] Starting periodic class data sync...");
+        log.info("[ClassScheduler] Starting periodic class data sync...");
         await this.syncAllClasses();
       },
       {
@@ -26,7 +29,7 @@ class ClassScheduler {
         timezone: "Asia/Ho_Chi_Minh",
       }
     );
-    console.log("[ClassScheduler] Initialized (scheduled daily at 2:00 AM).");
+    log.info("[ClassScheduler] Initialized (scheduled daily at 2:00 AM).");
 
     // Run once on startup after 5 seconds
     setTimeout(() => {
@@ -37,13 +40,13 @@ class ClassScheduler {
   static async syncAllClasses() {
     try {
       if (!config.lms.masterUsername || !config.lms.masterPassword) {
-        console.warn(
+        log.warn(
           "[ClassScheduler] LMS_MASTER_USERNAME or LMS_MASTER_PASSWORD not configured. Skipping class sync.",
         );
         return;
       }
 
-      console.log("[ClassScheduler] Authenticating with Master Account...");
+      log.info("[ClassScheduler] Authenticating with Master Account...");
       let authData;
       try {
         authData = await lmsAuth.loginWithUsernameFlow(
@@ -51,7 +54,7 @@ class ClassScheduler {
           config.lms.masterPassword,
         );
       } catch (authErr) {
-        console.warn(
+        log.warn(
           "[ClassScheduler] Username login failed, trying Firebase flow...",
         );
         try {
@@ -60,7 +63,7 @@ class ClassScheduler {
             config.lms.masterPassword,
           );
         } catch (fallbackErr) {
-          console.error(
+          log.error(
             "[ClassScheduler] Master authentication failed on both flows. Skipping class sync.",
             fallbackErr.message,
           );
@@ -69,15 +72,15 @@ class ClassScheduler {
       }
 
       const { lmsToken: token } = authData;
-      console.log("[ClassScheduler] Master authenticated. Fetching classes from LMS...");
+      log.info("[ClassScheduler] Master authenticated. Fetching classes from LMS...");
       const client = new LMSClient(token);
       
       // Fetch all classes across all centres and statuses
       const rawClasses = await client.getClasses(null, null, null, true);
-      console.log(`[ClassScheduler] Got ${rawClasses.length} classes from LMS.`);
+      log.info(`[ClassScheduler] Got ${rawClasses.length} classes from LMS.`);
 
       if (rawClasses.length === 0) {
-        console.log("[ClassScheduler] No classes fetched.");
+        log.info("[ClassScheduler] No classes fetched.");
         return;
       }
 
@@ -85,7 +88,7 @@ class ClassScheduler {
       const rawClassIds = rawClasses.map(cls => cls.id);
       const deleteResult = await Class.deleteMany({ _id: { $nin: rawClassIds } });
       if (deleteResult.deletedCount > 0) {
-        console.log(`[ClassScheduler] Deleted ${deleteResult.deletedCount} obsolete classes from MongoDB.`);
+        log.info(`[ClassScheduler] Deleted ${deleteResult.deletedCount} obsolete classes from MongoDB.`);
       }
 
       // Fetch full class details (roster, slots with studentAttendance) for active classes,
@@ -109,7 +112,7 @@ class ClassScheduler {
       });
       const activeClassIds = activeClasses.map(cls => cls.id);
 
-      console.log(`[ClassScheduler] Fetching full details for ${activeClassIds.length} active classes from LMS...`);
+      log.info(`[ClassScheduler] Fetching full details for ${activeClassIds.length} active classes from LMS...`);
       const detailedMap = new Map();
       try {
         const details = await client.getClassesDetails(activeClassIds);
@@ -121,7 +124,7 @@ class ClassScheduler {
           });
         }
       } catch (detailErr) {
-        console.error("[ClassScheduler] Failed to fetch detailed classes:", detailErr.message);
+        log.error("[ClassScheduler] Failed to fetch detailed classes:", detailErr.message);
       }
 
       const bulkOps = rawClasses.map(cls => {
@@ -179,13 +182,13 @@ class ClassScheduler {
         };
       });
 
-      console.log(`[ClassScheduler] Writing ${bulkOps.length} classes to MongoDB...`);
+      log.info(`[ClassScheduler] Writing ${bulkOps.length} classes to MongoDB...`);
       const result = await Class.bulkWrite(bulkOps);
-      console.log(
+      log.info(
         `[ClassScheduler] Class sync completed. Upserted/updated ${result.upsertedCount + result.modifiedCount} classes.`
       );
     } catch (err) {
-      console.error("[ClassScheduler] syncAllClasses failed:", err.message);
+      log.error("[ClassScheduler] syncAllClasses failed:", err.message);
     }
   }
 }

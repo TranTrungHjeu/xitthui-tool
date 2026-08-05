@@ -3,8 +3,7 @@ import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Toaster } from "sonner";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ToastProvider } from "@/components/ui/toast";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -47,30 +46,11 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full bg-background text-foreground flex flex-col" suppressHydrationWarning>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem
-          disableTransitionOnChange
-        >
+        <ToastProvider>
           <TooltipProvider delayDuration={200} skipDelayDuration={300}>
             {children}
           </TooltipProvider>
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              classNames: {
-                toast: "group toast bg-popover border border-border text-popover-foreground shadow-lg rounded-lg",
-                title: "text-sm font-medium",
-                description: "text-xs text-muted-foreground",
-                actionButton: "bg-primary text-primary-foreground",
-                cancelButton: "bg-muted text-muted-foreground",
-              },
-            }}
-            richColors
-            closeButton
-          />
-        </ThemeProvider>
+        </ToastProvider>
       </body>
     </html>
   );

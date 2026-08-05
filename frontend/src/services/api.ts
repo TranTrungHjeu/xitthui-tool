@@ -6,11 +6,37 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true,
 });
 
 // Variable to prevent multiple refresh calls
 let isRefreshing = false;
 let failedQueue: any[] = [];
+
+/**
+ * Broadcast that the session has ended so the UI layer (a SessionGuard
+ * provider inside the React tree) can show a friendly toast and redirect
+ * to /login. Keeping this as a window event avoids leaking Next.js' router
+ * into the axios service layer.
+ *
+ * The event is dispatched exactly once per session, even if multiple
+ * requests 401 simultaneously — the queued requests resolved by the failed
+ * `processQueue(...)` call don't trigger another logout here.
+ */
+const SESSION_EXPIRED_EVENT = "auth:session-expired";
+function dispatchSessionExpired() {
+  if (typeof window === "undefined") return;
+  // Avoid duplicate dispatches when several 401s land at the same time.
+  if ((window as any).__sessionExpiredDispatched) return;
+  (window as any).__sessionExpiredDispatched = true;
+  window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+  // Reset after a tick so a *future* login → eventual expiry can fire again.
+  setTimeout(() => {
+    (window as any).__sessionExpiredDispatched = false;
+  }, 1000);
+}
+
+export { SESSION_EXPIRED_EVENT };
 
 const processQueue = (error: any, token: string | null = null) => {
   failedQueue.forEach((prom) => {
@@ -95,6 +121,7 @@ api.interceptors.response.use(
 
       if (!sessionId) {
         logout(); // Log out if no session ID is available
+        dispatchSessionExpired();
         isRefreshing = false;
         processQueue(new Error("No session ID available"), null); // Reject pending requests
         return Promise.reject(error);
@@ -141,6 +168,7 @@ api.interceptors.response.use(
             null,
           );
           logout();
+          dispatchSessionExpired();
           return Promise.reject(
             new Error(response.data.error || "Refresh token failed"),
           );
@@ -149,6 +177,7 @@ api.interceptors.response.use(
         console.error("Error during token refresh:", refreshError);
         processQueue(refreshError, null);
         logout();
+        dispatchSessionExpired();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

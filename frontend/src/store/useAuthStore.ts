@@ -20,6 +20,31 @@ interface AuthState {
   clearClasses: () => void;
 }
 
+// Cap the persisted classes array to avoid blowing up the localStorage quota
+// when a teacher has 1000+ classes. Full slot/student payloads are stripped
+// down to lightweight metadata so each entry stays small.
+const MAX_STORED_CLASSES = 200;
+
+function toLightweightClass(cls: any): any {
+  if (!cls || typeof cls !== "object") return cls;
+  const { id, name, status, slots, slotCount, slotsCount, ...rest } = cls;
+  const meta: Record<string, any> = { ...rest };
+  if (id !== undefined) meta.id = id;
+  if (name !== undefined) meta.name = name;
+  if (status !== undefined) meta.status = status;
+  const resolvedSlotsCount =
+    typeof slotsCount === "number"
+      ? slotsCount
+      : typeof slotCount === "number"
+        ? slotCount
+        : Array.isArray(slots)
+          ? slots.length
+          : undefined;
+  if (resolvedSlotsCount !== undefined) meta.slotsCount = resolvedSlotsCount;
+  delete meta.slots;
+  return meta;
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -60,7 +85,11 @@ export const useAuthStore = create<AuthState>()(
         })),
       setClasses: (classes) =>
         set({
-          classes,
+          // Slice to the first MAX_STORED_CLASSES items and strip deep per-slot
+          // data so the persisted cache cannot exceed localStorage quota.
+          classes: (classes || [])
+            .slice(0, MAX_STORED_CLASSES)
+            .map(toLightweightClass),
           lastClassesFetch: Date.now(),
         }),
       mergeClassDetails: (classes) =>

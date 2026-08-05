@@ -1,5 +1,8 @@
 const { Session } = require("./mongoModels");
 
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("SessionStorage");
+
 class SessionStorage {
   /**
    * Tạo session mới khi user login
@@ -15,10 +18,10 @@ class SessionStorage {
         },
         { upsert: true, returnDocument: 'after' }
       );
-      console.log(`[SessionStorage] Created/Updated session: ${sessionData.sessionId}`);
+      log.info(`[SessionStorage] Created/Updated session: ${sessionData.sessionId}`);
       return sessionData.sessionId;
     } catch (error) {
-      console.error("[SessionStorage] Error creating session:", error);
+      log.error("[SessionStorage] Error creating session:", error);
       return null;
     }
   }
@@ -37,7 +40,7 @@ class SessionStorage {
       );
       return true;
     } catch (error) {
-      console.error("[SessionStorage] Error updating session:", error);
+      log.error("[SessionStorage] Error updating session:", error);
       return false;
     }
   }
@@ -54,7 +57,7 @@ class SessionStorage {
         sessionId: doc._id
       };
     } catch (error) {
-      console.error("[SessionStorage] Error getting session:", error);
+      log.error("[SessionStorage] Error getting session:", error);
       return null;
     }
   }
@@ -71,10 +74,10 @@ class SessionStorage {
           updatedAt: new Date()
         }
       );
-      console.log(`[SessionStorage] Revoked session: ${sessionId}`);
+      log.info(`[SessionStorage] Revoked session: ${sessionId}`);
       return true;
     } catch (error) {
-      console.error("[SessionStorage] Error revoking session:", error);
+      log.error("[SessionStorage] Error revoking session:", error);
       return false;
     }
   }

@@ -1,17 +1,54 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+/**
+ * Role constants - shared between frontend and backend
+ * Keep these in sync with backend/src/constants/roles.js
+ */
+export const ROLES = {
+  TEACHER: "TEACHER",
+  TE: "TE",
+} as const;
+
+export type AppRole = (typeof ROLES)[keyof typeof ROLES];
+
+/**
+ * Check if user has TE role
+ * Source of truth for TE role checks in the frontend.
+ */
+export function isTE(user: any): boolean {
+  if (!user) return false;
+  const roles = user.appRoles || user.roles || [];
+  return Array.isArray(roles) && roles.includes(ROLES.TE);
+}
+
+/**
+ * Check if user has Teacher role
+ */
+export function isTeacher(user: any): boolean {
+  if (!user) return false;
+  const roles = user.appRoles || user.roles || [];
+  return Array.isArray(roles) && roles.includes(ROLES.TEACHER);
+}
+
+/**
+ * Check if user has any elevated role
+ */
+export function isElevatedRole(user: any): boolean {
+  return isTE(user) || isTeacher(user);
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 export function isKhiemAccount(user: any): boolean {
   if (!user) return false;
-  
-  const isTE = Array.isArray(user.appRoles) && user.appRoles.includes("TE");
-  
+
+  const isTERole = isTE(user);
+
   return (
-    isTE ||
+    isTERole ||
     user.username === "lekhiem2002" ||
     user.username === "I3470" ||
     user.email === "lekhiem2002@mindx.net.vn" ||
@@ -109,18 +146,20 @@ export function formatDateDMY(date: Date): string {
 }
 
 export function formatSlotDateTime(
-  dateInput: string | Date,
+  dateInput: string | Date | null | undefined,
   startTime?: string,
   endTime?: string
 ): string {
-  let date: Date;
-  if (typeof dateInput === "string") {
-    date = parseSlotDate(dateInput);
-  } else {
-    date = dateInput;
+  if (dateInput === null || dateInput === undefined || dateInput === "") {
+    return "—";
   }
 
-  if (isNaN(date.getTime())) return String(dateInput);
+  const date: Date =
+    typeof dateInput === "string" ? parseSlotDate(dateInput) : dateInput;
+
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return "—";
+  }
 
   const timePart = [formatTimePart(startTime), formatTimePart(endTime)]
     .filter(Boolean)

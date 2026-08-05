@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { AlertModal } from "@/components/ui/alert-modal";
 import {
   Avatar,
   AvatarFallback,
@@ -37,6 +38,7 @@ import {
 import { Search, Users, Eye, EyeOff, Info, RefreshCw, RotateCcw, X } from "lucide-react";
 import { useMinLoading } from "@/hooks/useMinLoading";
 import { Teacher } from "@/types";
+import { toast } from "@/components/ui/toast";
 
 const formatGender = (gender: string) => {
   if (!gender) return "—";
@@ -66,6 +68,7 @@ export default function PersonnelPage() {
   );
   const [totalTeachers, setTotalTeachers] = useState(0);
   const [view, setView] = useState<"all" | "active" | "inactive">("active");
+  const [syncing, setSyncing] = useState(false);
 
   const showLoading = useMinLoading(isLoading, 600);
   const isTE = user?.appRoles?.includes("TE" as any);
@@ -211,6 +214,26 @@ export default function PersonnelPage() {
     }
   };
 
+  const handleSyncPersonnel = async () => {
+    setSyncing(true);
+    try {
+      const res = await teacherService.syncPersonnel(user?.appRoles);
+      if (res?.success) {
+        toast.success(res.message || "Đang đồng bộ nhân sự từ LMS...");
+      } else {
+        toast.error("Không thể đồng bộ. Vui lòng thử lại.");
+      }
+      // Reset module-level cache so the next read hits the freshly-updated MongoDB.
+      cachedTeachers = null;
+      globalFetchPromise = null;
+      await handleRefresh();
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi khi đồng bộ LMS.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto w-full flex flex-col h-full">
       <PageHeader
@@ -218,24 +241,34 @@ export default function PersonnelPage() {
         title="Nhân sự"
         description={`${filtered.length} / ${totalTeachers} nhân viên trong hệ thống`}
         actions={
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs font-semibold gap-1.5"
-            onClick={handleRefresh}
-            disabled={showLoading}
-          >
-            <RotateCcw className={`h-3.5 w-3.5 ${showLoading ? "animate-spin" : ""}`} />
-            <span>Làm mới</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            {isTE && (
+              <Button
+                size="sm"
+                className="h-8 text-xs font-semibold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={handleSyncPersonnel}
+                disabled={syncing || showLoading}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+                <span>{syncing ? "Đang đồng bộ..." : "Đồng bộ LMS"}</span>
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs font-semibold gap-1.5"
+              onClick={handleRefresh}
+              disabled={showLoading}
+            >
+              <RotateCcw className={`h-3.5 w-3.5 ${showLoading ? "animate-spin" : ""}`} />
+              <span>Làm mới</span>
+            </Button>
+          </div>
         }
       />
 
-      {error && (
-        <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive border border-destructive/20 font-medium">
-          {error}
-        </div>
-      )}
+      {/* Errors are surfaced via <AlertModal> below; inline banner removed
+          for visual consistency with the rest of the app. */}
 
       {/* Main card view */}
       <div className="flex-1 border border-border bg-card shadow-xs overflow-hidden relative flex flex-col rounded-xl">
@@ -486,6 +519,15 @@ export default function PersonnelPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertModal
+        variant="error"
+        open={!!error}
+        onOpenChange={(open) => {
+          if (!open) setError(null);
+        }}
+        message={error ?? ""}
+      />
     </div>
   );
 }

@@ -5,6 +5,12 @@ export const authService = {
     const response = await api.post("/login", credentials);
     return response.data;
   },
+  // Dev-only: server-side fills the password. Only available when the
+  // backend has /dev-login mounted (NODE_ENV !== production on the server).
+  devLogin: async (username: string) => {
+    const response = await api.post("/dev-login", { username });
+    return response.data;
+  },
   refreshToken: async (sessionId: string) => {
     const response = await api.post("/refresh-token", { sessionId });
     return response.data;

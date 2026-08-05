@@ -1,5 +1,29 @@
-const axios = require("axios");
+const { graphqlClient } = require("../utils/httpClient");
 const config = require("../config/index");
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("LmsClient");
+
+// Retry cap constants.
+// The cap below prevents the scheduler (and any other caller) from hanging
+// indefinitely when the LMS gateway keeps returning 502/503/504. Each manual
+// retry loop in this file MUST honor TOTAL_TIMEOUT_MS by throwing
+// `new Error("LMS request timed out")` with the original error as `.cause`
+// before scheduling the next retry.
+const MAX_RETRIES = 3;
+const TOTAL_TIMEOUT_MS = 30_000;
+
+// Re-export all GraphQL query strings so callers can inspect them.
+const QUERIES = require("./lms/queries");
+
+/**
+ * Throw an LMS request timed-out error with the original cause attached.
+ * Used by every retry loop in this file when TOTAL_TIMEOUT_MS is reached.
+ */
+function throwLmsTimeout(originalError) {
+  const timeoutErr = new Error("LMS request timed out");
+  timeoutErr.cause = originalError;
+  throw timeoutErr;
+}
 
 class LMSClient {
   constructor(token) {
@@ -17,7 +41,7 @@ class LMSClient {
   }
 
   async getTeacherId(uid) {
-    console.log(`[LMSClient] getTeacherId for UID: ${uid}`);
+    log.info(`[LMSClient] getTeacherId for UID: ${uid}`);
 
     // If it's a 24-char hex, it's a MindX User ID
     const isMindXId = /^[0-9a-fA-F]{24}$/.test(uid);
@@ -36,100 +60,46 @@ class LMSClient {
   }
 
   async getUserIdByFirebaseId(firebaseUid) {
-    console.log(
-      `[LMSClient] Getting MindX User ID from Firebase UID: ${firebaseUid}`,
-    );
-    const query = `
-      query User_getByFirebaseId($id: String!) {
-        User_getByFirebaseId(firebaseId: $id) {
-          id
-        }
-      }
-    `;
+    log.info(`[LMSClient] Getting MindX User ID from Firebase UID: ${firebaseUid}`);
     try {
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.baseUrl,
-        {
-          operationName: "User_getByFirebaseId",
-          query,
-          variables: { id: firebaseUid },
-        },
+        { operationName: "User_getByFirebaseId", query: QUERIES.GET_USER_BY_FIREBASE_ID, variables: { id: firebaseUid } },
         { headers: this.headers },
       );
-
       if (res.data.errors) {
-        console.error(
-          `[LMSClient] User_getByFirebaseId errors:`,
-          JSON.stringify(res.data.errors, null, 2),
-        );
+        log.error(`[LMSClient] User_getByFirebaseId errors:`, JSON.stringify(res.data.errors, null, 2));
       }
-
       return res.data.data?.User_getByFirebaseId?.id;
     } catch (err) {
-      console.error(`[LMSClient] User_getByFirebaseId failed: ${err.message}`);
-      if (err.response) {
-        console.error(
-          `[LMSClient] Response data:`,
-          JSON.stringify(err.response.data, null, 2),
-        );
-      }
+      log.error(`[LMSClient] User_getByFirebaseId failed: ${err.message}`);
+      if (err.response) log.error(`[LMSClient] Response data:`, JSON.stringify(err.response.data, null, 2));
       return null;
     }
   }
 
   async getTeacherByUserId(userId) {
-    console.log(
-      `[LMSClient] Getting Teacher info from MindX User ID: ${userId}`,
-    );
-    const query = `
-      query teacherByUserId($user: String) {
-        teacherByUserId(payload: { user: $user }) {
-          id
-          email
-          fullName
-        }
-      }
-    `;
-
+    log.info(`[LMSClient] Getting Teacher info from MindX User ID: ${userId}`);
     try {
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
-        {
-          operationName: "teacherByUserId",
-          query,
-          variables: { user: userId },
-        },
+        { operationName: "teacherByUserId", query: QUERIES.GET_TEACHER_BY_USER_ID, variables: { user: userId } },
         { headers: this.headers },
       );
-
       if (res.data.errors) {
-        console.error(
-          `[LMSClient] teacherByUserId errors:`,
-          JSON.stringify(res.data.errors, null, 2),
-        );
+        log.error(`[LMSClient] teacherByUserId errors:`, JSON.stringify(res.data.errors, null, 2));
         throw new Error(res.data.errors[0].message);
       }
-
       const teacher = res.data.data?.teacherByUserId;
       if (teacher && teacher.id) {
-        console.log(
-          `[LMSClient] Found Teacher: ${teacher.email} (ID: ${teacher.id})`,
-        );
+        log.info(`[LMSClient] Found Teacher: ${teacher.email} (ID: ${teacher.id})`);
         return teacher;
       }
-
-      console.warn(`[LMSClient] No teacher found for User ID: ${userId}`);
+      log.warn(`[LMSClient] No teacher found for User ID: ${userId}`);
       throw new Error(`Không tìm thấy Teacher ID cho User ${userId}`);
     } catch (err) {
-      console.error(
-        `[LMSClient] teacherByUserId request failed: ${err.message}`,
-      );
-      if (err.response) {
-        console.error(
-          `[LMSClient] Error response body:`,
-          JSON.stringify(err.response.data, null, 2),
-        );
-      }
+      log.error(`[LMSClient] teacherByUserId request failed: ${err.message}`);
+      if (err.response) log.error(`[LMSClient] Error response body:`, JSON.stringify(err.response.data, null, 2));
       throw err;
     }
   }
@@ -145,7 +115,7 @@ class LMSClient {
     statusIn = null,
     fetchAllPages = false,
   ) {
-    console.log("[LMSClient] getClasses start.", {
+    log.info("[LMSClient] getClasses start.", {
       teacherId,
       centreIds,
       fetchAllPages,
@@ -178,67 +148,7 @@ class LMSClient {
       const payloadStr = payloadFields.join(", ");
       const signatureStr = signatureFields.join(", ");
 
-      const query = `
-      query GetClasses(${signatureStr}) {
-        classes(payload: {${payloadStr}}) {
-          data {
-            id
-            name
-            level
-            status
-            startDate
-            endDate
-            numberOfSessions
-            sessionHour
-            totalHour
-            course {
-              id
-              name
-              shortName
-            }
-            centre {
-              id
-              name
-              shortName
-            }
-            teachers {
-              _id
-              teacher {
-                id
-                username
-                fullName
-                email
-              }
-              role {
-                id
-                name
-                shortName
-              }
-              isActive
-            }
-            slots {
-              _id
-              date
-              startTime
-              endTime
-              teachers {
-                teacher {
-                  id
-                  fullName
-                }
-                role {
-                  shortName
-                }
-                isActive
-              }
-            }
-          }
-          pagination {
-            total
-          }
-        }
-      }
-    `;
+      const query = QUERIES.GET_CLASSES;
       let allData = [];
       let currentPageIndex = 0;
       const itemsPerPage = 100;
@@ -255,10 +165,11 @@ class LMSClient {
         };
 
         let res;
-        let retries = 2;
+        const startTime = Date.now();
+        let retries = MAX_RETRIES;
         while (retries >= 0) {
           try {
-            res = await axios.post(
+            res = await graphqlClient.post(
               this.gatewayUrl,
               {
                 operationName: "GetClasses",
@@ -269,8 +180,11 @@ class LMSClient {
             );
             break;
           } catch (e) {
+            if (Date.now() - startTime >= TOTAL_TIMEOUT_MS) {
+              throwLmsTimeout(e);
+            }
             if (e.response && e.response.status === 502 && retries > 0) {
-              console.log(
+              log.info(
                 `[LMSClient] 502 Bad Gateway for GetClasses. Retrying... (${retries} left)`,
               );
               retries--;
@@ -286,7 +200,7 @@ class LMSClient {
         }
 
         if (res.data.errors) {
-          console.error(
+          log.error(
             "[LMSClient] GetClasses GraphQL errors:",
             res.data.errors,
           );
@@ -294,7 +208,7 @@ class LMSClient {
         }
 
         if (!res.data.data || !res.data.data.classes) {
-          console.error(
+          log.error(
             "[LMSClient] GetClasses: Invalid response structure",
             res.data,
           );
@@ -303,7 +217,7 @@ class LMSClient {
 
         const pageData = res.data.data.classes.data || [];
         const totalCount = res.data.data.classes.pagination?.total || 0;
-        console.log(
+        log.info(
           `[LMSClient] GetClasses page ${currentPageIndex}: got ${pageData.length} items. Total: ${totalCount}`,
         );
         allData = allData.concat(pageData);
@@ -321,7 +235,7 @@ class LMSClient {
 
       return allData;
     } catch (err) {
-      console.error("[LMSClient] getClasses failed:", err.message);
+      log.error("[LMSClient] getClasses failed:", err.message);
       throw err;
     }
   }
@@ -329,51 +243,10 @@ class LMSClient {
   async getClassByIdForNotifications(classId) {
     // Tối ưu hoá câu query GraphQL, CHỈ lấy những trường cần thiết cho việc tính Notifications
     try {
-      const query = `
-      query GetClassByIdForNotifications($id: ID!) {
-        classesById(id: $id) {
-          id
-          name
-          status
-          slots {
-            date
-            startTime
-            endTime
-            index
-            studentAttendance {
-              comment
-              status
-            }
-            teachers {
-              teacher {
-                id
-                email
-                personalEmail
-                fullName
-              }
-              role {
-                shortName
-              }
-              isActive
-            }
-          }
-          teachers {
-            teacher {
-              id
-              email
-              personalEmail
-              fullName
-            }
-            role {
-              shortName
-            }
-          }
-        }
-      }
-      `;
+      const query = QUERIES.GET_CLASS_BY_ID_FOR_NOTIFICATIONS;
       const variables = { id: classId };
 
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName: "GetClassByIdForNotifications",
@@ -393,7 +266,7 @@ class LMSClient {
 
       return res.data.data?.classesById;
     } catch (err) {
-      console.error(
+      log.error(
         `[LMSClient] getClassByIdForNotifications failed for ${classId}:`,
         err.message,
       );
@@ -412,17 +285,21 @@ class LMSClient {
 
     for (let i = 0; i < classIds.length; i += batchSize) {
       const batch = classIds.slice(i, i + batchSize);
-      console.log(
+      log.info(
         `[LMSClient] Fetching notification details batch ${Math.floor(i / batchSize) + 1} (${batch.length} classes)...`,
       );
 
       const batchResults = await Promise.all(
         batch.map(async (classId) => {
-          let retries = 2;
+          const startTime = Date.now();
+          let retries = MAX_RETRIES;
           while (retries >= 0) {
             try {
               return await this.getClassByIdForNotifications(classId);
             } catch (err) {
+              if (Date.now() - startTime >= TOTAL_TIMEOUT_MS) {
+                throwLmsTimeout(err);
+              }
               // Lỗi xác thực thì văng ra ngoài ngay
               if (
                 err.message.includes("Authentication failed") ||
@@ -434,7 +311,7 @@ class LMSClient {
               }
               // Lỗi mạng hoặc 502/429 => Retry
               if (retries > 0) {
-                console.log(
+                log.info(
                   `[LMSClient] Retrying fetch for class ${classId} due to error: ${err.message}. Retries left: ${retries}`,
                 );
                 await new Promise((r) => setTimeout(r, 500)); // Đợi nhẹ 0.5s trước khi retry
@@ -454,7 +331,7 @@ class LMSClient {
   }
 
   async getClassesDetails(classIds) {
-    console.log(
+    log.info(
       "[LMSClient] getClassesDetails start. Number of classIds:",
       classIds?.length || 0,
     );
@@ -469,7 +346,7 @@ class LMSClient {
 
     for (let i = 0; i < classIds.length; i += batchSize) {
       const batch = classIds.slice(i, i + batchSize);
-      console.log(
+      log.info(
         `[LMSClient] Fetching batch ${Math.floor(i / batchSize) + 1} (${batch.length} classes)...`,
       );
 
@@ -478,7 +355,7 @@ class LMSClient {
           try {
             return await this.getClassById(classId);
           } catch (err) {
-            console.error(
+            log.error(
               `[LMSClient] Failed to fetch details for class ${classId}:`,
               err.message,
             );
@@ -490,7 +367,7 @@ class LMSClient {
     }
 
     const filteredResults = results.filter(Boolean);
-    console.log(
+    log.info(
       `[LMSClient] getClassesDetails finished. Found ${filteredResults.length}/${classIds.length} details.`,
     );
 
@@ -498,128 +375,20 @@ class LMSClient {
   }
 
   async getClassById(classId) {
-    console.log("[LMSClient] getClassById start. ClassId:", classId);
+    log.info("[LMSClient] getClassById start. ClassId:", classId);
     try {
       // Sử dụng query GetClassById chuẩn lms để lấy đầy đủ chi tiết lớp học phục vụ trang chi tiết (bao gồm slots, teachers, studentAttendance,...)
-      const query = `
-      query GetClassById($id: ID!) {
-        classesById(id: $id) {
-          id
-          name
-          level
-          rejectNote
-          course {
-            id
-            name
-            shortName
-            isActive
-            numberOfSession
-            sessionHour
-            description
-            minStudents
-            maxEnrollSession
-            maxStudents
-            optimalStudents
-          }
-          startDate
-          endDate
-          status
-          centre {
-            id
-            name
-            shortName
-          }
-          numberOfSessions
-          sessionHour
-          totalHour
-          slots {
-            _id
-            date
-            startTime
-            endTime
-            index
-            sessionHour
-            summary
-            homework
-            learningLessonId
-            teachers {
-              _id
-              teacher {
-                id
-                username
-                code
-                fullName
-                email
-                phoneNumber
-                imageUrl
-              }
-              role {
-                id
-                name
-                shortName
-              }
-              isActive
-            }
-            studentAttendance {
-              _id
-              student {
-                id
-                fullName
-                phoneNumber
-                email
-                gender
-                imageUrl
-              }
-              comment
-              sendCommentStatus
-              status
-            }
-          }
-          students {
-            _id
-            student {
-              id
-              fullName
-              status
-              phoneNumber
-              email
-              gender
-              imageUrl
-            }
-            note
-            activeInClass
-            completed
-          }
-          teachers {
-            _id
-            teacher {
-              id
-              username
-              code
-              fullName
-              email
-              phoneNumber
-              imageUrl
-            }
-            role {
-              id
-              name
-              shortName
-            }
-            isActive
-          }
-        }
-      }
-      `;
+      const query = QUERIES.GET_CLASS_BY_ID;
       const variables = { id: classId };
 
       // Thêm retry đơn giản cho lỗi 502 với Exponential Backoff
       let res;
-      let retries = 4;
+      const startTime = Date.now();
+      let retries = MAX_RETRIES;
       let delay = 1000;
       while (retries >= 0) {
         try {
-          res = await axios.post(
+          res = await graphqlClient.post(
             this.gatewayUrl,
             {
               operationName: "GetClassById",
@@ -630,8 +399,11 @@ class LMSClient {
           );
           break; // success
         } catch (e) {
+          if (Date.now() - startTime >= TOTAL_TIMEOUT_MS) {
+            throwLmsTimeout(e);
+          }
           if (e.response && e.response.status === 502 && retries > 0) {
-            console.log(
+            log.info(
               `[LMSClient] 502 Bad Gateway for GetClassById(${classId}). Retrying... (${retries} left)`,
             );
             retries--;
@@ -653,7 +425,7 @@ class LMSClient {
 
       return res.data.data?.classesById;
     } catch (err) {
-      console.error(
+      log.error(
         `[LMSClient] getClassByIdForNotifications failed for ${classId}:`,
         err.message,
       );
@@ -662,17 +434,9 @@ class LMSClient {
   }
 
   async updateEvaluation(payload) {
-    const query = `
-      mutation UpdateSlotComment($payload: UpdateSlotCommentCommand!) {
-        classes {
-          updateSlotComment(payload: $payload) {
-            id
-          }
-        }
-      }
-    `;
+    const query = QUERIES.UPDATE_SLOT_COMMENT;
 
-    const res = await axios.post(
+    const res = await graphqlClient.post(
       this.gatewayUrl,
       {
         operationName: "UpdateSlotComment",
@@ -688,51 +452,24 @@ class LMSClient {
   }
 
   async getCourseVersionByClass(classId) {
-    console.log("[LMSClient] getCourseVersionByClass start. ClassId:", classId);
+    log.info("[LMSClient] getCourseVersionByClass start. ClassId:", classId);
     try {
-      const query = `
-      query FindCourseVersionByClass($classId: String!) {
-        findCourseVersionByClass(payload: { classId: $classId }) {
-          usedVersion {
-            id
-            name
-            isEnabled
-            learningCourseId
-            description
-          }
-          lessons {
-            id
-            name
-            type
-            isActive
-            learningCourseId
-            displayOrder
-            courseVersionId
-          }
-          versions {
-            id
-            name
-            isEnabled
-            learningCourseId
-            description
-          }
-        }
-      }
-      `;
+      const query = QUERIES.FIND_COURSE_VERSION_BY_CLASS;
+      const variables = { classId };
 
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName: "FindCourseVersionByClass",
           query,
-          variables: { classId },
+          variables,
         },
         { headers: this.headers },
       );
 
       if (!res || !res.data) throw new Error("Empty response from LMS API");
       if (res.data.errors) {
-        console.error(
+        log.error(
           "[LMSClient] FindCourseVersionByClass errors:",
           JSON.stringify(res.data.errors, null, 2),
         );
@@ -760,7 +497,7 @@ class LMSClient {
         versions: data.versions || [],
       };
     } catch (err) {
-      console.error(
+      log.error(
         "[LMSClient] getCourseVersionByClass failed:",
         err.message,
         err.response?.data ? JSON.stringify(err.response.data, null, 2) : "",
@@ -770,75 +507,27 @@ class LMSClient {
   }
 
   async getStudentSubmissionsByClass(classId) {
-    console.log(
+    log.info(
       "[LMSClient] getStudentSubmissionsByClass start. ClassId:",
       classId,
     );
     try {
-      const query = `
-      query FindStudentSubmissionByClass($payload: FindStudentSubmissionByClassQuery) {
-        findStudentSubmissionByClass(payload: $payload) {
-          students {
-            id
-            displayName
-            studentUid
-            __typename
-          }
-          lessons {
-            id
-            name
-            type
-            isActive
-            displayOrder
-            __typename
-          }
-          submissions {
-            id
-            type
-            note
-            score
-            status
-            category
-            classId
-            lessonId
-            learningCourseId
-            studentUid
-            markedAt
-            markedBy
-            createdAt
-            submittedAt
-            submittedCount
-            content {
-              scratchState
-              type
-              attachments
-              totalQuiz
-              submitQuiz
-              correctAnswer
-              __typename
-            }
-            __typename
-          }
-          __typename
-        }
-      }
-      `;
+      const query = QUERIES.FIND_STUDENT_SUBMISSION_BY_CLASS;
+      const variables = { payload: { classId } };
 
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName: "FindStudentSubmissionByClass",
           query,
-          variables: {
-            payload: { classId },
-          },
+          variables,
         },
         { headers: this.headers },
       );
 
       if (!res || !res.data) throw new Error("Empty response from LMS API");
       if (res.data.errors) {
-        console.error(
+        log.error(
           "[LMSClient] GraphQL errors:",
           JSON.stringify(res.data.errors, null, 2),
         );
@@ -854,7 +543,7 @@ class LMSClient {
         submissions: raw.submissions || [],
       };
     } catch (err) {
-      console.error(
+      log.error(
         "[LMSClient] getStudentSubmissionsByClass failed:",
         err.message,
         err.response?.data ? JSON.stringify(err.response.data, null, 2) : "",
@@ -865,8 +554,8 @@ class LMSClient {
 
   async getProfile(userId) {
     try {
-      const query = `query GetProfile($id: String!) { User_getById(id: $id) { id email firstName lastName givenName username isActive } }`;
-      const profileRes = await axios.post(
+      const query = QUERIES.GET_PROFILE;
+      const profileRes = await graphqlClient.post(
         this.baseUrl,
         {
           operationName: "GetProfile",
@@ -876,59 +565,28 @@ class LMSClient {
         { headers: this.headers },
       );
       if (profileRes.data.errors) {
-        console.error("[LMSClient] GetProfile errors:", profileRes.data.errors);
+        log.error("[LMSClient] GetProfile errors:", profileRes.data.errors);
         return null;
       }
       return profileRes.data.data?.User_getById;
     } catch (err) {
-      console.error("[LMSClient] GetProfile request failed:", err.message);
+      log.error("[LMSClient] GetProfile request failed:", err.message);
       return null;
     }
   }
 
   async getTeacherSchedules(teacherId, dateGte, dateLte) {
-    console.log(
-      `[LMSClient] getTeacherSchedules start for teacher: ${teacherId}`,
-    );
+    log.info(`[LMSClient] getTeacherSchedules start for teacher: ${teacherId}`);
     try {
-      const query = `
-        query findTeacherSchedule($dateGte: String!, $dateLte: String!, $type: [String], $teacherId: String!) {
-          findTeacherSchedule(payload: {
-            date_gte: $dateGte,
-            date_lte: $dateLte,
-            type_in: $type,
-            teacherId_eq: $teacherId
-          }) {
-            data {
-              id
-              teacherId
-              title
-              description
-              date
-              startTime
-              endTime
-              type
-              classSite {
-                class { id name }
-                centre { id name }
-              }
-              officeHour {
-                type
-                centre { id name }
-              }
-            }
-          }
-        }
-      `;
-
+      const query = QUERIES.FIND_TEACHER_SCHEDULE;
       const variables = {
         dateGte,
         dateLte,
-        type: ["CLASS_SESSION", "OFFICE_HOURS"], // Loại bỏ "AVAILABLE" khỏi request để server không trả về dữ liệu rỗng
+        type: ["CLASS_SESSION", "OFFICE_HOURS"],
         teacherId: teacherId.toString(),
       };
 
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName: "findTeacherSchedule",
@@ -939,7 +597,7 @@ class LMSClient {
       );
 
       if (res.data.errors) {
-        console.error(
+        log.error(
           `[LMSClient] findTeacherSchedule errors for ${teacherId}:`,
           res.data.errors,
         );
@@ -948,7 +606,7 @@ class LMSClient {
 
       return res.data.data?.findTeacherSchedule?.data || [];
     } catch (err) {
-      console.error(
+      log.error(
         `[LMSClient] getTeacherSchedules failed for ${teacherId}:`,
         err.message,
       );
@@ -957,7 +615,7 @@ class LMSClient {
   }
 
   async getTeacherSchedulesBatch(teacherIds, dateGte, dateLte) {
-    console.log(
+    log.info(
       `[LMSClient] getTeacherSchedulesBatch start for ${teacherIds.length} teachers`,
     );
     if (!teacherIds || teacherIds.length === 0) return [];
@@ -1014,7 +672,7 @@ class LMSClient {
           type: ["CLASS_SESSION", "OFFICE_HOURS"],
         };
 
-        const res = await axios.post(
+        const res = await graphqlClient.post(
           this.gatewayUrl,
           {
             operationName: "findMultipleTeacherSchedules",
@@ -1028,7 +686,7 @@ class LMSClient {
           const failedPaths = res.data.errors
             .map((err) => err.path?.[0])
             .filter(Boolean);
-          console.warn(
+          log.warn(
             `[LMSClient] getTeacherSchedulesBatch partial errors for ${res.data.errors.length} teachers. Failed paths (Forbidden, etc.):`,
             failedPaths.join(", "),
           );
@@ -1036,7 +694,8 @@ class LMSClient {
 
         const data = res.data.data || {};
         Object.keys(data).forEach((key) => {
-          const list = data[key]?.data || [];
+          if (!Array.isArray(data[key]?.data)) return; // Bounds check
+          const list = data[key].data;
           // Extract the original teacher ID from the alias (e.g., t_6a2a...)
           const actualTeacherId = key.replace(/^t_/, "");
 
@@ -1051,7 +710,7 @@ class LMSClient {
 
       return allResults;
     } catch (err) {
-      console.error(
+      log.error(
         `[LMSClient] getTeacherSchedulesBatch general failure:`,
         err.message,
       );
@@ -1060,81 +719,9 @@ class LMSClient {
   }
 
   async getTeachers(centers = [], pageIndex = 0, itemsPerPage = 100) {
-    console.log("[LMSClient] getTeachers start. Centers:", centers);
+    log.info("[LMSClient] getTeachers start. Centers:", centers);
     try {
-      const query = `
-        query GetTeachers($search: String, $isActive: Boolean, $courseLine: String, $course: String, $pageIndex: Int!, $itemsPerPage: Int!, $orderBy: String, $idNotIn: [String], $centers: [String], $teacherPointFrom: Float, $teacherPointTo: Float, $joinedDate: [String]) {
-          teachers(payload: {
-            searchString_wordSearch: $search,
-            isActive_eq: $isActive,
-            courseLines_eq: $courseLine,
-            courses_eq: $course,
-            id_nin: $idNotIn,
-            pageIndex: $pageIndex,
-            itemsPerPage: $itemsPerPage,
-            orderBy: $orderBy,
-            centres_in: $centers,
-            teacherPoint_gte: $teacherPointFrom,
-            teacherPoint_lte: $teacherPointTo,
-            joinedDate: $joinedDate
-          }) {
-            data {
-              id
-              handleScore
-              hourlyRate
-              username
-              user
-              firebaseId
-              fullName
-              code
-              phoneNumber
-              email
-              personalEmail
-              gender
-              dob
-              imageUrl
-              address
-              socialMediaLink
-              courseLines {
-                id
-                name
-                __typename
-              }
-              courses {
-                id
-                name
-                shortName
-                courseTopic {
-                  id
-                  name
-                  __typename
-                }
-                __typename
-              }
-              notes
-              isActive
-              createdAt
-              createdBy
-              lastModifiedAt
-              lastModifiedBy
-              teacherPoint
-              joinedDate
-              centres {
-                id
-                name
-                __typename
-              }
-              __typename
-            }
-            pagination {
-              type
-              total
-              __typename
-            }
-            __typename
-          }
-        }
-      `;
+      const query = QUERIES.GET_TEACHERS;
       const variables = {
         search: "",
         pageIndex,
@@ -1144,7 +731,7 @@ class LMSClient {
         joinedDate: [null, null],
       };
 
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName: "GetTeachers",
@@ -1156,7 +743,7 @@ class LMSClient {
 
       if (!res || !res.data) throw new Error("Empty response from LMS API");
       if (res.data.errors) {
-        console.error(
+        log.error(
           "[LMSClient] GetTeachers GraphQL errors:",
           JSON.stringify(res.data.errors, null, 2),
         );
@@ -1165,7 +752,7 @@ class LMSClient {
 
       return res.data.data?.teachers || { data: [], pagination: { total: 0 } };
     } catch (err) {
-      console.error(
+      log.error(
         "[LMSClient] getTeachers failed:",
         err.message,
         err.response?.data ? JSON.stringify(err.response.data, null, 2) : "",
@@ -1174,9 +761,9 @@ class LMSClient {
     }
   }
 
-  async query(operationName, query, variables, retries = 2) {
+  async query(operationName, query, variables, retries = MAX_RETRIES, startTime = Date.now()) {
     try {
-      const res = await axios.post(
+      const res = await graphqlClient.post(
         this.gatewayUrl,
         {
           operationName,
@@ -1194,23 +781,29 @@ class LMSClient {
             firstError.includes("Connection dropped")) &&
           retries > 0
         ) {
-          console.warn(
+          if (Date.now() - startTime >= TOTAL_TIMEOUT_MS) {
+            throwLmsTimeout(new Error(firstError));
+          }
+          log.warn(
             `[LMSClient] Connection dropped. Retrying... (${retries} left)`,
           );
           // Đợi 1s trước khi thử lại
           await new Promise((resolve) => setTimeout(resolve, 1000));
-          return this.query(operationName, query, variables, retries - 1);
+          return this.query(operationName, query, variables, retries - 1, startTime);
         }
         throw new Error(firstError);
       }
       return res.data.data;
     } catch (err) {
       if (retries > 0 && err.code !== "ECONNABORTED") {
-        console.warn(
+        if (Date.now() - startTime >= TOTAL_TIMEOUT_MS) {
+          throwLmsTimeout(err);
+        }
+        log.warn(
           `[LMSClient] Request failed. Retrying... (${retries} left)`,
         );
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        return this.query(operationName, query, variables, retries - 1);
+        return this.query(operationName, query, variables, retries - 1, startTime);
       }
       throw err;
     }

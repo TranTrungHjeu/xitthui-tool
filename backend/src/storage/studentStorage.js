@@ -1,5 +1,8 @@
 const { Student } = require("./mongoModels");
 
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("StudentStorage");
+
 class StudentStorage {
   /**
    * Save a batch of students to MongoDB.
@@ -30,11 +33,11 @@ class StudentStorage {
         }));
 
       await Student.bulkWrite(operations);
-      console.log(
+      log.info(
         `[StudentStorage] Successfully synced ${studentsList.length} students to MongoDB.`
       );
     } catch (error) {
-      console.error("[StudentStorage] Error saving students:", error);
+      log.error("[StudentStorage] Error saving students:", error);
     }
   }
 
@@ -65,7 +68,7 @@ class StudentStorage {
         id: doc._id,
       }));
     } catch (error) {
-      console.error("[StudentStorage] Error getting students for user:", error);
+      log.error("[StudentStorage] Error getting students for user:", error);
       return [];
     }
   }
@@ -78,12 +81,12 @@ class StudentStorage {
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const result = await Student.deleteMany({ updatedAt: { $lt: sevenDaysAgo } });
       if (result.deletedCount > 0) {
-        console.log(
+        log.info(
           `[StudentStorage] Cleaned up ${result.deletedCount} stale students.`
         );
       }
     } catch (error) {
-      console.error("[StudentStorage] Error cleaning stale students:", error);
+      log.error("[StudentStorage] Error cleaning stale students:", error);
     }
   }
 }

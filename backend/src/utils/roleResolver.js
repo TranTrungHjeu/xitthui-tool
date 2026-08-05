@@ -1,4 +1,17 @@
 const { ROLES, getPermissionsForRoles } = require("../constants/roles");
+const { isSpecialAccount } = require("./roleUtils");
+const { DEFAULT_TDM_CENTRE_ID, getTdmCentreId } = require("../constants/centreIds");
+
+const { childLogger } = require("./logger.js");
+const log = childLogger("RoleResolver");
+
+/**
+ * Default centre ID for TDM (Thủ Dầu Một)
+ * Re-exported for backward compatibility; the canonical definition lives in
+ * `constants/centreIds.js`. New code should import directly from there.
+ */
+const _defaultTdmCentreIdExport = DEFAULT_TDM_CENTRE_ID;
+void _defaultTdmCentreIdExport; // keep the re-export explicit
 
 /**
  * Hàm đánh giá và chuẩn hóa tài khoản từ MindX API thành profile của App.
@@ -31,7 +44,7 @@ function resolveUserRolesAndProfile(baseUser, roleInfos = []) {
 
   // 1. Phân tích các role trả về từ lms-api.mindx.edu.vn (Profile Giảng viên)
   if (Array.isArray(roleInfos)) {
-    console.log(
+    log.info(
       "[RoleResolver] User roleInfos:",
       JSON.stringify(
         roleInfos.map((r) => ({
@@ -81,21 +94,17 @@ function resolveUserRolesAndProfile(baseUser, roleInfos = []) {
         }
       }
     });
-    console.log("[RoleResolver] Resolved teacherId:", teacherId);
+    log.info("[RoleResolver] Resolved teacherId:", teacherId);
   }
 
-  // 2. Rule gán Role thủ công (Đặc quyền cho tài khoản TE: lekhiem2002)
-  const isKheim =
-    baseUser.username === "lekhiem2002" ||
-    baseUser.email === "lekhiem2002@mindx.net.vn" ||
-    baseUser.username === "I3470" ||
-    baseUser.email === "khiemlt@mindx.com.vn";
-
-  if (isKheim) {
+  // 2. Rule gán Role thủ công (Đặc quyền cho tài khoản TE đặc biệt)
+  // Sử dụng hàm isSpecialAccount từ roleUtils để đảm bảo tính nhất quán
+  if (isSpecialAccount(baseUser)) {
     appRoles.add(ROLES.TE);
-    // Tiêm cứng trung tâm Thủ Dầu Một để lấy đúng class ở TDM, thay vì load toàn bộ class của hệ thống
+    // Tiêm trung tâm Thủ Dầu Một để lấy đúng class ở TDM, thay vì load toàn bộ class của hệ thống
+    const tdmCentreId = getTdmCentreId();
     const tdmCentre = {
-      id: "6443460f94300678908f7974",
+      id: tdmCentreId,
       name: "Thủ Dầu Một - Bình Dương",
       shortName: "TDM",
     };
@@ -122,4 +131,5 @@ function resolveUserRolesAndProfile(baseUser, roleInfos = []) {
 
 module.exports = {
   resolveUserRolesAndProfile,
+  DEFAULT_TDM_CENTRE_ID,
 };

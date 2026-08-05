@@ -1,7 +1,11 @@
 const { OfficeHour } = require("../storage/mongoModels");
+const { getTdmCentreId } = require("../constants/centreIds");
+
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("OfficeHourController");
 
 exports.getOfficeHours = async (req, res) => {
-  console.log("[OfficeHourController] getOfficeHours body:", req.body);
+  log.info("[OfficeHourController] getOfficeHours body:", req.body);
   try {
     const {
       teacherId,
@@ -29,7 +33,7 @@ exports.getOfficeHours = async (req, res) => {
         queryFilter["centre.id"] = { $in: centreIds };
       } else {
         // Fallback to Thủ Dầu Một if centreIds is empty
-        queryFilter["centre.id"] = "6443460f94300678908f7974";
+        queryFilter["centre.id"] = getTdmCentreId();
       }
     } else {
       // Regular Teacher: Can only see their own office hours
@@ -39,9 +43,13 @@ exports.getOfficeHours = async (req, res) => {
       queryFilter["teacher.id"] = teacherId;
     }
 
-    // 2. Search filter
+    // 2. Search filter - ReDoS protection: limit input length and sanitize
     if (search && search.trim() !== "") {
-      const searchRegex = new RegExp(search.trim(), "i");
+      // WARNING: Limit search input to prevent ReDoS
+      const sanitizedSearch = search.trim().substring(0, 100); // Max 100 chars
+      // Escape regex special characters to prevent ReDoS
+      const escapedSearch = sanitizedSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const searchRegex = new RegExp(escapedSearch, "i");
       queryFilter.$or = [
         { "teacher.fullName": searchRegex },
         { "teacher.code": searchRegex },
@@ -67,7 +75,7 @@ exports.getOfficeHours = async (req, res) => {
     const pageNum = parseInt(page, 10) || 1;
     const skipNum = (pageNum - 1) * limitNum;
 
-    console.log("[OfficeHourController] Executing query:", JSON.stringify(queryFilter));
+    log.info("[OfficeHourController] Executing query:", JSON.stringify(queryFilter));
 
     const total = await OfficeHour.countDocuments(queryFilter);
     const data = await OfficeHour.find(queryFilter)
@@ -87,7 +95,7 @@ exports.getOfficeHours = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error("[OfficeHourController] Failed to get office hours:", err.message);
+    log.error("[OfficeHourController] Failed to get office hours:", err.message);
     res.status(500).json({
       success: false,
       error: "Không thể tải danh sách office hours"
@@ -95,9 +103,17 @@ exports.getOfficeHours = async (req, res) => {
   }
 };
 
-const axios = require("axios");
+const { graphqlClient } = require("../utils/httpClient");
 const config = require("../config/index");
 
+// SCALE-2: Master-token TTL primitive. NOT a BoundedCache instance because we
+// only ever store one value (the master token) with a hard 50 minute cap.
+// Documenting the cache role here keeps the L1 cache story consistent:
+// - L1 BoundedCache: multi-entry caches (teachers list, class details, ...)
+// - L1 singleton:   small, single-value TTL primitives (master token)
+//
+// If a second such value is ever introduced, lift them both into a small
+// `BoundedCache({ maxKeys: 16 })` instance instead of duplicating the pattern.
 let cachedMasterToken = null;
 let cachedTokenExpiry = 0;
 
@@ -116,7 +132,7 @@ async function getMasterToken() {
       config.lms.masterPassword
     );
   } catch (err) {
-    console.warn("[OfficeHourController] Master username login failed, trying Firebase flow...", err.message);
+    log.warn("[OfficeHourController] Master username login failed, trying Firebase flow...", err.message);
     authData = await lmsAuth.loginWithCredentials(
       config.lms.masterUsername,
       config.lms.masterPassword
@@ -148,7 +164,7 @@ exports.getOfficeHourById = async (req, res) => {
         // If not TE, user must be the assigned teacher
         const assignedTeacherId = oh.teacher?.id;
         if (!assignedTeacherId || assignedTeacherId !== teacherId) {
-          console.warn(`[OfficeHourController] Unauthorized detail access: request teacher ${teacherId} does not match assigned teacher ${assignedTeacherId}`);
+          log.warn(`[OfficeHourController] Unauthorized detail access: request teacher ${teacherId} does not match assigned teacher ${assignedTeacherId}`);
           return res.status(403).json({ error: "Bạn không có quyền xem chi tiết ca trực này" });
         }
       }
@@ -311,8 +327,8 @@ exports.getOfficeHourById = async (req, res) => {
       }
     }`;
 
-    console.log(`[OfficeHourController] Fetching detailed office hour ID: ${id} using master token`);
-    const response = await axios.post(
+    log.info(`[OfficeHourController] Fetching detailed office hour ID: ${id} using master token`);
+    const response = await graphqlClient.post(
       config.lms.gatewayGraphql || "https://lms-api.mindx.edu.vn/",
       {
         operationName: "GetOficeHourById",
@@ -329,7 +345,7 @@ exports.getOfficeHourById = async (req, res) => {
     );
 
     if (response.data.errors) {
-      console.error("[OfficeHourController] GraphQL error:", response.data.errors);
+      log.error("[OfficeHourController] GraphQL error:", response.data.errors);
       return res.status(400).json({
         success: false,
         error: response.data.errors[0]?.message || "GraphQL Error"
@@ -342,7 +358,7 @@ exports.getOfficeHourById = async (req, res) => {
       data
     });
   } catch (err) {
-    console.error("[OfficeHourController] Failed to get office hour details:", err.message);
+    log.error("[OfficeHourController] Failed to get office hour details:", err.message);
     res.status(500).json({
       success: false,
       error: "Không thể tải chi tiết office hour"

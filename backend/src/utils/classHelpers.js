@@ -1,5 +1,35 @@
 const { getCourseCategory } = require("./courseConfig");
 
+const VIETNAM_TZ = "Asia/Ho_Chi_Minh";
+
+// Returns current time components in Vietnam timezone, independent of server TZ.
+function getVietnamNow(date = new Date()) {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: VIETNAM_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    weekday: "short",
+  });
+  const parts = fmt.formatToParts(date);
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+  const weekdayMap = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0 };
+  const dayOfWeek = weekdayMap[get("weekday")] ?? 0;
+  const year = parseInt(get("year"), 10);
+  const month = parseInt(get("month"), 10);
+  const day = parseInt(get("day"), 10);
+  const hour = parseInt(get("hour"), 10) % 24;
+  const minute = parseInt(get("minute"), 10);
+  const second = parseInt(get("second"), 10);
+  // Canonical "YYYY-MM-DD" key for the day in Vietnam.
+  const dayKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return { year, month, day, hour, minute, second, dayOfWeek, dayKey, raw: date };
+}
+
 /**
  * Normalize a time value to Vietnam timezone (UTC+7) and return { hour, minute }.
  *
@@ -268,4 +298,5 @@ module.exports = {
   getClassWeekdays,
   getCurrentSessionIndex,
   enrichClassData,
+  getVietnamNow,
 };

@@ -1,34 +1,37 @@
 const mongoose = require("mongoose");
 
+const { childLogger } = require("../utils/logger.js");
+const log = childLogger("Mongodb");
+
 const MONGODB_URI = process.env.MONGODB_URI;
 
 let isMongoConnected = false;
 
 async function connectMongoDB() {
   if (!MONGODB_URI) {
-    console.error("[MongoDB] ERROR: MONGODB_URI is not defined in environment variables.");
+    log.error("[MongoDB] ERROR: MONGODB_URI is not defined in environment variables.");
     return false;
   }
 
   try {
     await mongoose.connect(MONGODB_URI);
     isMongoConnected = true;
-    console.log("[MongoDB] Connected successfully to database.");
+    log.info("[MongoDB] Connected successfully to database.");
     return true;
   } catch (error) {
-    console.error("[MongoDB] Connection error:", error);
+    log.error("[MongoDB] Connection error:", error);
     isMongoConnected = false;
     throw error;
   }
 }
 
 mongoose.connection.on("disconnected", () => {
-  console.warn("[MongoDB] Disconnected from database.");
+  log.warn("[MongoDB] Disconnected from database.");
   isMongoConnected = false;
 });
 
 mongoose.connection.on("error", (err) => {
-  console.error("[MongoDB] Runtime connection error:", err);
+  log.error("[MongoDB] Runtime connection error:", err);
   isMongoConnected = false;
 });
 
