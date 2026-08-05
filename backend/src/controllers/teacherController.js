@@ -2,6 +2,8 @@ const LMSClient = require("../services/lmsClient");
 const { isLmsAuthError } = require("../utils/authError");
 const { getSessionExamType } = require("../utils/courseConfig");
 const { TeacherVisibilityPrefs } = require("../storage/mongoModels");
+const TeacherStorage = require("../storage/teacherStorage");
+const TeacherScheduler = require("../services/teacherScheduler");
 const BoundedCache = require("../utils/boundedCache");
 const { getTdmCentreId } = require("../constants/centreIds");
 
@@ -316,11 +318,52 @@ exports.getTeachers = async (req, res) => {
 
     if (!token) return res.status(400).json({ error: "Token is required" });
 
+    // 1. Try MongoDB first (the source of truth after the first successful sync).
+    try {
+      const dbCount = await TeacherStorage.getTeachersCount();
+      if (dbCount > 0) {
+        log.info(
+          `[Controller] Serving teachers list from MongoDB (${dbCount} records).`,
+        );
+        const docs = await TeacherStorage.getAllTeachers();
+
+        // Optional centre filter, mirroring the LMS API surface.
+        const wantedCentres = new Set(
+          (Array.isArray(centers) ? centers : [centers])
+            .filter(Boolean)
+            .map((c) => c.toString()),
+        );
+        const filtered = wantedCentres.size
+          ? docs.filter((t) => {
+              const teacherCentres = Array.isArray(t.centres) ? t.centres : [];
+              return teacherCentres.some((c) => wantedCentres.has(String(c?.id)));
+            })
+          : docs;
+
+        const start = pageIndex * itemsPerPage;
+        const paginated = filtered.slice(start, start + itemsPerPage);
+
+        return res.json({
+          success: true,
+          data: paginated,
+          pagination: { total: filtered.length },
+          source: "mongodb",
+        });
+      }
+    } catch (dbErr) {
+      log.warn(
+        `[Controller] MongoDB Teacher fetch failed, falling back to LMS: ${dbErr.message}`,
+      );
+    }
+
+    // 2. Cold-start fallback: serve from LMS live and reuse the existing BoundedCache.
     const cacheKey = `${JSON.stringify(centers)}_${pageIndex}_${itemsPerPage}`;
     const cached = teachersCache.get(cacheKey);
     if (cached) {
-      log.info(`[Controller] Serving teachers list from BoundedCache for key: ${cacheKey}`);
-      return res.json(cached);
+      log.info(
+        `[Controller] Serving teachers list from BoundedCache for key: ${cacheKey}`,
+      );
+      return res.json({ ...cached, source: "cache" });
     }
 
     const client = new LMSClient(token);
@@ -330,6 +373,7 @@ exports.getTeachers = async (req, res) => {
       success: true,
       data: result.data || [],
       pagination: result.pagination || { total: 0 },
+      source: "lms",
     };
 
     teachersCache.set(cacheKey, response);
@@ -344,5 +388,51 @@ exports.getTeachers = async (req, res) => {
       pagination: { total: 0 },
       error: err.response?.data?.errors?.[0]?.message || err.message,
     });
+  }
+};
+
+/**
+ * POST /teachers/sync
+ * Fire-and-forget teacher sync from LMS → MongoDB.
+ * Requires TE role. The actual LMS fetch happens in the background; we
+ * respond immediately and invalidate the BoundedCache so the next
+ * `getTeachers` call will read from MongoDB.
+ */
+exports.syncPersonnel = async (req, res) => {
+  try {
+    const { roles } = req.body || {};
+    const isTE =
+      (Array.isArray(roles) && roles.includes("TE")) ||
+      (req.user && Array.isArray(req.user.appRoles) && req.user.appRoles.includes("TE"));
+
+    if (!isTE) {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. TE role required.",
+      });
+    }
+
+    log.info("[Controller] Manual teacher sync triggered by TE");
+
+    // Fire-and-forget: respond immediately, then kick off the sync.
+    res.json({
+      success: true,
+      message: "Đang đồng bộ nhân sự từ LMS...",
+    });
+
+    TeacherScheduler.syncAllPersonnel()
+      .then(() => {
+        // Invalidate cache so the next read goes through MongoDB.
+        teachersCache.flushAll();
+      })
+      .catch((err) => {
+        log.error("[Controller] syncPersonnel background job failed:", err.message);
+      });
+  } catch (err) {
+    log.error("[Controller] syncPersonnel failed:", err.message);
+    if (!res.headersSent) {
+      const statusCode = isLmsAuthError(err) ? 401 : 500;
+      res.status(statusCode).json({ success: false, error: err.message });
+    }
   }
 };

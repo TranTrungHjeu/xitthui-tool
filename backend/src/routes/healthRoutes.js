@@ -10,7 +10,7 @@
  *                Used to take the instance OUT of rotation while it boots,
  *                or while a critical dependency is unavailable.
  *
- * Both endpoints are exempt from authentication, CSRF and rate limiting.
+ * Both endpoints are exempt from authentication and rate limiting.
  */
 
 const express = require("express");

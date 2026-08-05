@@ -4,7 +4,7 @@
  */
 
 const { LMSClient, caches, log } = require("./_shared");
-const { isLmsAuthError } = require("../utils/authError");
+const { isLmsAuthError } = require("../../utils/authError");
 
 const { classDetailsCache, classNotificationDetailsCache, notificationCache } = caches;
 

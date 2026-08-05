@@ -52,17 +52,20 @@ export const classService = {
     });
     return response.data.data;
   },
-  syncNotifications: async (_token: string, roles?: string[]): Promise<any> => {
-    const response = await api.post("/classes/sync-notifications", {
+  sendReminderEmailsNow: async (
+    _token: string,
+    roles?: string[],
+  ): Promise<any> => {
+    const response = await api.post("/classes/notifications/send-emails-now", {
       roles,
     });
     return response.data;
   },
-  sendNotificationEmails: async (
+  syncNotifications: async (
     _token: string,
     roles?: string[],
   ): Promise<any> => {
-    const response = await api.post("/classes/send-notification-emails", {
+    const response = await api.post("/classes/notifications/sync", {
       roles,
     });
     return response.data;

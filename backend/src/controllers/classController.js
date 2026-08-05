@@ -30,7 +30,7 @@ module.exports = {
   // Notifications
   getClassesNotifications: classNotificationController.getClassesNotifications,
   syncNotifications: classNotificationController.syncNotifications,
-  sendNotificationEmails: classNotificationController.sendNotificationEmails,
+  sendReminderEmailsNow: classNotificationController.sendReminderEmailsNow,
 
   // AI Report
   getStudentAIReport: classAiReportController.getStudentAIReport,

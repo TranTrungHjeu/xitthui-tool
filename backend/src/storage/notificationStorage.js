@@ -97,6 +97,19 @@ class NotificationStorage {
     }
   }
 
+  static async getNotificationsByQuery(query) {
+    try {
+      const docs = await NotificationTicket.find(query).lean();
+      return docs;
+    } catch (error) {
+      log.error(
+        "[NotificationStorage] Error querying notifications:",
+        error
+      );
+      return [];
+    }
+  }
+
   static async getTicketsForTeacher(teacherId) {
     try {
       if (!teacherId) return [];

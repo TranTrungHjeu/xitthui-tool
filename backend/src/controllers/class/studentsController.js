@@ -3,8 +3,8 @@
  * Handles student listing and sync.
  */
 
-const { LMSClient, FirestoreStudent, StudentScheduler, log } = require("./_shared");
-const { isLmsAuthError } = require("../utils/authError");
+const { FirestoreStudent, StudentScheduler, log } = require("./_shared");
+const { isLmsAuthError } = require("../../utils/authError");
 
 exports.getStudents = async (req, res) => {
   try {
@@ -14,7 +14,8 @@ exports.getStudents = async (req, res) => {
     }
 
     const {
-      teacherId, centreIds, roles, statusIn = ["RUNNING", "OPEN", "PRE_OPEN"],
+      teacherId, centreIds, roles,
+      statusIn = ["RUNNING", "OPEN", "PRE_OPEN"],
       page = 1, limit = 20, search = "", centre = "all", classId = "all",
     } = req.body;
 
@@ -23,34 +24,54 @@ exports.getStudents = async (req, res) => {
     if (!token) return res.status(400).json({ error: "Token is required" });
     if (!isTE && !teacherId) return res.status(400).json({ error: "Teacher ID is required" });
 
-    const client = new LMSClient(token);
-    const allClasses = await FirestoreStudent.getClassesWithStudentList(token, teacherId, centreIds, roles, statusIn);
+    // 1. Get all students from MongoDB by teacherId or centreIds
+    let allStudents = await FirestoreStudent.getStudentsForUser(teacherId, centreIds, roles);
 
-    let filtered = allClasses;
-    if (centre !== "all") filtered = filtered.filter((c) => c.centre?.id === centre);
-    if (classId !== "all") filtered = filtered.filter((c) => c.id === classId);
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      filtered = filtered.filter((c) =>
-        (c.name || "").toLowerCase().includes(q) ||
-        (c.course?.name || "").toLowerCase().includes(q),
+    // 2. Filter by specific centre if selected
+    if (centre !== "all") {
+      allStudents = allStudents.filter((student) =>
+        student.classes.some((c) => c.centreId === centre),
       );
     }
 
-    const total = filtered.length;
-    const p = Math.min(Math.max(1, Number(page)), Math.max(1, Math.ceil(total / limit)));
-    const l = Number(limit);
-    const start = (p - 1) * l;
-    const paginated = filtered.slice(start, start + l);
+    // 3. Filter by specific classId if selected
+    if (classId !== "all") {
+      allStudents = allStudents.filter((student) =>
+        student.classes.some((c) => c.id === classId),
+      );
+    }
 
-    const enriched = await FirestoreStudent.enrichWithStudentDetails(
-      token, paginated,
-    );
+    // 4. Filter by class status
+    if (statusIn && statusIn.length > 0) {
+      allStudents = allStudents.filter((student) =>
+        student.classes.some((c) => statusIn.includes(c.status)),
+      );
+    }
+
+    // 5. Apply search filter (fullName, email, phone)
+    if (search.trim()) {
+      const searchLower = search.toLowerCase();
+      allStudents = allStudents.filter((student) => {
+        const searchString = `${student.fullName} ${student.email} ${student.phone}`.toLowerCase();
+        return searchString.includes(searchLower);
+      });
+    }
+
+    // 6. Sort students alphabetically
+    allStudents.sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+    // 7. Pagination
+    const total = allStudents.length;
+    const totalPages = Math.ceil(total / limit) || 1;
+    const validPage = Math.max(1, Math.min(page, Math.max(1, totalPages)));
+    const startIndex = (validPage - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedStudents = allStudents.slice(startIndex, endIndex);
 
     res.json({
       success: true,
-      data: enriched,
-      meta: { total, page: p, limit: l, totalPages: Math.max(1, Math.ceil(total / l)) },
+      data: paginatedStudents,
+      meta: { total, page: validPage, limit, totalPages },
     });
   } catch (err) {
     log.error("[Controller] getStudents failed:", err.message);

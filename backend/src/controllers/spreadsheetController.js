@@ -172,8 +172,9 @@ const getSpreadsheetData = async (req, res) => {
 };
 
 
-const { Schedule, TrialBooking } = require("../storage/mongoModels");
+const { Schedule, TrialBooking, BookingAudit } = require("../storage/mongoModels");
 const LMSClient = require("../services/lmsClient");
+const { getSessionExamType } = require("../utils/courseConfig");
 
 function parseTrialSlotTimes(timeSlot, dateStr) {
   const timeLower = timeSlot.toLowerCase();
@@ -606,10 +607,454 @@ const unassignTrialTeacher = async (req, res) => {
   }
 };
 
+function extractSessionIndexFromTitle(title) {
+  if (!title) return null;
+  const match = String(title).match(/(?:buổi|session)\s*(\d+)/i);
+  if (match) return parseInt(match[1], 10);
+  return null;
+}
+
+function sessionFromScheduleKey(sch) {
+  const sessionIndex = extractSessionIndexFromTitle(sch.title);
+  const start = sch.startTime ? new Date(sch.startTime) : null;
+  const end = sch.endTime ? new Date(sch.endTime) : null;
+  return {
+    scheduleId: sch._id,
+    classId: sch.classSite?.class?.id || null,
+    className: sch.classSite?.class?.name || null,
+    sessionIndex,
+    sessionDate: sch.date || (start ? start.toISOString().split("T")[0] : null),
+    startTime: start && !isNaN(start.getTime()) ? start.toISOString() : null,
+    endTime: end && !isNaN(end.getTime()) ? end.toISOString() : null,
+    timeSlot: start && !isNaN(start.getTime())
+      ? `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`
+      : null,
+    title: sch.title || "",
+    description: sch.description || "",
+    centre: sch.classSite?.centre?.name || null,
+  };
+}
+
+function resolveCentreIds(raw) {
+  if (!raw) return [getTdmCentreId()];
+  if (Array.isArray(raw)) {
+    const out = raw.filter(Boolean).map(String);
+    return out.length ? out : [getTdmCentreId()];
+  }
+  const out = String(raw).split(",").map((s) => s.trim()).filter(Boolean);
+  return out.length ? out : [getTdmCentreId()];
+}
+
+function resolveToken(req) {
+  if (req.query && req.query.token) return req.query.token;
+  if (req.headers && req.headers.authorization) {
+    const parts = req.headers.authorization.split(" ");
+    if (parts.length === 2) return parts[1];
+  }
+  return null;
+}
+
+function rangesOverlap(aStart, aEnd, bStart, bEnd) {
+  if (!aStart || !aEnd || !bStart || !bEnd) return false;
+  const aS = new Date(aStart).getTime();
+  const aE = new Date(aEnd).getTime();
+  const bS = new Date(bStart).getTime();
+  const bE = new Date(bEnd).getTime();
+  if (isNaN(aS) || isNaN(aE) || isNaN(bS) || isNaN(bE)) return false;
+  return aS < bE && aE > bS;
+}
+
+const getSubstituteSlots = async (req, res) => {
+  const token = resolveToken(req);
+  if (!token) return res.status(400).json({ success: false, error: "Token is required" });
+
+  const { dateStr, centreIds } = req.query;
+  if (!dateStr) {
+    return res.status(400).json({ success: false, error: "dateStr (YYYY-MM-DD) is required" });
+  }
+
+  try {
+    const finalCentreIds = resolveCentreIds(centreIds);
+    const client = new LMSClient(token);
+    const teachersRes = await client.getTeachers(finalCentreIds, 0, 150);
+    const teachers = teachersRes.data || [];
+    const teacherIds = teachers.map((t) => t.id).filter(Boolean);
+
+    let schedules = [];
+    if (teacherIds.length > 0) {
+      schedules = await Schedule.find({
+        teacherId: { $in: teacherIds },
+        type: "CLASS_SESSION",
+        date: { $regex: `^${dateStr}` },
+      }).lean();
+    }
+
+    const teacherById = {};
+    teachers.forEach((t) => { teacherById[t.id] = t; });
+
+    const sessionMap = new Map();
+    schedules.forEach((sch) => {
+      const key = `${sch.classSite?.class?.id || sch._id}_${sch.startTime}`;
+      if (!sessionMap.has(key)) {
+        sessionMap.set(key, {
+          ...sessionFromScheduleKey(sch),
+          currentTeachers: [],
+        });
+      }
+      const entry = sessionMap.get(key);
+      const teacher = teacherById[sch.teacherId];
+      if (teacher) {
+        entry.currentTeachers.push({
+          id: teacher.id,
+          fullName: teacher.fullName,
+          code: teacher.code,
+          role: sch.teacherRole || null,
+        });
+      }
+    });
+
+    const allSessions = Array.from(sessionMap.values());
+
+    const substituteBookings = await TrialBooking.find({
+      date: dateStr,
+      slotKind: "substitute",
+    }).lean();
+    const substituteSlotKeys = new Set(substituteBookings.map((b) => b.slotId));
+
+    const slots = allSessions
+      .filter((s) => !substituteSlotKeys.has(s.scheduleId))
+      .filter((s) => s.startTime && s.endTime)
+      .map((s) => {
+        const slotId = s.scheduleId;
+        const currentRoles = s.currentTeachers.map((t) => (t.role || "").toUpperCase());
+        return {
+          slotId,
+          classId: s.classId,
+          className: s.className,
+          sessionIndex: s.sessionIndex,
+          sessionDate: s.sessionDate,
+          timeSlot: s.timeSlot,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          centre: s.centre,
+          currentTeachers: s.currentTeachers,
+          availableRoles: currentRoles.includes("LEC") || currentRoles.includes("LECTURER")
+            ? (currentRoles.includes("TA") || currentRoles.includes("TEACHING_ASSISTANT") ? [] : ["TA"])
+            : ["LEC", "TA"],
+        };
+      })
+      .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
+
+    res.json({ success: true, date: dateStr, slots });
+  } catch (error) {
+    log.error("Lỗi getSubstituteSlots:", error);
+    res.status(500).json({ success: false, error: error.message || "Lỗi lấy slot dạy thay" });
+  }
+};
+
+const getExaminerSlots = async (req, res) => {
+  const token = resolveToken(req);
+  if (!token) return res.status(400).json({ success: false, error: "Token is required" });
+
+  const { dateStr, centreIds } = req.query;
+  if (!dateStr) {
+    return res.status(400).json({ success: false, error: "dateStr (YYYY-MM-DD) is required" });
+  }
+
+  try {
+    const finalCentreIds = resolveCentreIds(centreIds);
+    const client = new LMSClient(token);
+    const teachersRes = await client.getTeachers(finalCentreIds, 0, 150);
+    const teachers = teachersRes.data || [];
+    const teacherIds = teachers.map((t) => t.id).filter(Boolean);
+
+    let schedules = [];
+    if (teacherIds.length > 0) {
+      schedules = await Schedule.find({
+        teacherId: { $in: teacherIds },
+        type: "CLASS_SESSION",
+        date: { $regex: `^${dateStr}` },
+      }).lean();
+    }
+
+    const examTypeBySchedule = new Map();
+    const sessionMap = new Map();
+    schedules.forEach((sch) => {
+      const sessionInfo = sessionFromScheduleKey(sch);
+      const examType = getSessionExamType(sch.classSite?.class?.name || "", sessionInfo.sessionIndex);
+      if (examType !== "demo") return;
+      const key = `${sch.classSite?.class?.id || sch._id}_${sch.startTime}`;
+      if (!sessionMap.has(key)) {
+        sessionMap.set(key, { ...sessionInfo, examType });
+      }
+      examTypeBySchedule.set(sch._id, examType);
+    });
+
+    const examinerBookings = await TrialBooking.find({
+      date: dateStr,
+      slotKind: "examiner",
+    }).lean();
+    const examinerSlotKeys = new Set(examinerBookings.map((b) => b.slotId));
+
+    const slots = Array.from(sessionMap.values())
+      .filter((s) => !examinerSlotKeys.has(s.scheduleId))
+      .filter((s) => s.startTime && s.endTime)
+      .map((s) => ({
+        slotId: s.scheduleId,
+        classId: s.classId,
+        className: s.className,
+        sessionIndex: s.sessionIndex,
+        sessionDate: s.sessionDate,
+        timeSlot: s.timeSlot,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        centre: s.centre,
+        examType: s.examType,
+      }))
+      .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
+
+    res.json({ success: true, date: dateStr, slots });
+  } catch (error) {
+    log.error("Lỗi getExaminerSlots:", error);
+    res.status(500).json({ success: false, error: error.message || "Lỗi lấy slot giám khảo" });
+  }
+};
+
+const getBookableTeachers = async (req, res) => {
+  const token = resolveToken(req);
+  if (!token) return res.status(400).json({ success: false, error: "Token is required" });
+
+  const { dateStr, slotStart, slotEnd, centreIds } = req.query;
+  if (!dateStr || !slotStart || !slotEnd) {
+    return res.status(400).json({ success: false, error: "dateStr, slotStart, slotEnd are required" });
+  }
+
+  try {
+    const finalCentreIds = resolveCentreIds(centreIds);
+    const client = new LMSClient(token);
+    const teachersRes = await client.getTeachers(finalCentreIds, 0, 150);
+    const teachers = teachersRes.data || [];
+    const teacherIds = teachers.map((t) => t.id).filter(Boolean);
+
+    const overlappingSchedules = teacherIds.length > 0
+      ? await Schedule.find({
+          teacherId: { $in: teacherIds },
+          date: { $regex: `^${dateStr}` },
+        }).lean()
+      : [];
+
+    const teachersWithOverlap = new Set();
+    overlappingSchedules.forEach((sch) => {
+      if (rangesOverlap(slotStart, slotEnd, sch.startTime, sch.endTime)) {
+        teachersWithOverlap.add(sch.teacherId);
+      }
+    });
+
+    const available = teachers
+      .filter((t) => !teachersWithOverlap.has(t.id))
+      .map((t) => ({
+        id: t.id,
+        fullName: t.fullName,
+        code: t.code,
+        email: t.email,
+        phoneNumber: t.phoneNumber,
+      }));
+
+    res.json({
+      success: true,
+      date: dateStr,
+      slotStart,
+      slotEnd,
+      total: available.length,
+      teachers: available,
+    });
+  } catch (error) {
+    log.error("Lỗi getBookableTeachers:", error);
+    res.status(500).json({ success: false, error: error.message || "Lỗi lấy danh sách giáo viên" });
+  }
+};
+
+function buildBookingId(dateStr, slotId, slotKind) {
+  return `${dateStr}_${slotId}_${slotKind}`;
+}
+
+async function recordAudit(action, bookingType, payload, performedBy, performedByName) {
+  try {
+    await BookingAudit.create({
+      action,
+      bookingType,
+      classId: payload.classId || null,
+      className: payload.className || null,
+      sessionIndex: payload.sessionIndex || null,
+      sessionDate: payload.sessionDate || payload.date || null,
+      slotId: payload.slotId || null,
+      slotKind: bookingType,
+      role: payload.role || null,
+      teacherId: payload.teacherId || null,
+      teacherCode: payload.teacherCode || null,
+      teacherName: payload.teacherName || null,
+      performedBy: performedBy || null,
+      performedByName: performedByName || null,
+    });
+  } catch (err) {
+    log.error("Lỗi ghi BookingAudit:", err.message);
+  }
+}
+
+const getGkAssignmentsForWeek = async (req, res) => {
+  const { dateGte, dateLte } = req.query;
+  if (!dateGte || !dateLte) {
+    return res.status(400).json({ success: false, error: "dateGte and dateLte are required" });
+  }
+
+  try {
+    const gtePrefix = String(dateGte).slice(0, 10);
+    const ltePrefix = String(dateLte).slice(0, 10);
+
+    const bookings = await TrialBooking.find({
+      slotKind: "examiner",
+      sessionDate: { $gte: gtePrefix, $lte: ltePrefix },
+    }).lean();
+
+    const keys = bookings
+      .map((b) => b.slotId)
+      .filter(Boolean);
+
+    res.json({ success: true, keys });
+  } catch (error) {
+    log.error("Lỗi getGkAssignmentsForWeek:", error);
+    res.status(500).json({ success: false, error: error.message || "Lỗi lấy phân công GK" });
+  }
+};
+
+const assignBookTeacher = async (req, res) => {
+  const token = resolveToken(req);
+  const {
+    bookingType,
+    dateStr,
+    slotId,
+    role,
+    teacherId,
+    teacherCode,
+    teacherName,
+    classId,
+    className,
+    sessionIndex,
+    sessionDate,
+    timeSlot,
+    normalizedTime,
+    subject,
+    type,
+    roomLink,
+    students,
+    rowIndex,
+    performedBy,
+    performedByName,
+  } = req.body || {};
+
+  if (!bookingType || !["trial", "substitute", "examiner"].includes(bookingType)) {
+    return res.status(400).json({ success: false, error: "bookingType must be one of trial|substitute|examiner" });
+  }
+  if (!dateStr || !slotId || !teacherId) {
+    return res.status(400).json({ success: false, error: "dateStr, slotId, teacherId are required" });
+  }
+
+  try {
+    const id = buildBookingId(dateStr, slotId, bookingType);
+    await TrialBooking.findByIdAndUpdate(
+      id,
+      {
+        date: dateStr,
+        slotId,
+        slotKind: bookingType,
+        role: bookingType === "examiner" ? "GK" : (role || null),
+        classId: classId || null,
+        className: className || null,
+        sessionIndex: typeof sessionIndex === "number" ? sessionIndex : (sessionIndex ? parseInt(sessionIndex, 10) : null),
+        sessionDate: sessionDate || dateStr,
+        timeSlot: timeSlot || "N/A",
+        normalizedTime: normalizedTime || "00:00",
+        subject: subject || "N/A",
+        type: type || "N/A",
+        roomLink: roomLink || "",
+        students: students || [],
+        rowIndex: rowIndex || null,
+        teacherId,
+        teacherCode: teacherCode || null,
+        teacherName: teacherName || null,
+        updatedAt: new Date(),
+      },
+      { upsert: true, new: true }
+    );
+
+    await recordAudit("assign", bookingType, {
+      dateStr,
+      slotId,
+      classId,
+      className,
+      sessionIndex,
+      sessionDate,
+      role,
+      teacherId,
+      teacherCode,
+      teacherName,
+    }, performedBy, performedByName);
+
+    res.json({ success: true });
+  } catch (error) {
+    log.error("Lỗi assignBookTeacher:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const unassignBookTeacher = async (req, res) => {
+  const token = resolveToken(req);
+  const { bookingType, dateStr, slotId, role, performedBy, performedByName } = req.body || {};
+
+  if (!bookingType || !["trial", "substitute", "examiner"].includes(bookingType)) {
+    return res.status(400).json({ success: false, error: "bookingType must be one of trial|substitute|examiner" });
+  }
+  if (!dateStr || !slotId) {
+    return res.status(400).json({ success: false, error: "dateStr and slotId are required" });
+  }
+
+  try {
+    const id = buildBookingId(dateStr, slotId, bookingType);
+    const existing = await TrialBooking.findById(id).lean();
+    await TrialBooking.findByIdAndDelete(id);
+
+    if (existing) {
+      await recordAudit("unassign", bookingType, {
+        dateStr,
+        slotId,
+        classId: existing.classId,
+        className: existing.className,
+        sessionIndex: existing.sessionIndex,
+        sessionDate: existing.sessionDate,
+        role: role || existing.role,
+        teacherId: existing.teacherId,
+        teacherCode: existing.teacherCode,
+        teacherName: existing.teacherName,
+      }, performedBy, performedByName);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    log.error("Lỗi unassignBookTeacher:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 module.exports = {
   getSpreadsheetData,
   getTrialAvailabilities,
   assignTrialTeacher,
   unassignTrialTeacher,
+  getSubstituteSlots,
+  getExaminerSlots,
+  getBookableTeachers,
+  assignBookTeacher,
+  unassignBookTeacher,
+  getGkAssignmentsForWeek,
 };
 

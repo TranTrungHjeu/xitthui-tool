@@ -10,7 +10,7 @@ const {
   log,
   classHelpers,
 } = require("./_shared");
-const { isLmsAuthError } = require("../utils/authError");
+const { isLmsAuthError } = require("../../utils/authError");
 
 const { classDetailsCache } = caches;
 const {
@@ -90,7 +90,7 @@ exports.getClassById = async (req, res) => {
         return res.json({ success: true, data: cached });
       }
 
-      const { Class } = require("../storage/mongoModels");
+      const { Class } = require("../../storage/mongoModels");
       try {
         const dbClass = await Class.findById(classId).lean();
         if (dbClass && dbClass.students !== undefined) {
@@ -108,8 +108,8 @@ exports.getClassById = async (req, res) => {
     const data = await client.getClassById(classId);
 
     if (data && data.id) {
-      const { Class } = require("../storage/mongoModels");
-      const { getCourseCategory } = require("../utils/courseConfig");
+      const { Class } = require("../../storage/mongoModels");
+      const { getCourseCategory } = require("../../utils/courseConfig");
 
       const weekdayIndexes = getClassWeekdayIndexes(data);
       const lecName = getRealTeacherByRole(data, "LEC") || "-";
@@ -178,7 +178,7 @@ exports.getClassesDetails = async (req, res) => {
       });
 
       if (missingIds.length > 0) {
-        const { Class } = require("../storage/mongoModels");
+        const { Class } = require("../../storage/mongoModels");
         try {
           const dbClasses = await Class.find({ _id: { $in: missingIds } }).lean();
           const dbMap = new Map(dbClasses.map((c) => [c._id, c]));
@@ -206,8 +206,8 @@ exports.getClassesDetails = async (req, res) => {
     if (missingIds.length > 0) {
       const client = new LMSClient(token);
       const fetchedData = await client.getClassesDetails(missingIds);
-      const { Class } = require("../storage/mongoModels");
-      const { getCourseCategory } = require("../utils/courseConfig");
+      const { Class } = require("../../storage/mongoModels");
+      const { getCourseCategory } = require("../../utils/courseConfig");
 
       for (const item of fetchedData) {
         if (item && item.id) {

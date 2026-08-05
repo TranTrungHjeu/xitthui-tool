@@ -10,23 +10,23 @@
  * from here instead of re-declaring them.
  */
 
-const LMSClient = require("../services/lmsClient");
-const ClassCacheService = require("../services/classCache");
-const FirestoreNotification = require("../storage/notificationStorage");
-const NotificationScheduler = require("../services/notificationScheduler");
-const FirestoreStudent = require("../storage/studentStorage");
-const StudentScheduler = require("../services/studentScheduler");
-const BoundedCache = require("../utils/boundedCache");
+const LMSClient = require("../../services/lmsClient");
+const ClassCacheService = require("../../services/classCache");
+const FirestoreNotification = require("../../storage/notificationStorage");
+const NotificationScheduler = require("../../services/notificationScheduler");
+const FirestoreStudent = require("../../storage/studentStorage");
+const StudentScheduler = require("../../services/studentScheduler");
+const BoundedCache = require("../../utils/boundedCache");
 const { VertexAI } = require("@google-cloud/vertexai");
-const { loadServiceAccountCredentials } = require("../utils/googleCredentials");
-const { childLogger } = require("../utils/logger.js");
+const { loadServiceAccountCredentials } = require("../../utils/googleCredentials");
+const { childLogger } = require("../../utils/logger.js");
 const {
   getClassWeekdayIndexes,
   getRealTeacherByRole,
   getClassTimeRange,
   getClassWeekdays,
   getCurrentSessionIndex,
-} = require("../utils/classHelpers");
+} = require("../../utils/classHelpers");
 
 const log = childLogger("ClassController");
 

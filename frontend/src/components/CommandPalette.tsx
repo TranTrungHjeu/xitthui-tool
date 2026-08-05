@@ -2,6 +2,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { cn } from "@/lib/utils";
+import { NAV_ACCESS, canAccessNav } from "@/lib/access";
 import {
   LayoutDashboard,
   Calendar,
@@ -11,7 +12,6 @@ import {
   Settings,
   TableProperties,
   Clock,
-  Bot,
   Search,
   CornerDownLeft,
   GraduationCap,
@@ -25,7 +25,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { authService } from "@/services/authService";
-import { isKhiemAccount } from "@/lib/utils";
 
 interface CommandItem {
   label: string;
@@ -41,6 +40,37 @@ interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const COMMAND_ICON_MAP: Record<string, React.ReactNode> = {
+  "/dashboard": <LayoutDashboard className="h-4 w-4" />,
+  "/dashboard/classes": <Calendar className="h-4 w-4" />,
+  "/dashboard/students": <Users className="h-4 w-4" />,
+  "/dashboard/personnel": <BriefcaseBusiness className="h-4 w-4" />,
+  "/dashboard/schedules": <CalendarClock className="h-4 w-4" />,
+  "/dashboard/spreadsheet": <TableProperties className="h-4 w-4" />,
+  "/dashboard/office-hours": <Clock className="h-4 w-4" />,
+  "/dashboard/settings": <Settings className="h-4 w-4" />,
+};
+
+function buildBaseItems(user: {
+  appRoles?: string[];
+  appPermissions?: string[];
+} | null): CommandItem[] {
+  return NAV_ACCESS.filter((entry) => canAccessNav(user, entry.href)).map(
+    (entry) => ({
+      label: entry.label,
+      href: entry.href,
+      icon: COMMAND_ICON_MAP[entry.href] ?? null,
+      shortcut:
+        entry.href === "/dashboard/schedules"
+          ? ["G", "S"]
+          : entry.href === "/dashboard/settings"
+            ? ["G", ","]
+            : undefined,
+      group: entry.href === "/dashboard/settings" ? "Tài khoản" : "Điều hướng",
+    }),
+  );
+}
+
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const router = useRouter();
   const { user, logout } = useAuthStore();
@@ -48,89 +78,25 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  const isKhiem = isKhiemAccount(user);
-
   const items: CommandItem[] = React.useMemo(() => {
-    const baseItems: CommandItem[] = [
-      {
-        label: "Tổng quan",
-        href: "/dashboard",
-        icon: <LayoutDashboard className="h-4 w-4" />,
-        group: "Điều hướng",
-      },
-      {
-        label: "Lớp học",
-        href: "/dashboard/classes",
-        icon: <Calendar className="h-4 w-4" />,
-        group: "Điều hướng",
-      },
-      {
-        label: "Học viên",
-        href: "/dashboard/students",
-        icon: <Users className="h-4 w-4" />,
-        group: "Điều hướng",
-      },
-      {
-        label: "Nhân sự",
-        href: "/dashboard/personnel",
-        icon: <BriefcaseBusiness className="h-4 w-4" />,
-        group: "Điều hướng",
-      },
-      {
-        label: "Lịch làm việc",
-        href: "/dashboard/schedules",
-        icon: <CalendarClock className="h-4 w-4" />,
-        shortcut: ["G", "S"],
-        group: "Điều hướng",
-      },
-      {
-        label: "Book Trial",
-        href: "/dashboard/spreadsheet",
-        icon: <TableProperties className="h-4 w-4" />,
-        group: "Điều hướng",
-      },
-      {
-        label: "Office Hours",
-        href: "/dashboard/office-hours",
-        icon: <Clock className="h-4 w-4" />,
-        group: "Điều hướng",
-      },
-    ];
+    const baseItems: CommandItem[] = buildBaseItems(user);
 
-    if (isKhiem) {
-      baseItems.push({
-        label: "Zalo Bot",
-        href: "/dashboard/zalo-bot",
-        icon: <Bot className="h-4 w-4" />,
-        group: "Điều hướng",
-      });
-    }
-
-    baseItems.push(
-      {
-        label: "Cài đặt",
-        href: "/dashboard/settings",
-        icon: <Settings className="h-4 w-4" />,
-        shortcut: ["G", ","],
-        group: "Tài khoản",
+    baseItems.push({
+      label: "Đăng xuất",
+      icon: <LogOut className="h-4 w-4 text-destructive" />,
+      group: "Tài khoản",
+      action: () => {
+        const sessionId = useAuthStore.getState().sessionId;
+        if (sessionId) {
+          authService.logout(sessionId).catch(() => {});
+        }
+        logout();
+        router.push("/login");
       },
-      {
-        label: "Đăng xuất",
-        icon: <LogOut className="h-4 w-4 text-destructive" />,
-        group: "Tài khoản",
-        action: () => {
-          const sessionId = useAuthStore.getState().sessionId;
-          if (sessionId) {
-            authService.logout(sessionId).catch(() => {});
-          }
-          logout();
-          router.push("/login");
-        },
-      },
-    );
+    });
 
     return baseItems;
-  }, [isKhiem, logout, router]);
+  }, [logout, router, user]);
 
   const filtered = React.useMemo(() => {
     if (!query.trim()) return items;

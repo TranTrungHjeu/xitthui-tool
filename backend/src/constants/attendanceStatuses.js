@@ -28,6 +28,31 @@ const PRESENT_STATUSES = [
 const ABSENT_STATUSES = [ATTENDANCE_STATUS.ABSENT];
 
 /**
+ * Statuses that count as "attended" for notification and stats logic.
+ * Source of truth for both notificationScheduler.js and studentScheduler.js
+ * (and any future call site that needs to know "did the student show up?").
+ *
+ * Contains the union of all strings used historically in those schedulers,
+ * so behavior is preserved exactly when this constant is imported.
+ */
+const ATTENDED_STATUSES = [
+  ATTENDANCE_STATUS.PRESENT,
+  ATTENDANCE_STATUS.ATTENDED,
+  ATTENDANCE_STATUS.LATE,
+  ATTENDANCE_STATUS.LATE_ARRIVED,
+];
+
+/** Statuses that count as "did NOT attend". */
+const NOT_ATTENDED_STATUSES = [
+  ATTENDANCE_STATUS.ABSENT,
+  "NOT_ATTEND",
+  "NOT_ATTENDED",
+];
+
+/** All known attendance status strings (attended + not attended). */
+const ALL_STATUSES = [...ATTENDED_STATUSES, ...NOT_ATTENDED_STATUSES];
+
+/**
  * Check if a status indicates the student was present.
  * @param {string} status
  * @returns {boolean}
@@ -49,6 +74,9 @@ module.exports = {
   ATTENDANCE_STATUS,
   PRESENT_STATUSES,
   ABSENT_STATUSES,
+  ATTENDED_STATUSES,
+  NOT_ATTENDED_STATUSES,
+  ALL_STATUSES,
   isPresentStatus,
   isAbsentStatus,
 };

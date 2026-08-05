@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, cloneElement } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useMinLoading } from "@/hooks/useMinLoading";
 import { classService } from "@/services/classService";
+import { PUBLIC_TOOLS } from "@/lib/access";
 import {
   Card,
   CardContent,
@@ -43,18 +45,17 @@ import {
   ChevronLeft,
   Copy,
   Check,
-  Calendar,
   CalendarDays,
   Layers,
   Mail,
   RefreshCw,
   CheckCircle2,
   Clock,
-  Sparkles,
   Inbox,
   Award,
   Ban,
   GraduationCap,
+  Sparkles,
 } from "lucide-react";
 import { cn, isKhiemAccount, isActualKhiemAccount, formatSlotDateTime } from "@/lib/utils";
 import { ClassData, Slot } from "@/types";
@@ -149,7 +150,21 @@ function ScheduleLegend({ className }: { className?: string }) {
   );
 }
 
-export default function DashboardOverview() {
+export default function DashboardPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const toolKey = searchParams?.get("tool");
+
+  useEffect(() => {
+    if (toolKey && PUBLIC_TOOLS.some((t) => t.key === toolKey)) {
+      router.replace(`/dashboard/tools/${toolKey}`);
+    }
+  }, [toolKey, router]);
+
+  return <DashboardOverview />;
+}
+
+function DashboardOverview() {
   const [weekStart, setWeekStart] = useState<Date>(() => {
     const now = new Date();
     const day = now.getDay();
@@ -236,16 +251,15 @@ export default function DashboardOverview() {
       document.body.removeChild(el);
     });
     setCopiedClassCode(text);
-    toast.success("Đã sao chép", { description: text });
     setTimeout(() => setCopiedClassCode(null), 2000);
   };
 
-  const [isSyncing, setIsSyncing] = useState(false);
   const [isSendingEmails, setIsSendingEmails] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [refreshNotifTrigger, setRefreshNotifTrigger] = useState(0);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [expandedClassIds, setExpandedClassIds] = useState<string[]>([]);
   const [detailedClasses, setDetailedClasses] = useState<ClassData[]>([]);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
@@ -303,6 +317,80 @@ export default function DashboardOverview() {
   );
 
   const classes = storedClasses || [];
+
+  /* ── Initial fetch ─────────────────────────────────────── */
+  useEffect(() => {
+    let isMounted = true;
+    const fetchDashboardData = async (force = false) => {
+      const isTE = user?.appRoles?.includes("TE" as any);
+      if (!isAuthenticated || (!user?.teacherId && !isTE)) {
+        setIsLoading(false);
+        return;
+      }
+      const CACHE_TIME = 5 * 60 * 1000;
+      if (
+        !force &&
+        storedClasses &&
+        lastClassesFetch &&
+        Date.now() - lastClassesFetch < CACHE_TIME
+      ) {
+        setIsLoading(false);
+        return;
+      }
+      setIsLoading(true);
+      try {
+        let targetCentres = user?.teacherCentres?.map((c: any) => c.id || c);
+        const isKhiem = isActualKhiemAccount(user);
+        if (isKhiem && user?.teacherCentres) {
+          const tdmCentre: any = user.teacherCentres.find((c: any) => {
+            const name =
+              typeof c === "object" ? c?.name || c?.shortName : String(c);
+            return (name || "").toLowerCase().includes("thủ dầu một");
+          });
+          if (tdmCentre) {
+            const id = typeof tdmCentre === "object" ? tdmCentre.id : tdmCentre;
+            targetCentres = [id];
+          }
+        }
+        const data = await classService.getClasses(
+          "",
+          user?.teacherId || "",
+          targetCentres,
+          user?.appRoles,
+          {
+            statusIn: [
+              "RUNNING",
+              "IN_PROGRESS",
+              "ĐANG_DIỄN_RA",
+              "OPEN",
+              "PRE_OPEN",
+              "PREPARING",
+              "PENDING",
+            ],
+            limit: 1000,
+          },
+        );
+        if (isMounted) setStoredClasses(data?.data || []);
+      } catch (err: any) {
+        console.error(
+          "[Dashboard] Error detail:",
+          err.response?.data || err.message,
+        );
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    fetchDashboardData();
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    user?.teacherId,
+    isAuthenticated,
+    storedClasses,
+    lastClassesFetch,
+    setStoredClasses,
+  ]);
 
   /* ── Stats ────────────────────────────────────────────────── */
   const stats = useMemo(() => {
@@ -449,83 +537,9 @@ export default function DashboardOverview() {
     if (!isLoading && !isLoadingNotifications) setIsInitialLoad(false);
   }, [isLoading, isLoadingNotifications]);
 
-  /* ── Initial fetch ───────────────────────────────────────── */
-  useEffect(() => {
-    let isMounted = true;
-    const fetchDashboardData = async (force = false) => {
-      const isTE = user?.appRoles?.includes("TE" as any);
-      if (!isAuthenticated || (!user?.teacherId && !isTE)) {
-        setIsLoading(false);
-        return;
-      }
-      const CACHE_TIME = 5 * 60 * 1000;
-      if (
-        !force &&
-        storedClasses &&
-        lastClassesFetch &&
-        Date.now() - lastClassesFetch < CACHE_TIME
-      ) {
-        setIsLoading(false);
-        return;
-      }
-      setIsLoading(true);
-      try {
-        let targetCentres = user?.teacherCentres?.map((c: any) => c.id || c);
-        const isKheim = isActualKhiemAccount(user);
-        if (isKheim && user?.teacherCentres) {
-          const tdmCentre: any = user.teacherCentres.find((c: any) => {
-            const name =
-              typeof c === "object" ? c?.name || c?.shortName : String(c);
-            return (name || "").toLowerCase().includes("thủ dầu một");
-          });
-          if (tdmCentre) {
-            const id = typeof tdmCentre === "object" ? tdmCentre.id : tdmCentre;
-            targetCentres = [id];
-          }
-        }
-        const data = await classService.getClasses(
-          "",
-          user?.teacherId || "",
-          targetCentres,
-          user?.appRoles,
-          {
-            statusIn: [
-              "RUNNING",
-              "IN_PROGRESS",
-              "ĐANG_DIỄN_RA",
-              "OPEN",
-              "PRE_OPEN",
-              "PREPARING",
-              "PENDING",
-            ],
-            limit: 1000,
-          },
-        );
-        if (isMounted) setStoredClasses(data?.data || []);
-      } catch (err: any) {
-        setError("Không thể tải dữ liệu dashboard");
-        console.error(
-          "[Dashboard] Error detail:",
-          err.response?.data || err.message,
-        );
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    };
-    fetchDashboardData();
-    return () => {
-      isMounted = false;
-    };
-  }, [
-    user?.teacherId,
-    isAuthenticated,
-    storedClasses,
-    lastClassesFetch,
-    setStoredClasses,
-  ]);
+  /* ── Render notification card ───────────────────────────── */
 
   /* ── Notifications ──────────────────────────────────────── */
-  const [error, setError] = useState("");
   useEffect(() => {
     let isMounted = true;
     const fetchNotifications = async () => {
@@ -575,30 +589,12 @@ export default function DashboardOverview() {
     refreshNotifTrigger,
   ]);
 
-  const handleSyncNotifications = async () => {
-    const isTE = user?.appRoles?.includes("TE" as any);
-    if (!isAuthenticated || !isTE) return;
-    setIsSyncing(true);
-    try {
-      await classService.syncNotifications("", user?.appRoles);
-      setRefreshNotifTrigger((prev) => prev + 1);
-      toast.success("Đồng bộ thông báo thành công");
-    } catch (err: any) {
-      console.error("[Dashboard] Error syncing notifications:", err);
-      toast.error("Lỗi đồng bộ", {
-        description: err.response?.data?.error || err.message,
-      });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   const handleSendReminderEmails = async () => {
     const isTE = user?.appRoles?.includes("TE" as any);
     if (!isAuthenticated || !isTE) return;
     setIsSendingEmails(true);
     try {
-      await classService.sendNotificationEmails("", user?.appRoles);
+      await classService.sendReminderEmailsNow("", user?.appRoles);
       toast.success("Đã gửi email nhắc nhở");
       setRefreshNotifTrigger((prev) => prev + 1);
     } catch (err: any) {
@@ -608,6 +604,24 @@ export default function DashboardOverview() {
       });
     } finally {
       setIsSendingEmails(false);
+    }
+  };
+
+  const handleSyncNotifications = async () => {
+    const isTE = user?.appRoles?.includes("TE" as any);
+    if (!isAuthenticated || !isTE) return;
+    setIsSyncing(true);
+    try {
+      await classService.syncNotifications("", user?.appRoles);
+      toast.success("Đồng bộ thông báo thành công");
+      setRefreshNotifTrigger((prev) => prev + 1);
+    } catch (err: any) {
+      console.error("[Dashboard] Error syncing notifications:", err);
+      toast.error("Lỗi đồng bộ", {
+        description: err.response?.data?.error || err.message,
+      });
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -629,7 +643,6 @@ export default function DashboardOverview() {
 
     return (
       <div
-        key={`feedback-${index}`}
         className="rounded-lg border border-border/60 bg-card p-3.5 hover:border-border hover:shadow-xs transition-all"
       >
         <div className="flex items-start justify-between gap-2 mb-2">
@@ -641,7 +654,7 @@ export default function DashboardOverview() {
                   item.isLate ? "bg-[#E31F26]" : "bg-amber-400",
                 )}
               />
-              <span className="font-semibold text-sm truncate">
+              <span className="font-semibold text-xs truncate">
                 {item.className}
               </span>
               <Tooltip>
@@ -660,7 +673,7 @@ export default function DashboardOverview() {
                 <TooltipContent>Sao chép mã lớp</TooltipContent>
               </Tooltip>
             </div>
-            <p className="text-xs text-muted-foreground font-mono mt-1 pl-4">
+            <p className="text-xs text-muted-foreground font-mono mt-1 pl-4 truncate">
               {examLabel} · {formatSlotDateTime(item.date, item.startTime, item.endTime)}
             </p>
           </div>
@@ -677,18 +690,18 @@ export default function DashboardOverview() {
               </Badge>
             )}
             {isCheckpoint && (
-              <Badge variant="sunglow" className="text-[10px] px-1.5 py-0">
+              <Badge variant="sunglow" className="text-xs px-1.5 py-0">
                 Checkpoint
               </Badge>
             )}
           </div>
         </div>
-        <div className="flex items-center justify-between pt-2 border-t border-border/40 pl-4">
-          <span className="text-xs text-muted-foreground">
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40 pl-4 min-w-0">
+          <span className="text-xs text-muted-foreground truncate min-w-0">
             Chưa nhận xét: <span className="font-bold text-foreground">{item.studentCount}</span> học viên
           </span>
           {(item.lec || item.ta) && (
-            <div className="flex gap-2 text-xs">
+            <div className="flex gap-2 text-xs shrink-0 whitespace-nowrap">
               {item.lec && (
                 <span>
                   <span className="text-muted-foreground">LEC:</span>{" "}
@@ -712,7 +725,6 @@ export default function DashboardOverview() {
     const isExpanded = expandedClassIds.includes(cls.classId);
     return (
       <div
-        key={cls.classId}
         className="rounded-lg border border-border/60 hover:border-border bg-card overflow-hidden transition-all"
       >
         <button
@@ -729,7 +741,7 @@ export default function DashboardOverview() {
                 cls.isLate ? "bg-[#E31F26]" : "bg-amber-400"
               }`}
             />
-            <span className="truncate font-semibold">{cls.className}</span>
+            <span className="truncate font-semibold text-xs">{cls.className}</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Badge variant={cls.isLate ? "crimson" : "sunglow"} className="font-mono text-[11px]">
@@ -745,7 +757,9 @@ export default function DashboardOverview() {
         {isExpanded && (
           <div className="p-2 space-y-2 bg-muted/20 border-t border-border">
             {cls.slots.map((slot: NotificationItem, sIdx: number) =>
-              renderNotificationCard(slot, sIdx),
+              cloneElement(renderNotificationCard(slot, sIdx), {
+                key: `${cls.classId}_slot_${sIdx}`,
+              }),
             )}
           </div>
         )}
@@ -787,13 +801,12 @@ export default function DashboardOverview() {
                 Gửi email nhắc nhở
               </Button>
               <Button
+                variant="outline"
                 size="sm"
                 onClick={() => setIsSyncModalOpen(true)}
                 disabled={isSyncing || isLoadingNotifications}
               >
-                <RefreshCw
-                  className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`}
-                />
+                <RefreshCw className="h-4 w-4" />
                 Đồng bộ ngay
               </Button>
             </div>
@@ -835,11 +848,10 @@ export default function DashboardOverview() {
 
       {/* ── Main grid ─────────────────────────────────────── */}
       <div className="grid gap-6 grid-cols-1 xl:grid-cols-12">
-        <Card className="col-span-1 xl:col-span-8 overflow-hidden">
+        <Card className="col-span-1 xl:col-span-6 overflow-hidden">
           <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3 gap-4">
             <div className="min-w-0 flex-1">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-semibold">
                 Lịch học tuần này
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1 font-mono">
@@ -890,12 +902,11 @@ export default function DashboardOverview() {
         </Card>
 
         {/* ── Notifications panel ──────────────────────── */}
-        <Card className="col-span-1 xl:col-span-4">
+        <Card className="col-span-1 xl:col-span-6">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm font-semibold">
                   Thông báo nhận xét
                 </CardTitle>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -959,7 +970,9 @@ export default function DashboardOverview() {
                       </Badge>
                     </div>
                     {teGroupedNotifications.lateClasses.map((cls) =>
-                      renderClassAccordionItem(cls),
+                      cloneElement(renderClassAccordionItem(cls), {
+                        key: `late_${cls.classId}`,
+                      }),
                     )}
                   </div>
                 )}
@@ -974,7 +987,9 @@ export default function DashboardOverview() {
                       </Badge>
                     </div>
                     {teGroupedNotifications.ontimeClasses.map((cls) =>
-                      renderClassAccordionItem(cls),
+                      cloneElement(renderClassAccordionItem(cls), {
+                        key: `ontime_${cls.classId}`,
+                      }),
                     )}
                   </div>
                 )}
@@ -982,7 +997,9 @@ export default function DashboardOverview() {
             ) : (
               <div className="space-y-2">
                 {notificationsList.map((item, index) =>
-                  renderNotificationCard(item, index),
+                  cloneElement(renderNotificationCard(item, index), {
+                    key: `notif_${index}_${item.classId || ""}`,
+                  }),
                 )}
               </div>
             )}
@@ -1016,14 +1033,12 @@ export default function DashboardOverview() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       <Dialog open={isSyncModalOpen} onOpenChange={setIsSyncModalOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Đồng bộ thông báo</DialogTitle>
             <DialogDescription>
-              Hệ thống sẽ đồng bộ lại thông báo từ LMS. Quá trình này có thể mất
-              một chút thời gian.
+              Hệ thống sẽ đồng bộ lại các ticket thông báo từ LMS mà không gửi email.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

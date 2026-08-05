@@ -126,3 +126,5 @@ export interface ClassData {
   teachers: ClassTeacher[];
   slots: Slot[];
 }
+
+export * from "./payroll";

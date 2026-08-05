@@ -5,9 +5,18 @@ yarn.lock
 
 # Environment variables
 .env
-!package.json
-!tsconfig.json
-!components.json
+!.env.example
+!.package.json
+!.tsconfig.json
+!.components.json
+
+# Google Service Account credentials (SECURITY: never commit these)
+backend/serviceAccountKey.json
+backend/*.firebase.json
+GOOGLE_SERVICE_ACCOUNT*.json
+
+# Temporary debug exports
+temp_*.html
 
 # User data
 data/
@@ -42,3 +51,5 @@ dist/
 build/
 # CocoIndex Code (ccc)
 /.cocoindex_code/
+
+.cursor/

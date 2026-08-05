@@ -6,24 +6,26 @@ import {
   RefreshCw,
   Loader2,
   Calendar,
-  UserCheck,
-  UserX,
   Copy,
   Check,
   Search,
-  Info,
   User,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  UserCog,
+  Gavel,
 } from "lucide-react";
 import { Button } from "../../../components/ui/button";
-import { PageHeader } from "../../../components/ui/page-header";
 import CatLoader from "../../../components/CatLoader";
 import api from "../../../services/api";
 import { useMinLoading } from "@/hooks/useMinLoading";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { Input } from "../../../components/ui/input";
 import { formatSlotDateTime, isActualKhiemAccount } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../../components/ui/tabs";
+import { SubstituteTab } from "../../../components/SubstituteTab";
+import { ExaminerTab } from "../../../components/ExaminerTab";
+import { AlertModal } from "../../../components/ui/alert-modal";
 import {
   startOfMonth,
   subMonths,
@@ -34,7 +36,7 @@ import {
   endOfMonth,
   format,
   isSameDay,
-  isSameMonth
+  isSameMonth,
 } from "date-fns";
 import { vi } from "date-fns/locale";
 
@@ -44,6 +46,8 @@ interface SheetData {
   sheetName: string;
   availableSheets?: string[];
 }
+
+export type SpreadsheetTabKey = "sheet" | "trial" | "substitute" | "examiner";
 
 function CustomDatePicker({
   selectedDate,
@@ -138,17 +142,18 @@ function CustomDatePicker({
 
 export default function SpreadsheetPage() {
   const { user, token } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<"sheet" | "trials">("trials");
+  const [activeTab, setActiveTab] = useState<SpreadsheetTabKey>("trial");
 
-  // --- TAB 1: Google Sheet View ---
+  // --- TAB: Google Sheet View ---
   const [sheetData, setSheetData] = useState<SheetData | null>(null);
   const [activeSheet, setActiveSheet] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const sheetDataCache = useRef<Map<string, SheetData>>(new Map());
+  const sheetFetchedKeys = useRef<Set<string>>(new Set());
 
   const showLoading = useMinLoading(isLoading, 1000);
 
-  // Grab to scroll horizontally - Sheet Tab
   const sheetContainerRef = useRef<HTMLDivElement>(null);
   const isSheetDragging = useRef(false);
   const isSheetDraggingActive = useRef(false);
@@ -156,7 +161,7 @@ export default function SpreadsheetPage() {
   const sheetScrollLeftStart = useRef(0);
 
   const handleSheetDragMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return; // Only left click
+    if (e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (
       target.closest("button") ||
@@ -193,7 +198,7 @@ export default function SpreadsheetPage() {
     if (!isSheetDragging.current) return;
     const x = e.pageX - (sheetContainerRef.current?.offsetLeft || 0);
     const walk = (x - sheetStartX.current) * 1.5;
-    
+
     if (Math.abs(x - sheetStartX.current) > 5) {
       isSheetDraggingActive.current = true;
     }
@@ -211,7 +216,6 @@ export default function SpreadsheetPage() {
     }
   };
 
-  // Grab to scroll horizontally - Trials Tab
   const trialsContainerRef = useRef<HTMLDivElement>(null);
   const isTrialsDragging = useRef(false);
   const isTrialsDraggingActive = useRef(false);
@@ -219,7 +223,7 @@ export default function SpreadsheetPage() {
   const trialsScrollLeftStart = useRef(0);
 
   const handleTrialsDragMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return; // Only left click
+    if (e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (
       target.closest("button") ||
@@ -256,7 +260,7 @@ export default function SpreadsheetPage() {
     if (!isTrialsDragging.current) return;
     const x = e.pageX - (trialsContainerRef.current?.offsetLeft || 0);
     const walk = (x - trialsStartX.current) * 1.5;
-    
+
     if (Math.abs(x - trialsStartX.current) > 5) {
       isTrialsDraggingActive.current = true;
     }
@@ -274,7 +278,15 @@ export default function SpreadsheetPage() {
     }
   };
 
-  const fetchSheetData = async (sheetName?: string) => {
+  const fetchSheetData = async (sheetName?: string, force = false) => {
+    const key = sheetName || "";
+    if (!force && sheetFetchedKeys.current.has(key)) {
+      const cached = sheetDataCache.current.get(key);
+      if (cached) {
+        setSheetData(cached);
+        return;
+      }
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -284,6 +296,8 @@ export default function SpreadsheetPage() {
       const response = await api.get(url);
       if (response.data.success) {
         setSheetData(response.data);
+        sheetDataCache.current.set(key, response.data);
+        sheetFetchedKeys.current.add(key);
       } else {
         throw new Error(response.data.error || "Không thể tải dữ liệu.");
       }
@@ -302,7 +316,7 @@ export default function SpreadsheetPage() {
     }
   }, [activeSheet, activeTab]);
 
-  // --- TAB 2: Trial Booking Tool ---
+  // --- TAB: Trial Booking Tool ---
   const getTodayDateStr = () => {
     const d = new Date();
     const offset = d.getTimezoneOffset();
@@ -313,11 +327,11 @@ export default function SpreadsheetPage() {
   const findNearestDate = (dates: string[], targetDateStr: string): string => {
     if (dates.length === 0) return targetDateStr;
     if (dates.includes(targetDateStr)) return targetDateStr;
-    
+
     const targetTime = new Date(targetDateStr).getTime();
     let nearestDate = dates[0];
     let minDiff = Math.abs(new Date(nearestDate).getTime() - targetTime);
-    
+
     for (let i = 1; i < dates.length; i++) {
       const diff = Math.abs(new Date(dates[i]).getTime() - targetTime);
       if (diff < minDiff) {
@@ -335,9 +349,10 @@ export default function SpreadsheetPage() {
   const [isTrialsLoading, setIsTrialsLoading] = useState(false);
   const [trialsError, setTrialsError] = useState<string | null>(null);
   const [teacherSearch, setTeacherSearch] = useState("");
-  const [cardFilters, setCardFilters] = useState<Record<number, "all" | "present" | "absent">>({});
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const trialsDataCache = useRef<Map<string, any[]>>(new Map());
+  const trialsFetchedKeys = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const handleResize = () => {
@@ -368,43 +383,55 @@ export default function SpreadsheetPage() {
 
   const showTrialsLoading = useMinLoading(isTrialsLoading, 1000);
 
-  const getCardFilter = (idx: number) => cardFilters[idx] || "all";
-  const setCardFilter = (idx: number, filter: "all" | "present" | "absent") => {
-    setCardFilters((prev) => ({ ...prev, [idx]: filter }));
-  };
-
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  const fetchTrialAvailabilities = async (silent = false) => {
+  const fetchTrialAvailabilities = async (silent = false, force = false) => {
     if (!token) return;
+    let centres: any[] = user?.teacherCentres || [];
+    if (isActualKhiemAccount(user)) {
+      const tdmCentre = centres.find((c: any) => {
+        const name = typeof c === "object" ? c?.name || c?.shortName : String(c);
+        return (name || "").toLowerCase().includes("thủ dầu một");
+      });
+      if (tdmCentre) {
+        centres = [tdmCentre];
+      }
+    }
+
+    const userCentres = centres
+      .map((c: any) => (typeof c === "object" ? c.id : c))
+      .filter(Boolean)
+      .join(",") || "6443460f94300678908f7974";
+
+    const cacheKey = `${selectedDate}|${userCentres}`;
+    if (!force && trialsFetchedKeys.current.has(cacheKey)) {
+      const cached = trialsDataCache.current.get(cacheKey);
+      if (cached) {
+        setTrialsData(cached.trials || []);
+        return;
+      }
+    }
+
     if (!silent) setIsTrialsLoading(true);
     setTrialsError(null);
     try {
-      let centres: any[] = user?.teacherCentres || [];
-      if (isActualKhiemAccount(user)) {
-        const tdmCentre = centres.find((c: any) => {
-          const name = typeof c === "object" ? c?.name || c?.shortName : String(c);
-          return (name || "").toLowerCase().includes("thủ dầu một");
-        });
-        if (tdmCentre) {
-          centres = [tdmCentre];
-        }
-      }
-
-      const userCentres = centres
-        .map((c: any) => (typeof c === "object" ? c.id : c))
-        .filter(Boolean)
-        .join(",") || "6443460f94300678908f7974";
-
       const response = await api.get(
         `/spreadsheet/trial-availabilities?dateStr=${selectedDate}&centreIds=${userCentres}`,
       );
       if (response.data.success) {
-        setTrialsData(response.data.trials || []);
+        const trials = response.data.trials || [];
+        setTrialsData(trials);
+
+        trialsDataCache.current.set(cacheKey, {
+          trials,
+          sheetName: response.data.sheetName || "",
+          datesWithTrials: response.data.datesWithTrials || [],
+        });
+        trialsFetchedKeys.current.add(cacheKey);
 
         const sheetName = response.data.sheetName || "";
         if (sheetName && sheetName !== lastDefaultedSheet) {
@@ -468,7 +495,7 @@ export default function SpreadsheetPage() {
       });
 
       if (response.data.success) {
-        await fetchTrialAvailabilities(true);
+        await fetchTrialAvailabilities(true, true);
       } else {
         throw new Error(response.data.error || "Lỗi khi lưu phân công.");
       }
@@ -489,7 +516,7 @@ export default function SpreadsheetPage() {
       });
 
       if (response.data.success) {
-        await fetchTrialAvailabilities(true);
+        await fetchTrialAvailabilities(true, true);
       } else {
         throw new Error(response.data.error || "Lỗi khi xóa phân công.");
       }
@@ -500,9 +527,8 @@ export default function SpreadsheetPage() {
     }
   };
 
-
   useEffect(() => {
-    if (activeTab === "trials") {
+    if (activeTab === "trial") {
       fetchTrialAvailabilities();
     }
   }, [selectedDate, activeTab]);
@@ -522,48 +548,69 @@ export default function SpreadsheetPage() {
       .filter(
         (header) => !HIDDEN_COLUMNS.some((hidden) => header.includes(hidden)),
       ) || [];
+
+  const userCentres = (() => {
+    let centres: any[] = user?.teacherCentres || [];
+    if (isActualKhiemAccount(user)) {
+      const tdmCentre = centres.find((c: any) => {
+        const name = typeof c === "object" ? c?.name || c?.shortName : String(c);
+        return (name || "").toLowerCase().includes("thủ dầu một");
+      });
+      if (tdmCentre) centres = [tdmCentre];
+    }
+    return (
+      centres
+        .map((c: any) => (typeof c === "object" ? c.id : c))
+        .filter(Boolean)
+        .join(",") || "6443460f94300678908f7974"
+    );
+  })();
+
+  const handleSubstituteError = (msg: string | null) => {
+    if (activeTab === "substitute") setTrialsError(msg);
+  };
+
+  const handleExaminerError = (msg: string | null) => {
+    if (activeTab === "examiner") setTrialsError(msg);
+  };
+
   return (
     <div className="p-3 sm:p-6 space-y-4 h-[calc(100vh-76px)] md:h-screen overflow-hidden flex flex-col bg-background">
-      <PageHeader
-        icon={TableProperties}
-        title={
-          activeTab === "sheet" && sheetData?.sheetName
-            ? `Book Trial — ${sheetData.sheetName}`
-            : "Book Trial"
-        }
-        description="Quản lý lịch trial & bảng tính Google Sheet"
-        actions={
-          <div className="flex items-center gap-2">
-            <div className="flex items-center bg-card p-0.5 rounded-lg border border-border shadow-sm text-xs shrink-0 select-none">
-              <button
-                onClick={() => setActiveTab("trials")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
-                  activeTab === "trials"
-                    ? "bg-muted text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Calendar className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Khảo sát trực Trial</span>
-                <span className="sm:hidden">Trial</span>
-              </button>
-              <button
-                onClick={() => setActiveTab("sheet")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
-                  activeTab === "sheet"
-                    ? "bg-muted text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <TableProperties className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Bảng tính Google Sheet</span>
-                <span className="sm:hidden">Sheet</span>
-              </button>
-            </div>
+      {/* Errors and successes are surfaced via <AlertModal>; the
+          inline banner was removed in favour of a consistent modal. */}
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as SpreadsheetTabKey)}
+        className="flex-1 flex flex-col overflow-hidden"
+      >
+        <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
+          <TabsList className="self-start shrink-0">
+            <TabsTrigger value="trial" className="gap-1.5">
+              <Calendar className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Book Trial</span>
+              <span className="sm:hidden">Trial</span>
+            </TabsTrigger>
+            <TabsTrigger value="substitute" className="gap-1.5">
+              <UserCog className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Book dạy thay</span>
+              <span className="sm:hidden">Dạy thay</span>
+            </TabsTrigger>
+            <TabsTrigger value="examiner" className="gap-1.5">
+              <Gavel className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Book giám khảo</span>
+              <span className="sm:hidden">GK</span>
+            </TabsTrigger>
+            <TabsTrigger value="sheet" className="gap-1.5">
+              <TableProperties className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Bảng tính</span>
+              <span className="sm:hidden">Sheet</span>
+            </TabsTrigger>
+          </TabsList>
 
+          <div className="flex items-center gap-2">
             {activeTab === "sheet" && (
               <Button
-                onClick={() => fetchSheetData(activeSheet || undefined)}
+                onClick={() => fetchSheetData(activeSheet || undefined, true)}
                 disabled={isLoading}
                 variant="outline"
                 size="sm"
@@ -574,9 +621,9 @@ export default function SpreadsheetPage() {
               </Button>
             )}
 
-            {activeTab === "trials" && (
+            {activeTab === "trial" && (
               <Button
-                onClick={() => fetchTrialAvailabilities()}
+                onClick={() => fetchTrialAvailabilities(false, true)}
                 disabled={isTrialsLoading}
                 variant="outline"
                 size="sm"
@@ -587,24 +634,10 @@ export default function SpreadsheetPage() {
               </Button>
             )}
           </div>
-        }
-      />
-
-      {activeTab === "sheet" && error && (
-        <div className="p-3 text-sm bg-destructive/10 text-destructive rounded-lg shrink-0 border border-destructive/20">
-          {error}
         </div>
-      )}
 
-      {activeTab === "trials" && trialsError && (
-        <div className="p-3 text-sm bg-destructive/10 text-destructive rounded-lg shrink-0 border border-destructive/20">
-          {trialsError}
-        </div>
-      )}
-
-      <div className="flex-1 border border-border bg-card shadow-sm overflow-hidden relative flex flex-col rounded-xl">
-        {activeTab === "sheet" ? (
-          <>
+        <TabsContent value="sheet" className="flex-1 flex flex-col overflow-hidden mt-0">
+          <div className="flex-1 border border-border bg-card shadow-sm overflow-hidden relative flex flex-col rounded-xl">
             {showLoading && !sheetData ? (
               <div className="absolute inset-0 z-50 bg-card/80 backdrop-blur-sm flex items-center justify-center min-h-[60vh]">
                 <CatLoader />
@@ -771,522 +804,552 @@ export default function SpreadsheetPage() {
                 </table>
               </div>
             )}
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col overflow-hidden bg-muted/20">
-            {/* Filter control bar */}
-            <div className="p-1 sm:p-1.5 bg-card border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 shrink-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider hidden sm:inline">Ngày trực:</span>
-                
-                {/* Day Navigator */}
-                <div className="flex items-center bg-card border border-border rounded-lg shadow-sm h-8 transition-all hover:border-border justify-between flex-1 sm:flex-none">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-full w-8 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-none rounded-l-lg"
-                    onClick={handlePrevDay}
-                    title="Ngày trước"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </Button>
+          </div>
+        </TabsContent>
 
-                  <div
-                    className="relative h-full border-x border-border flex-1 sm:flex-none"
-                    ref={datePickerRef}
-                  >
-                    <div
-                      onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
-                      className={`flex items-center justify-center gap-1.5 px-3 h-full hover:bg-muted/50 transition-colors cursor-pointer min-w-[110px] sm:min-w-[125px] select-none text-[11px] font-bold text-foreground ${isDatePickerOpen ? "bg-muted/50 ring-1 ring-primary/20" : ""}`}
-                    >
-                      <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <span>{selectedDate ? format(new Date(selectedDate), "dd/MM/yyyy") : ""}</span>
-                    </div>
-
-                    {isDatePickerOpen && (
-                      <div className="absolute top-[calc(100%+6px)] left-1/2 -translate-x-1/2 z-50">
-                        <CustomDatePicker
-                          selectedDate={new Date(selectedDate)}
-                          onSelect={(date) => {
-                            const offset = date.getTimezoneOffset();
-                            const localDate = new Date(date.getTime() - (offset * 60 * 1000));
-                            setSelectedDate(localDate.toISOString().split('T')[0]);
-                          }}
-                          onClose={() => setIsDatePickerOpen(false)}
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-full w-8 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-none"
-                    onClick={handleNextDay}
-                    title="Ngày tiếp theo"
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </Button>
-
-                  <div className="h-full border-l border-border">
+        <TabsContent value="trial" className="flex-1 flex flex-col overflow-hidden mt-0">
+          <div className="flex-1 border border-border bg-card shadow-sm overflow-hidden relative flex flex-col rounded-xl">
+            <div className="flex-1 flex flex-col overflow-hidden bg-muted/20">
+              <div className="p-1 sm:p-1.5 bg-card border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider hidden sm:inline">Ngày trực:</span>
+                  <div className="flex items-center bg-card border border-border rounded-lg shadow-sm h-8 transition-all hover:border-border justify-between flex-1 sm:flex-none">
                     <Button
                       variant="ghost"
-                      className="h-full px-2 text-[10px] font-extrabold text-primary hover:bg-primary/10 rounded-none rounded-r-lg"
-                      onClick={handleToday}
+                      size="icon"
+                      className="h-full w-8 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-none rounded-l-lg"
+                      onClick={handlePrevDay}
+                      title="Ngày trước"
                     >
-                      H.Nay
+                      <ChevronLeft className="h-3.5 w-3.5" />
                     </Button>
+
+                    <div
+                      className="relative h-full border-x border-border flex-1 sm:flex-none"
+                      ref={datePickerRef}
+                    >
+                      <div
+                        onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
+                        className={`flex items-center justify-center gap-1.5 px-3 h-full hover:bg-muted/50 transition-colors cursor-pointer min-w-[110px] sm:min-w-[125px] select-none text-[11px] font-bold text-foreground ${isDatePickerOpen ? "bg-muted/50 ring-1 ring-primary/20" : ""}`}
+                      >
+                        <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span>{selectedDate ? format(new Date(selectedDate), "dd/MM/yyyy") : ""}</span>
+                      </div>
+
+                      {isDatePickerOpen && (
+                        <div className="absolute top-[calc(100%+6px)] left-1/2 -translate-x-1/2 z-50">
+                          <CustomDatePicker
+                            selectedDate={new Date(selectedDate)}
+                            onSelect={(date) => {
+                              const offset = date.getTimezoneOffset();
+                              const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+                              setSelectedDate(localDate.toISOString().split('T')[0]);
+                            }}
+                            onClose={() => setIsDatePickerOpen(false)}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-full w-8 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-none"
+                      onClick={handleNextDay}
+                      title="Ngày tiếp theo"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+
+                    <div className="h-full border-l border-border">
+                      <Button
+                        variant="ghost"
+                        className="h-full px-2 text-[10px] font-extrabold text-primary hover:bg-primary/10 rounded-none rounded-r-lg"
+                        onClick={handleToday}
+                      >
+                        H.Nay
+                      </Button>
+                    </div>
                   </div>
                 </div>
+
+                <div className="relative w-full sm:w-56">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Tìm giáo viên..."
+                    value={teacherSearch}
+                    onChange={(e) => setTeacherSearch(e.target.value)}
+                    className="pl-8 h-8 text-[11px] bg-card w-full"
+                  />
+                </div>
               </div>
 
-              <div className="relative w-full sm:w-56">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Tìm giáo viên..."
-                  value={teacherSearch}
-                  onChange={(e) => setTeacherSearch(e.target.value)}
-                  className="pl-8 h-8 text-[11px] bg-card w-full"
-                />
-              </div>
-            </div>
+              <div className="flex-1 overflow-hidden p-1.5 sm:p-2.5 relative min-h-0 flex flex-col">
+                {showTrialsLoading ? (
+                  <div className="absolute inset-0 z-50 bg-card/80 backdrop-blur-sm flex items-center justify-center">
+                    <CatLoader />
+                  </div>
+                ) : trialsData.length === 0 ? (
+                  <div className="h-64 flex flex-col items-center justify-center gap-2 text-muted-foreground bg-card rounded-xl border border-border/60 p-6 shadow-sm">
+                    <User className="h-8 w-8 text-muted-foreground opacity-50" />
+                    <p className="text-sm font-medium text-foreground">
+                      Không có ca trực Trial nào được ghi nhận trong ngày này
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Hãy kiểm tra lịch trên Google Sheets hoặc chọn ngày khác
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col min-h-0">
+                    {!isMobile ? (
+                      <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm flex flex-col h-full">
+                        <div
+                          ref={trialsContainerRef}
+                          className="overflow-auto flex-1 custom-scrollbar no-vertical-scrollbar cursor-grab"
+                          onMouseDown={handleTrialsDragMouseDown}
+                          onMouseMove={handleTrialsDragMouseMove}
+                          onMouseUp={handleTrialsDragMouseUpOrLeave}
+                          onMouseLeave={handleTrialsDragMouseUpOrLeave}
+                          onClickCapture={handleTrialsClickCapture}
+                        >
+                          <table className="w-full min-w-[700px] md:min-w-full border-collapse text-xs text-left">
+                            <thead className="bg-muted sticky top-0 z-10 border-b border-border">
+                              <tr>
+                                <th className="py-2 px-3 font-bold text-foreground w-[15%] text-[11px]">Thời gian</th>
+                                <th className="py-2 px-3 font-bold text-foreground w-[25%] text-[11px]">Thông tin ca</th>
+                                <th className="py-2 px-3 font-bold text-foreground w-[30%] text-[11px]">Học viên</th>
+                                <th className="py-2 px-3 font-bold text-foreground w-[30%] text-[11px]">Giáo viên trực</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border bg-card">
+                              {trialsData.map((trial, idx) => {
+                                let present = trial.availabilities?.presentAtBranch || [];
+                                let absent = trial.availabilities?.notPresentAtBranch || [];
+                                const assigned = trial.assignedTeacher;
+                                const slotId = trial.slotId;
+                                const saving = isSaving[slotId];
 
-            {/* Trial grid / list */}
-            <div className="flex-1 overflow-hidden p-1.5 sm:p-2.5 relative min-h-0 flex flex-col">
-              {showTrialsLoading ? (
-                <div className="absolute inset-0 z-50 bg-card/80 backdrop-blur-sm flex items-center justify-center">
-                  <CatLoader />
-                </div>
-              ) : trialsData.length === 0 ? (
-                <div className="h-64 flex flex-col items-center justify-center gap-2 text-muted-foreground bg-card rounded-xl border border-border/60 p-6 shadow-sm">
-                  <User className="h-8 w-8 text-muted-foreground opacity-50" />
-                  <p className="text-sm font-medium text-foreground">
-                    Không có ca trực Trial nào được ghi nhận trong ngày này
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Hãy kiểm tra lịch trên Google Sheets hoặc chọn ngày khác
-                  </p>
-                </div>
-              ) : (
-                <div className="flex-1 flex flex-col min-h-0">
-                  {!isMobile ? (
-                    <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm flex flex-col h-full">
-                      <div
-                        ref={trialsContainerRef}
-                        className="overflow-auto flex-1 custom-scrollbar no-vertical-scrollbar cursor-grab"
-                        onMouseDown={handleTrialsDragMouseDown}
-                        onMouseMove={handleTrialsDragMouseMove}
-                        onMouseUp={handleTrialsDragMouseUpOrLeave}
-                        onMouseLeave={handleTrialsDragMouseUpOrLeave}
-                        onClickCapture={handleTrialsClickCapture}
-                      >
-                        <table className="w-full min-w-[700px] md:min-w-full border-collapse text-xs text-left">
-                          <thead className="bg-muted sticky top-0 z-10 border-b border-border">
-                            <tr>
-                              <th className="py-2 px-3 font-bold text-foreground w-[15%] text-[11px]">Thời gian</th>
-                              <th className="py-2 px-3 font-bold text-foreground w-[25%] text-[11px]">Thông tin ca</th>
-                              <th className="py-2 px-3 font-bold text-foreground w-[30%] text-[11px]">Học viên</th>
-                              <th className="py-2 px-3 font-bold text-foreground w-[30%] text-[11px]">Giáo viên trực</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border bg-card">
-                            {trialsData.map((trial, idx) => {
-                              let present = trial.availabilities?.presentAtBranch || [];
-                              let absent = trial.availabilities?.notPresentAtBranch || [];
-                              const assigned = trial.assignedTeacher;
-                              const slotId = trial.slotId;
-                              const saving = isSaving[slotId];
-                              const isBottomRow = false;
+                                if (teacherSearch.trim() !== "") {
+                                  const q = teacherSearch.toLowerCase();
+                                  present = present.filter(
+                                    (t: any) => t.fullName?.toLowerCase().includes(q) || t.code?.toLowerCase().includes(q)
+                                  );
+                                  absent = absent.filter(
+                                    (t: any) => t.fullName?.toLowerCase().includes(q) || t.code?.toLowerCase().includes(q)
+                                  );
+                                }
 
-                              if (teacherSearch.trim() !== "") {
-                                const q = teacherSearch.toLowerCase();
-                                present = present.filter(
-                                  (t: any) => t.fullName?.toLowerCase().includes(q) || t.code?.toLowerCase().includes(q)
-                                );
-                                absent = absent.filter(
-                                  (t: any) => t.fullName?.toLowerCase().includes(q) || t.code?.toLowerCase().includes(q)
-                                );
-                              }
+                                return (
+                                  <tr key={idx} className="hover:bg-muted/50/40 transition-colors group">
+                                    <td className="py-2 px-3 align-top">
+                                      <span className="inline-flex items-center justify-center text-[10px] font-extrabold bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">
+                                        {trial.timeSlot}
+                                      </span>
+                                    </td>
 
-                              return (
-                                <tr key={idx} className="hover:bg-muted/50/40 transition-colors group">
-                                  {/* 1. Time */}
-                                  <td className="py-2 px-3 align-top">
-                                    <span className="inline-flex items-center justify-center text-[10px] font-extrabold bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">
-                                      {trial.timeSlot}
-                                    </span>
-                                  </td>
+                                    <td className="py-2 px-3 align-top space-y-1">
+                                      <h4 className="font-bold text-foreground text-xs leading-tight">
+                                        {trial.subject === "Trống" ? (
+                                          <span className="text-muted-foreground italic font-medium">Khung giờ trống</span>
+                                        ) : (
+                                          `${trial.subject} (${trial.type})`
+                                        )}
+                                      </h4>
 
-                                  {/* 2. Info */}
-                                  <td className="py-2 px-3 align-top space-y-1">
-                                    <h4 className="font-bold text-foreground text-xs leading-tight">
-                                      {trial.subject === "Trống" ? (
-                                        <span className="text-muted-foreground italic font-medium">Khung giờ trống</span>
+                                      {trial.rowIndex ? (
+                                        <span className="inline-block text-[8.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60 px-1 py-0.25 rounded">
+                                          Sheet dòng {trial.rowIndex}
+                                        </span>
                                       ) : (
-                                        `${trial.subject} (${trial.type})`
+                                        <span className="inline-block text-[8.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-1 py-0.25 rounded">
+                                          Khung giờ chuẩn
+                                        </span>
                                       )}
-                                    </h4>
-                                    
-                                    {trial.rowIndex ? (
-                                      <span className="inline-block text-[8.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60 px-1 py-0.25 rounded">
-                                        Sheet dòng {trial.rowIndex}
-                                      </span>
-                                    ) : (
-                                      <span className="inline-block text-[8.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-1 py-0.25 rounded">
-                                        Khung giờ chuẩn
-                                      </span>
-                                    )}
 
-                                    {trial.roomLink && (
-                                      <div className="pt-0.5">
-                                        <a
-                                          href={trial.roomLink}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="inline-flex items-center text-[10px] font-semibold text-blue-600 hover:underline"
-                                        >
-                                          Link phòng ↗
-                                        </a>
-                                      </div>
-                                    )}
-                                  </td>
-
-                                  {/* 3. Students */}
-                                  <td className="py-2 px-3 align-top">
-                                    {trial.students.length === 0 ? (
-                                      <span className="text-xs text-muted-foreground italic">Chưa có học viên</span>
-                                    ) : (
-                                      <div className="space-y-0.5">
-                                        {trial.students.map((student: string, sIdx: number) => (
-                                          <div key={sIdx} className="text-xs text-foreground font-medium leading-relaxed">
-                                            • {student}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </td>
-
-                                  {/* 4. Teacher Assignment */}
-                                  <td className={`py-2 px-3 align-top ${openDropdownId === slotId ? "relative z-30" : ""}`}>
-                                    {saving ? (
-                                      <div className="border border-border rounded-lg p-1.5 flex items-center justify-center bg-muted/50/50">
-                                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
-                                          <Loader2 className="h-3 w-3 animate-spin" />
-                                          <span>Đang lưu...</span>
+                                      {trial.roomLink && (
+                                        <div className="pt-0.5">
+                                          <a
+                                            href={trial.roomLink}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center text-[10px] font-semibold text-blue-600 hover:underline"
+                                          >
+                                            Link phòng ↗
+                                          </a>
                                         </div>
-                                      </div>
-                                    ) : assigned ? (
-                                      <div className="border border-emerald-300 bg-emerald-50/20 rounded-lg p-1.5 flex items-center justify-between gap-2 transition-all shadow-sm">
-                                        <div className="flex items-center gap-1.5 min-w-0">
-                                          <div className="w-6.5 h-6.5 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
-                                            {assigned.fullName.charAt(0)}
+                                      )}
+                                    </td>
+
+                                    <td className="py-2 px-3 align-top">
+                                      {trial.students.length === 0 ? (
+                                        <span className="text-xs text-muted-foreground italic">Chưa có học viên</span>
+                                      ) : (
+                                        <div className="space-y-0.5">
+                                          {trial.students.map((student: string, sIdx: number) => (
+                                            <div key={sIdx} className="text-xs text-foreground font-medium leading-relaxed">
+                                              • {student}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </td>
+
+                                    <td className={`py-2 px-3 align-top ${openDropdownId === slotId ? "relative z-30" : ""}`}>
+                                      {saving ? (
+                                        <div className="border border-border rounded-lg p-1.5 flex items-center justify-center bg-muted/50/50">
+                                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                            <span>Đang lưu...</span>
                                           </div>
-                                          <div className="min-w-0">
-                                            <div className="font-semibold text-foreground text-[11.5px] truncate leading-tight">
-                                              {assigned.fullName}
+                                        </div>
+                                      ) : assigned ? (
+                                        <div className="border border-emerald-300 bg-emerald-50/20 rounded-lg p-1.5 flex items-center justify-between gap-2 transition-all shadow-sm">
+                                          <div className="flex items-center gap-1.5 min-w-0">
+                                            <div className="w-6.5 h-6.5 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                                              {assigned.fullName.charAt(0)}
+                                            </div>
+                                            <div className="min-w-0">
+                                              <div className="font-semibold text-foreground text-[11.5px] truncate leading-tight">
+                                                {assigned.fullName}
+                                              </div>
                                             </div>
                                           </div>
+                                          <Button
+                                            onClick={() => handleUnassignTeacher(trial)}
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-6 w-6 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md shrink-0 transition-colors"
+                                            title="Xóa phân công"
+                                          >
+                                            <span className="font-bold text-xs">✕</span>
+                                          </Button>
                                         </div>
-                                        <Button
-                                          onClick={() => handleUnassignTeacher(trial)}
-                                          size="icon"
-                                          variant="ghost"
-                                          className="h-6 w-6 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md shrink-0 transition-colors"
-                                          title="Xóa phân công"
-                                        >
-                                          <span className="font-bold text-xs">✕</span>
-                                        </Button>
-                                      </div>
-                                    ) : (
-                                      <div className="relative">
-                                        {/* Transparent click overlay to close dropdown */}
-                                        {openDropdownId === slotId && (
-                                          <div
-                                            className="fixed inset-0 z-20 cursor-default"
-                                            onClick={() => setOpenDropdownId(null)}
-                                          />
-                                        )}
+                                      ) : (
+                                        <div className="relative">
+                                          {openDropdownId === slotId && (
+                                            <div
+                                              className="fixed inset-0 z-20 cursor-default"
+                                              onClick={() => setOpenDropdownId(null)}
+                                            />
+                                          )}
 
-                                        <button
-                                          onClick={() => setOpenDropdownId(openDropdownId === slotId ? null : slotId)}
-                                          className="w-full text-left text-xs border border-border hover:border-border rounded-lg px-2.5 py-1.5 bg-muted/50 hover:bg-muted/60 text-foreground font-semibold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer shadow-sm flex items-center justify-between relative z-10"
-                                        >
-                                          <span>-- Chọn giáo viên khả dụng ({present.length + absent.length}) --</span>
-                                          <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${openDropdownId === slotId ? "transform rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                          </svg>
-                                        </button>
+                                          <button
+                                            onClick={() => setOpenDropdownId(openDropdownId === slotId ? null : slotId)}
+                                            className="w-full text-left text-xs border border-border hover:border-border rounded-lg px-2.5 py-1.5 bg-muted/50 hover:bg-muted/60 text-foreground font-semibold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer shadow-sm flex items-center justify-between relative z-10"
+                                          >
+                                            <span>-- Chọn giáo viên khả dụng ({present.length + absent.length}) --</span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${openDropdownId === slotId ? "transform rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                          </button>
 
-                                        {openDropdownId === slotId && (
-                                          <div className={`absolute left-0 right-0 z-30 max-h-60 overflow-y-auto bg-card border border-border rounded-xl shadow-lg py-1 text-xs divide-y divide-border/60 duration-150 custom-scrollbar animate-in fade-in-50 ${isBottomRow ? "bottom-full mb-1 slide-in-from-bottom-1" : "top-full mt-1 slide-in-from-top-1"}`}>
-                                            {present.length > 0 && (
-                                              <div>
-                                                <div className="px-3 py-1 text-[10px] font-bold text-emerald-700 bg-emerald-50/50 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-sm">
-                                                  Có mặt ở BU hôm đó ({present.length})
+                                          {openDropdownId === slotId && (
+                                            <div className="absolute left-0 right-0 z-30 max-h-60 overflow-y-auto bg-card border border-border rounded-xl shadow-lg py-1 text-xs divide-y divide-border/60 duration-150 custom-scrollbar animate-in fade-in-50 top-full mt-1 slide-in-from-top-1">
+                                              {present.length > 0 && (
+                                                <div>
+                                                  <div className="px-3 py-1 text-[10px] font-bold text-emerald-700 bg-emerald-50/50 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-sm">
+                                                    Có mặt ở BU hôm đó ({present.length})
+                                                  </div>
+                                                  {present.map((teacher: any) => {
+                                                    const busyTimes = teacher.schedulesToday && teacher.schedulesToday.length > 0
+                                                      ? `Bận: ${teacher.schedulesToday.map((s: any) => s.time).join(", ")}`
+                                                      : "";
+                                                    return (
+                                                      <button
+                                                        key={teacher.id}
+                                                        onClick={() => {
+                                                          handleAssignTeacher(trial, teacher);
+                                                          setOpenDropdownId(null);
+                                                        }}
+                                                        className="w-full text-left px-3 py-1.5 hover:bg-muted/50 text-foreground hover:text-foreground font-medium transition-colors flex items-center justify-between"
+                                                      >
+                                                        <span>{teacher.fullName}</span>
+                                                        {busyTimes && (
+                                                          <span className="text-[9px] text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded font-semibold ml-2 shrink-0">
+                                                            {busyTimes}
+                                                          </span>
+                                                        )}
+                                                      </button>
+                                                    );
+                                                  })}
                                                 </div>
-                                                {present.map((teacher: any) => {
-                                                  const busyTimes = teacher.schedulesToday && teacher.schedulesToday.length > 0
-                                                    ? `Bận: ${teacher.schedulesToday.map((s: any) => s.time).join(", ")}`
-                                                    : "";
-                                                  return (
+                                              )}
+
+                                              {absent.length > 0 && (
+                                                <div>
+                                                  <div className="px-3 py-1 text-[10px] font-bold text-blue-700 bg-blue-50/50 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-sm">
+                                                    Rảnh cả ngày hôm đó ({absent.length})
+                                                  </div>
+                                                  {absent.map((teacher: any) => (
                                                     <button
                                                       key={teacher.id}
                                                       onClick={() => {
                                                         handleAssignTeacher(trial, teacher);
                                                         setOpenDropdownId(null);
                                                       }}
-                                                      className="w-full text-left px-3 py-1.5 hover:bg-muted/50 text-foreground hover:text-foreground font-medium transition-colors flex items-center justify-between"
+                                                      className="w-full text-left px-3 py-1.5 hover:bg-muted/50 text-foreground hover:text-foreground font-medium transition-colors"
                                                     >
-                                                      <span>{teacher.fullName}</span>
-                                                      {busyTimes && (
-                                                        <span className="text-[9px] text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded font-semibold ml-2 shrink-0">
-                                                          {busyTimes}
-                                                        </span>
-                                                      )}
+                                                      {teacher.fullName}
                                                     </button>
-                                                  );
-                                                })}
-                                              </div>
-                                            )}
-
-                                            {absent.length > 0 && (
-                                              <div>
-                                                <div className="px-3 py-1 text-[10px] font-bold text-blue-700 bg-blue-50/50 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-sm">
-                                                  Rảnh cả ngày hôm đó ({absent.length})
+                                                  ))}
                                                 </div>
-                                                {absent.map((teacher: any) => (
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 pb-8 overflow-y-auto max-h-[calc(100vh-200px)] custom-scrollbar no-vertical-scrollbar">
+                        {trialsData.map((trial, idx) => {
+                          let present = trial.availabilities?.presentAtBranch || [];
+                          let absent = trial.availabilities?.notPresentAtBranch || [];
+                          const assigned = trial.assignedTeacher;
+                          const slotId = trial.slotId;
+                          const saving = isSaving[slotId];
+
+                          if (teacherSearch.trim() !== "") {
+                            const q = teacherSearch.toLowerCase();
+                            present = present.filter(
+                              (t: any) => t.fullName?.toLowerCase().includes(q) || t.code?.toLowerCase().includes(q)
+                            );
+                            absent = absent.filter(
+                              (t: any) => t.fullName?.toLowerCase().includes(q) || t.code?.toLowerCase().includes(q)
+                            );
+                          }
+
+                          return (
+                            <div
+                              key={idx}
+                              className={`bg-card rounded-lg border border-border shadow-sm p-2.5 space-y-2.5 transition-all hover:shadow-md ${openDropdownId === slotId ? "relative z-20" : ""}`}
+                            >
+                              <div className="flex items-center justify-between pb-1.5 border-b border-border/60">
+                                <span className="inline-flex items-center justify-center text-[10px] font-extrabold bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">
+                                  {trial.timeSlot}
+                                </span>
+
+                                {trial.rowIndex ? (
+                                  <span className="inline-block text-[8.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60 px-1 py-0.25 rounded">
+                                    Sheet dòng {trial.rowIndex}
+                                  </span>
+                                ) : (
+                                  <span className="inline-block text-[8.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-1 py-0.25 rounded">
+                                    Khung giờ chuẩn
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="space-y-2">
+                                <div>
+                                  <h4 className="font-bold text-foreground text-xs leading-snug">
+                                    {trial.subject === "Trống" ? (
+                                      <span className="text-muted-foreground italic font-medium">Khung giờ trống</span>
+                                    ) : (
+                                      `${trial.subject} (${trial.type})`
+                                    )}
+                                  </h4>
+                                  {trial.roomLink && (
+                                    <div className="mt-1">
+                                      <a
+                                        href={trial.roomLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center text-[10.5px] font-semibold text-blue-600 hover:underline"
+                                      >
+                                        Link phòng ↗
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="bg-muted/50/60 rounded-md p-2 border border-border/60">
+                                  <div className="text-[9.5px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">
+                                    Học viên ({trial.students.length})
+                                  </div>
+                                  {trial.students.length === 0 ? (
+                                    <span className="text-[11px] text-muted-foreground italic">Chưa có học viên</span>
+                                  ) : (
+                                    <div className="space-y-0.5">
+                                      {trial.students.map((student: string, sIdx: number) => (
+                                        <div key={sIdx} className="text-[11px] text-foreground font-semibold flex items-center gap-1">
+                                          <span className="h-1.5 w-1.5 rounded-full bg-muted shrink-0" />
+                                          {student}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="space-y-1 pt-0.5">
+                                  <div className="text-[9.5px] font-bold text-muted-foreground uppercase tracking-wider">
+                                    Giáo viên trực
+                                  </div>
+                                  {saving ? (
+                                    <div className="border border-border rounded-lg p-1.5 flex items-center justify-center bg-muted/50/50">
+                                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                        <span>Đang lưu...</span>
+                                      </div>
+                                    </div>
+                                  ) : assigned ? (
+                                    <div className="border border-emerald-300 bg-emerald-50/20 rounded-lg p-1.5 flex items-center justify-between gap-2 transition-all shadow-sm">
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <div className="w-6.5 h-6.5 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                                          {assigned.fullName.charAt(0)}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <div className="font-semibold text-foreground text-[11.5px] truncate leading-tight">
+                                            {assigned.fullName}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <Button
+                                        onClick={() => handleUnassignTeacher(trial)}
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-6.5 w-6.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md shrink-0 transition-colors"
+                                        title="Xóa phân công"
+                                      >
+                                        <span className="font-bold text-xs">✕</span>
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="relative">
+                                      {openDropdownId === slotId && (
+                                        <div
+                                          className="fixed inset-0 z-20 cursor-default"
+                                          onClick={() => setOpenDropdownId(null)}
+                                        />
+                                      )}
+
+                                      <button
+                                        onClick={() => setOpenDropdownId(openDropdownId === slotId ? null : slotId)}
+                                        className="w-full text-left text-[11px] border border-border hover:border-border rounded-lg px-2.5 py-1.5 bg-muted/50 hover:bg-muted/60 text-foreground font-semibold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer shadow-sm flex items-center justify-between relative z-10"
+                                      >
+                                        <span>-- Chọn giáo viên khả dụng ({present.length + absent.length}) --</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${openDropdownId === slotId ? "transform rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                      </button>
+
+                                      {openDropdownId === slotId && (
+                                        <div className="absolute left-0 right-0 z-30 max-h-60 overflow-y-auto bg-card border border-border rounded-xl shadow-lg py-1 text-xs divide-y divide-border/60 duration-150 custom-scrollbar animate-in fade-in-50 top-full mt-1 slide-in-from-top-1">
+                                          {present.length > 0 && (
+                                            <div>
+                                              <div className="px-3 py-1 text-[10px] font-bold text-emerald-700 bg-emerald-50/50 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-sm">
+                                                Có mặt ở BU hôm đó ({present.length})
+                                              </div>
+                                              {present.map((teacher: any) => {
+                                                const busyTimes = teacher.schedulesToday && teacher.schedulesToday.length > 0
+                                                  ? `Bận: ${teacher.schedulesToday.map((s: any) => s.time).join(", ")}`
+                                                  : "";
+                                                return (
                                                   <button
                                                     key={teacher.id}
                                                     onClick={() => {
                                                       handleAssignTeacher(trial, teacher);
                                                       setOpenDropdownId(null);
                                                     }}
-                                                    className="w-full text-left px-3 py-1.5 hover:bg-muted/50 text-foreground hover:text-foreground font-medium transition-colors"
+                                                    className="w-full text-left px-2.5 py-1.5 hover:bg-muted/50 text-foreground hover:text-foreground font-medium transition-colors flex items-center justify-between text-[11px]"
                                                   >
-                                                    {teacher.fullName}
+                                                    <span>{teacher.fullName}</span>
+                                                    {busyTimes && (
+                                                      <span className="text-[8.5px] text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded font-semibold ml-2 shrink-0">
+                                                        {busyTimes}
+                                                      </span>
+                                                    )}
                                                   </button>
-                                                ))}
-                                              </div>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 pb-8 overflow-y-auto max-h-[calc(100vh-200px)] custom-scrollbar no-vertical-scrollbar">
-                      {trialsData.map((trial, idx) => {
-                        let present = trial.availabilities?.presentAtBranch || [];
-                        let absent = trial.availabilities?.notPresentAtBranch || [];
-                        const assigned = trial.assignedTeacher;
-                        const slotId = trial.slotId;
-                        const saving = isSaving[slotId];
-                        const isBottomRow = trialsData.length > 2 && idx >= trialsData.length - 2;
-
-                        if (teacherSearch.trim() !== "") {
-                          const q = teacherSearch.toLowerCase();
-                          present = present.filter(
-                            (t: any) => t.fullName?.toLowerCase().includes(q) || t.code?.toLowerCase().includes(q)
-                          );
-                          absent = absent.filter(
-                            (t: any) => t.fullName?.toLowerCase().includes(q) || t.code?.toLowerCase().includes(q)
-                          );
-                        }
-
-                        return (
-                          <div
-                            key={idx}
-                            className={`bg-card rounded-lg border border-border shadow-sm p-2.5 space-y-2.5 transition-all hover:shadow-md ${openDropdownId === slotId ? "relative z-20" : ""}`}
-                          >
-                            {/* Card Header: time badge and sheet row badge */}
-                            <div className="flex items-center justify-between pb-1.5 border-b border-border/60">
-                              <span className="inline-flex items-center justify-center text-[10px] font-extrabold bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">
-                                {trial.timeSlot}
-                              </span>
-
-                              {trial.rowIndex ? (
-                                <span className="inline-block text-[8.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60 px-1 py-0.25 rounded">
-                                  Sheet dòng {trial.rowIndex}
-                                </span>
-                              ) : (
-                                <span className="inline-block text-[8.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-1 py-0.25 rounded">
-                                  Khung giờ chuẩn
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Card Body: subject details, link */}
-                            <div className="space-y-2">
-                              <div>
-                                <h4 className="font-bold text-foreground text-xs leading-snug">
-                                  {trial.subject === "Trống" ? (
-                                    <span className="text-muted-foreground italic font-medium">Khung giờ trống</span>
-                                  ) : (
-                                    `${trial.subject} (${trial.type})`
-                                  )}
-                                </h4>
-                                {trial.roomLink && (
-                                  <div className="mt-1">
-                                    <a
-                                      href={trial.roomLink}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center text-[10.5px] font-semibold text-blue-600 hover:underline"
-                                    >
-                                      Link phòng ↗
-                                    </a>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Student Info */}
-                              <div className="bg-muted/50/60 rounded-md p-2 border border-border/60">
-                                <div className="text-[9.5px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">
-                                  Học viên ({trial.students.length})
-                                </div>
-                                {trial.students.length === 0 ? (
-                                  <span className="text-[11px] text-muted-foreground italic">Chưa có học viên</span>
-                                ) : (
-                                  <div className="space-y-0.5">
-                                    {trial.students.map((student: string, sIdx: number) => (
-                                      <div key={sIdx} className="text-[11px] text-foreground font-semibold flex items-center gap-1">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-muted shrink-0" />
-                                        {student}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Teacher Assignment Sector */}
-                              <div className="space-y-1 pt-0.5">
-                                <div className="text-[9.5px] font-bold text-muted-foreground uppercase tracking-wider">
-                                  Giáo viên trực
-                                </div>
-                                {saving ? (
-                                  <div className="border border-border rounded-lg p-1.5 flex items-center justify-center bg-muted/50/50">
-                                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                      <span>Đang lưu...</span>
-                                    </div>
-                                  </div>
-                                ) : assigned ? (
-                                  <div className="border border-emerald-300 bg-emerald-50/20 rounded-lg p-1.5 flex items-center justify-between gap-2 transition-all shadow-sm">
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                      <div className="w-6.5 h-6.5 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
-                                        {assigned.fullName.charAt(0)}
-                                      </div>
-                                      <div className="min-w-0">
-                                        <div className="font-semibold text-foreground text-[11.5px] truncate leading-tight">
-                                          {assigned.fullName}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <Button
-                                      onClick={() => handleUnassignTeacher(trial)}
-                                      size="icon"
-                                      variant="ghost"
-                                      className="h-6.5 w-6.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md shrink-0 transition-colors"
-                                      title="Xóa phân công"
-                                    >
-                                      <span className="font-bold text-xs">✕</span>
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  <div className="relative">
-                                    {/* Transparent click overlay to close dropdown */}
-                                    {openDropdownId === slotId && (
-                                      <div
-                                        className="fixed inset-0 z-20 cursor-default"
-                                        onClick={() => setOpenDropdownId(null)}
-                                      />
-                                    )}
-
-                                    <button
-                                      onClick={() => setOpenDropdownId(openDropdownId === slotId ? null : slotId)}
-                                      className="w-full text-left text-[11px] border border-border hover:border-border rounded-lg px-2.5 py-1.5 bg-muted/50 hover:bg-muted/60 text-foreground font-semibold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer shadow-sm flex items-center justify-between relative z-10"
-                                    >
-                                      <span>-- Chọn giáo viên khả dụng ({present.length + absent.length}) --</span>
-                                      <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${openDropdownId === slotId ? "transform rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                      </svg>
-                                    </button>
-
-                                    {openDropdownId === slotId && (
-                                      <div className={`absolute left-0 right-0 z-30 max-h-60 overflow-y-auto bg-card border border-border rounded-xl shadow-lg py-1 text-xs divide-y divide-border/60 duration-150 custom-scrollbar animate-in fade-in-50 ${isBottomRow ? "bottom-full mb-1 slide-in-from-bottom-1" : "top-full mt-1 slide-in-from-top-1"}`}>
-                                        {present.length > 0 && (
-                                          <div>
-                                            <div className="px-3 py-1 text-[10px] font-bold text-emerald-700 bg-emerald-50/50 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-sm">
-                                              Có mặt ở BU hôm đó ({present.length})
+                                                );
+                                              })}
                                             </div>
-                                            {present.map((teacher: any) => {
-                                              const busyTimes = teacher.schedulesToday && teacher.schedulesToday.length > 0
-                                                ? `Bận: ${teacher.schedulesToday.map((s: any) => s.time).join(", ")}`
-                                                : "";
-                                              return (
+                                          )}
+
+                                          {absent.length > 0 && (
+                                            <div>
+                                              <div className="px-3 py-1 text-[10px] font-bold text-blue-700 bg-blue-50/50 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-sm">
+                                                Rảnh cả ngày hôm đó ({absent.length})
+                                              </div>
+                                              {absent.map((teacher: any) => (
                                                 <button
                                                   key={teacher.id}
                                                   onClick={() => {
                                                     handleAssignTeacher(trial, teacher);
                                                     setOpenDropdownId(null);
                                                   }}
-                                                  className="w-full text-left px-2.5 py-1.5 hover:bg-muted/50 text-foreground hover:text-foreground font-medium transition-colors flex items-center justify-between text-[11px]"
+                                                  className="w-full text-left px-2.5 py-1.5 hover:bg-muted/50 text-foreground hover:text-foreground font-medium transition-colors text-[11px]"
                                                 >
-                                                  <span>{teacher.fullName}</span>
-                                                  {busyTimes && (
-                                                    <span className="text-[8.5px] text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded font-semibold ml-2 shrink-0">
-                                                      {busyTimes}
-                                                    </span>
-                                                  )}
+                                                  {teacher.fullName}
                                                 </button>
-                                              );
-                                            })}
-                                          </div>
-                                        )}
-
-                                        {absent.length > 0 && (
-                                          <div>
-                                            <div className="px-3 py-1 text-[10px] font-bold text-blue-700 bg-blue-50/50 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-sm">
-                                              Rảnh cả ngày hôm đó ({absent.length})
+                                              ))}
                                             </div>
-                                            {absent.map((teacher: any) => (
-                                              <button
-                                                key={teacher.id}
-                                                onClick={() => {
-                                                  handleAssignTeacher(trial, teacher);
-                                                  setOpenDropdownId(null);
-                                                }}
-                                                className="w-full text-left px-2.5 py-1.5 hover:bg-muted/50 text-foreground hover:text-foreground font-medium transition-colors text-[11px]"
-                                              >
-                                                {teacher.fullName}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        )}
-      </div>
+        </TabsContent>
+
+        <TabsContent value="substitute" className="flex-1 flex flex-col overflow-hidden mt-0">
+          <div className="flex-1 border border-border bg-card shadow-sm overflow-hidden relative flex flex-col rounded-xl">
+            <SubstituteTab
+              selectedDate={selectedDate}
+              userCentres={userCentres}
+              onError={handleSubstituteError}
+              performedBy={user?.id}
+              performedByName={user?.fullName}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="examiner" className="flex-1 flex flex-col overflow-hidden mt-0">
+          <div className="flex-1 border border-border bg-card shadow-sm overflow-hidden relative flex flex-col rounded-xl">
+            <ExaminerTab
+              selectedDate={selectedDate}
+              userCentres={userCentres}
+              onError={handleExaminerError}
+              performedBy={user?.id}
+              performedByName={user?.fullName}
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      <AlertModal
+        variant="error"
+        open={!!error}
+        onOpenChange={(open) => {
+          if (!open) setError(null);
+        }}
+        message={error ?? ""}
+      />
+
+      <AlertModal
+        variant="error"
+        open={!!trialsError}
+        onOpenChange={(open) => {
+          if (!open) setTrialsError(null);
+        }}
+        message={trialsError ?? ""}
+      />
     </div>
   );
 }

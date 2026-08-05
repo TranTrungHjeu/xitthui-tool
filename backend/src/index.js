@@ -23,48 +23,59 @@ if (fs.existsSync(localEnvPath)) {
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
-const cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
 const config = require("./config");
 const healthRoutes = require("./routes/healthRoutes");
-const securityRoutes = require("./routes/securityRoutes");
 const authRoutes = require("./routes/authRoutes");
 const classRoutes = require("./routes/classRoutes");
 const sessionRoutes = require("./routes/sessionRoutes");
 const teacherRoutes = require("./routes/teacherRoutes");
 const spreadsheetRoutes = require("./routes/spreadsheetRoutes");
+const trialReportRoutes = require("./routes/trialReportRoutes");
+const lmsRoutes = require("./routes/lmsRoutes");
+const zaloRoutes = require("./routes/zaloRoutes");
+const lessonRoutes = require("./routes/lessonRoutes");
+const payrollRoutes = require("./routes/payrollRoutes");
 const NotificationScheduler = require("./services/notificationScheduler");
 const StudentScheduler = require("./services/studentScheduler");
+const StudentCommentsScheduler = require("./services/studentCommentsScheduler");
+const TeacherScheduler = require("./services/teacherScheduler");
 const { ScheduleScheduler } = require("./services/scheduleScheduler");
 const { connectMongoDB } = require("./config/mongodb");
 const { initializeKeys } = require("./utils/apiKeyManager");
 
 // ---- 0. Required Environment Variables Validation ----
+// Small-team project: only 2 keys are required. Optional keys are not validated here
+// to keep startup fast. See utils/tokenEncryption.js for at-rest encryption behavior.
 const requiredEnvVars = [
-  { name: "MONGODB_URI", description: "MongoDB connection string", format: "mongodb://" },
+  { name: "MONGODB_URI", description: "MongoDB connection string", format: ["mongodb://", "mongodb+srv://"] },
   { name: "FIREBASE_API_KEY", description: "Firebase API key" },
-  { name: "INTERNAL_API_KEY", description: "Internal API key for session management" },
   { name: "NODE_ENV", description: "Environment (development/production)", values: ["development", "production"] },
-  { name: "LMS_MASTER_USERNAME", description: "LMS master account username", required: false },
-  { name: "LMS_MASTER_PASSWORD", description: "LMS master account password", required: false },
-  { name: "TOKEN_ENCRYPTION_KEY", description: "32-byte hex key for token encryption (64 hex chars)", required: false, format: "64hex" },
 ];
+
+// Fallback: FIREBASE_API_KEY <- MINDX_FIREBASE_API_KEY
+if (!process.env.FIREBASE_API_KEY && process.env.MINDX_FIREBASE_API_KEY) {
+  process.env.FIREBASE_API_KEY = process.env.MINDX_FIREBASE_API_KEY;
+}
+
+// Default NODE_ENV to development when not set
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = "development";
+}
 
 const missingEnvVars = [];
 const invalidEnvVars = [];
 
 for (const envVar of requiredEnvVars) {
-  if (envVar.required !== false && !process.env[envVar.name]) {
+  if (!process.env[envVar.name]) {
     missingEnvVars.push(`${envVar.name} (${envVar.description})`);
-  } else if (envVar.format && !process.env[envVar.name]?.startsWith(envVar.format)) {
-    invalidEnvVars.push(`${envVar.name} must start with ${envVar.format}`);
+  } else if (envVar.format) {
+    const formats = Array.isArray(envVar.format) ? envVar.format : [envVar.format];
+    if (!formats.some((f) => process.env[envVar.name]?.startsWith(f))) {
+      invalidEnvVars.push(`${envVar.name} must start with one of: ${formats.join(", ")}`);
+    }
   } else if (envVar.values && !envVar.values.includes(process.env[envVar.name])) {
     invalidEnvVars.push(`${envVar.name} must be one of: ${envVar.values.join(", ")}`);
-  } else if (envVar.format === "64hex" && process.env[envVar.name]) {
-    // Validate hex format (64 hex characters = 32 bytes)
-    if (!/^[a-fA-F0-9]{64}$/.test(process.env[envVar.name])) {
-      invalidEnvVars.push(`${envVar.name} must be exactly 64 hexadecimal characters (32 bytes)`);
-    }
   }
 }
 
@@ -97,13 +108,15 @@ app.use(
   }),
 );
 
-// Parse cookies (needed for CSRF cookie).
-app.use(cookieParser());
-
 // ---- 1b. CSRF Protection ----
-// csurf is imported here (after cookie-parser) so it can read/write cookies.
-const { buildCsrfMiddleware } = require("./middleware/csrfMiddleware");
-const csrfMiddleware = buildCsrfMiddleware();
+// CSRF protection was removed because:
+//   1. Authentication is JWT Bearer (Authorization header), not session cookie.
+//   2. Browsers do not auto-attach Bearer tokens on cross-site requests, so
+//      there is no credential to hijack via CSRF.
+//   3. CORS already enforces an origin whitelist in production (see cors()
+//      below), which is the appropriate defense for this architecture.
+// If a session-cookie flow is added later, reintroduce csurf with the
+// `sameSite: "lax"` cookie option and wrap the /csrf-token route.
 
 // Cấu hình các domain được phép truy cập API (CORS)
 const allowedOrigins = process.env.ALLOWED_ORIGINS;
@@ -113,17 +126,17 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
-      
+
       // In development/test environments, allow all origins
       if (process.env.NODE_ENV !== "production") {
         return callback(null, true);
       }
-      
+
       // In production, ONLY allow explicitly whitelisted origins
       if (allowedOrigins && allowedOrigins.indexOf(origin) !== -1) {
         return callback(null, true);
       }
-      
+
       // Reject all other origins in production
       log.warn(`[CORS] Rejected origin in production: ${origin}`);
       return callback(new Error("CORS policy violation"), false);
@@ -131,27 +144,63 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json({ limit: "200kb" }));
+// Defense-in-depth: in production, also reject state-changing requests from
+// disallowed origins even when CORS preflight is bypassed (e.g. simple
+// form submissions). For Bearer-token APIs this is mostly redundant with
+// the origin check above, but it's cheap and explicit.
+const requireSameOrigin =
+  process.env.NODE_ENV === "production"
+    ? (req, res, next) => {
+        if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
+        const origin = req.headers.origin;
+        // Allow requests with no Origin header (mobile apps, server-to-server)
+        // — these can't be CSRF victims because they don't carry credentials
+        // automatically.
+        if (!origin) return next();
+        if (
+          allowedOrigins &&
+          allowedOrigins.split(",").indexOf(origin) !== -1
+        ) {
+          return next();
+        }
+        log.warn(
+          `[OriginCheck] Rejected ${req.method} ${req.path} from origin ${origin}`,
+        );
+        return res.status(403).json({
+          success: false,
+          error: "Origin not allowed.",
+          code: "EORIGINNOTALLOWED",
+        });
+      }
+    : (req, res, next) => next();
 
 // API Routes
+app.use(requireSameOrigin); // production-only origin check on mutations
+app.use(express.json({ limit: "200kb" }));
+app.use(express.urlencoded({ extended: true, limit: "200kb" }));
 app.use("/", healthRoutes);
-app.use("/", securityRoutes);
-app.use(csrfMiddleware); // CSRF validation on all mutations (except exempt paths)
 app.use("/", authRoutes);
 app.use("/", classRoutes);
 app.use("/", sessionRoutes);
 app.use("/", teacherRoutes);
 app.use("/spreadsheet", spreadsheetRoutes);
+app.use("/trial-report", trialReportRoutes);
+app.use("/lms", lmsRoutes);
+app.use("/zalo", zaloRoutes);
+app.use("/lesson", lessonRoutes);
+app.use("/payroll", payrollRoutes);
 
 // Global Error Handler - Prevents server from crashing on unhandled errors
 app.use((err, req, res, next) => {
-  // Handle CSRF token errors with a user-friendly response.
-  if (err.code === "EBADCSRFTOKEN") {
-    log.warn("[CSRF] Invalid or missing CSRF token from %s %s", req.method, req.path);
-    return res.status(403).json({
+  // Surface body-parser size errors with the actual limit so they're debuggable.
+  if (err && err.type === "entity.too.large") {
+    log.warn(
+      `[PayloadTooLarge] ${req.method} ${req.path} length=${err.length} limit=${err.limit}`,
+    );
+    return res.status(413).json({
       success: false,
-      error: "Invalid or missing CSRF token. Please refresh the page and try again.",
-      code: "EBADCSRFTOKEN",
+      error: `Payload too large (limit ${err.limit})`,
+      code: "EPAYLOADTOOLARGE",
     });
   }
   log.error("Unhandled Error:", err);
@@ -184,6 +233,12 @@ async function startApp() {
 
       // Start Student Background Sync
       StudentScheduler.start();
+
+      // Start Student Comments Background Sync (master-account, daily 2:30 AM)
+      StudentCommentsScheduler.start();
+
+      // Start Teacher Background Sync
+      TeacherScheduler.start();
 
       // Start Class Background Sync
       require("./services/classScheduler").start();
@@ -257,10 +312,11 @@ function registerGracefulShutdown(server) {
   process.on("SIGINT", () => shutdown("SIGINT"));
 
   process.on("uncaughtException", (err) => {
-    log.error("[uncaughtException]", err);
+    log.error("[uncaughtException] message=%s stack=%s", err.message, err.stack);
   });
   process.on("unhandledRejection", (reason) => {
-    log.error("[unhandledRejection]", reason);
+    const r = reason instanceof Error ? { message: reason.message, stack: reason.stack } : reason;
+    log.error("[unhandledRejection] reason=%j", r);
   });
 }
 

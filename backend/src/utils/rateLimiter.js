@@ -215,9 +215,95 @@ function createInMemoryRateLimiter(options = {}) {
   return new InMemoryRateLimiter(options);
 }
 
+/**
+ * Build an Express middleware that enforces a per-IP rate limit using the
+ * shared limiter (Redis if REDIS_URL is configured, otherwise in-memory).
+ *
+ * @param {Object} options
+ * @param {number} options.max - Max requests allowed within the window.
+ * @param {number} options.windowMs - Sliding window length in milliseconds.
+ * @param {string} [options.message] - JSON `error` body when the limit is hit.
+ * @param {string} [options.keyPrefix] - Redis/in-memory key prefix.
+ * @returns {Function} Express middleware (req, res, next)
+ */
+function createExpressRateLimiter({
+  max,
+  windowMs,
+  message,
+  keyPrefix,
+} = {}) {
+  if (typeof max !== "number" || typeof windowMs !== "number") {
+    throw new Error(
+      "[RateLimiter] createExpressRateLimiter requires numeric `max` and `windowMs`.",
+    );
+  }
+
+  // We start in in-memory mode synchronously so the route can mount at
+  // require-time. Redis is opportunistically promoted by `tryConnectRedis`
+  // on the first request, which then upgrades `limiter` to RedisRateLimiter.
+  let limiter = createInMemoryRateLimiter({ max, windowMs, keyPrefix });
+  let promoteInFlight = false;
+
+  const middleware = async (req, res, next) => {
+    try {
+      if (!promoteInFlight) {
+        promoteInFlight = true;
+        tryConnectRedis()
+          .then((ok) => {
+            if (ok) {
+              limiter = new RedisRateLimiter({ max, windowMs, keyPrefix });
+              log.info(
+                `[RateLimiter] Upgraded limiter to Redis (max=${max}, windowMs=${windowMs}).`,
+              );
+            }
+          })
+          .catch(() => {
+            // tryConnectRedis already logs; keep in-memory limiter
+          });
+      }
+
+      const clientIp =
+        req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+        req.headers["x-real-ip"] ||
+        req.socket?.remoteAddress ||
+        "unknown";
+
+      const result = await limiter.check(clientIp);
+      res.set("X-RateLimit-Limit", String(max));
+      res.set("X-RateLimit-Remaining", String(result.remaining));
+
+      if (!result.allowed) {
+        res.set("Retry-After", String(result.retryAfter));
+        return res.status(429).json({
+          success: false,
+          error:
+            message ||
+            "Too many requests. Please try again later.",
+          retryAfter: result.retryAfter,
+        });
+      }
+
+      return next();
+    } catch (err) {
+      // Fail open so a limiter bug never takes the API down.
+      log.error(
+        `[RateLimiter] Middleware error, allowing request: ${err.message}`,
+      );
+      return next();
+    }
+  };
+
+  middleware.close = () => {
+    if (typeof limiter.close === "function") limiter.close();
+  };
+
+  return middleware;
+}
+
 module.exports = {
   createRateLimiter,
   createInMemoryRateLimiter,
+  createExpressRateLimiter,
   InMemoryRateLimiter,
   RedisRateLimiter,
   tryConnectRedis,

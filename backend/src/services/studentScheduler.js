@@ -5,6 +5,7 @@ const ClassCacheService = require("./classCache");
 const config = require("../config/index");
 const lmsAuth = require("./lmsAuth");
 const { getTdmCentreId } = require("../constants/centreIds");
+const { ATTENDED_STATUSES } = require("../constants/attendanceStatuses");
 
 const { childLogger } = require("../utils/logger.js");
 const log = childLogger("StudentScheduler");
@@ -212,12 +213,7 @@ class StudentScheduler {
                   if (studentAttendanceEntry) {
                     totalPastSlots++;
                     const status = studentAttendanceEntry.status;
-                    if (
-                      status === "PRESENT" ||
-                      status === "ATTENDED" ||
-                      status === "LATE" ||
-                      status === "LATE_ARRIVED"
-                    ) {
+                    if (ATTENDED_STATUSES.includes(status)) {
                       attendedCount++;
                     }
                   }

@@ -63,6 +63,14 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
+  /* Brand role tokens — 60:30:10 */
+  --color-brand-60: var(--brand-60);
+  --color-brand-60-soft: var(--brand-60-soft);
+  --color-brand-30: var(--brand-30);
+  --color-brand-30-soft: var(--brand-30-soft);
+  --color-brand-10: var(--brand-10);
+  --color-brand-10-soft: var(--brand-10-soft);
+
   /* ─── Radius ─────────────────────────────────────────────── */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -80,11 +88,11 @@
    ============================================================ */
 :root {
   /* MindX Brand Colors */
-  --primary: hsl(358 78% 51%);          /* Alizarin Crimson #E31F26 */
+  --primary: hsl(358 78% 51%); /* Alizarin Crimson #E31F26 */
   --primary-foreground: hsl(0 0% 100%);
 
-  --background: hsl(220 20% 98%);       /* Soft crisp backdrop */
-  --foreground: hsl(240 100% 12%);       /* Stratos Tinted Text #000056 */
+  --background: hsl(220 20% 98%); /* Soft crisp backdrop */
+  --foreground: hsl(240 100% 12%); /* Stratos Tinted Text #000056 */
 
   --card: hsl(0 0% 100%);
   --card-foreground: hsl(240 100% 12%);
@@ -99,22 +107,22 @@
   --muted: hsl(240 20% 95%);
   --muted-foreground: hsl(240 15% 45%);
 
-  --accent: hsl(48 100% 94%);           /* Sunglow Soft Tint */
+  --accent: hsl(48 100% 94%); /* Sunglow Soft Tint */
   --accent-foreground: hsl(240 100% 14%);
 
   /* Borders & rings */
   --border: hsl(240 15% 90%);
   --input: hsl(240 15% 90%);
-  --ring: hsl(358 78% 51%);             /* Crimson Focus Ring */
+  --ring: hsl(358 78% 51%); /* Crimson Focus Ring */
 
   /* Semantic — MindX Tuned */
-  --destructive: hsl(358 78% 51%);      /* Alizarin Crimson */
+  --destructive: hsl(358 78% 51%); /* Alizarin Crimson */
   --destructive-foreground: hsl(0 0% 100%);
 
   --success: hsl(142 71% 42%);
   --success-foreground: hsl(0 0% 100%);
 
-  --warning: hsl(48 100% 48%);          /* Sunglow Gold #FFD62D */
+  --warning: hsl(48 100% 48%); /* Sunglow Gold #FFD62D */
   --warning-foreground: hsl(240 100% 12%);
 
   --info: hsl(217 91% 55%);
@@ -130,12 +138,25 @@
   --sidebar-border: hsl(240 15% 92%);
   --sidebar-ring: hsl(358 78% 51%);
 
+  /* ============================================================
+     BRAND COLOR ROLES — 60:30:10
+       60% Neutral (Stratos #000056)  — text + background surfaces
+       30% Accent  (Sunglow #FFD62D) — pending/highlight/decorative
+       10% Action  (Alizarin #E31F26) — CTA, alerts, primary actions
+     ============================================================ */
+  --brand-60: hsl(240 100% 17%); /* Stratos Navy #000056 */
+  --brand-60-soft: hsl(240 30% 96%); /* Navy tinted surface */
+  --brand-30: hsl(48 100% 59%); /* Sunglow Gold #FFD62D */
+  --brand-30-soft: hsl(48 100% 94%); /* Sunglow tinted surface */
+  --brand-10: hsl(358 78% 51%); /* Alizarin Crimson #E31F26 */
+  --brand-10-soft: hsl(358 78% 95%); /* Crimson tinted surface */
+
   /* MindX Chart Palette */
-  --chart-1: hsl(358 78% 51%);          /* Alizarin Crimson */
-  --chart-2: hsl(240 100% 25%);         /* Stratos Navy */
-  --chart-3: hsl(48 100% 48%);          /* Sunglow Gold */
-  --chart-4: hsl(142 71% 42%);          /* Success Green */
-  --chart-5: hsl(217 91% 55%);          /* Info Blue */
+  --chart-1: hsl(358 78% 51%); /* Alizarin Crimson */
+  --chart-2: hsl(240 100% 25%); /* Stratos Navy */
+  --chart-3: hsl(48 100% 48%); /* Sunglow Gold */
+  --chart-4: hsl(142 71% 42%); /* Success Green */
+  --chart-5: hsl(217 91% 55%); /* Info Blue */
 
   /* Shape & elevation */
   --radius: 0.625rem;
@@ -145,13 +166,13 @@
    DARK THEME — Deep Stratos Navy (#03031d), Premium MindX Glow
    ============================================================ */
 .dark {
-  --primary: hsl(358 85% 58%);          /* Vibrant Crimson in dark */
+  --primary: hsl(358 85% 58%); /* Vibrant Crimson in dark */
   --primary-foreground: hsl(0 0% 100%);
 
-  --background: hsl(240 70% 7%);        /* Deep Stratos Base #03031d */
+  --background: hsl(240 70% 7%); /* Deep Stratos Base #03031d */
   --foreground: hsl(240 20% 96%);
 
-  --card: hsl(240 50% 11%);             /* Stratos Elevated Card #0c0c2e */
+  --card: hsl(240 50% 11%); /* Stratos Elevated Card #0c0c2e */
   --card-foreground: hsl(240 20% 96%);
 
   --popover: hsl(240 50% 11%);
@@ -182,7 +203,7 @@
   --input: hsl(240 35% 18%);
   --ring: hsl(358 85% 58%);
 
-  --sidebar: hsl(240 65% 6%);           /* Darker Stratos Sidebar #02021c */
+  --sidebar: hsl(240 65% 6%); /* Darker Stratos Sidebar #02021c */
   --sidebar-foreground: hsl(240 20% 92%);
   --sidebar-primary: hsl(358 85% 58%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
@@ -228,14 +249,22 @@
   }
 
   /* Heading scale — geometric, tight, modern */
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-weight: 600;
     letter-spacing: -0.02em;
     line-height: 1.25;
   }
 
   /* Mono only for code/data */
-  code, pre, kbd, .font-mono {
+  code,
+  pre,
+  kbd,
+  .font-mono {
     font-family: var(--font-mono), ui-monospace, "JetBrains Mono", monospace;
     font-feature-settings: "ss01", "ss02";
   }
@@ -307,8 +336,8 @@
 
 /* Default global scrollbar — hide vertical scrollbars globally, show horizontal scrollbars */
 ::-webkit-scrollbar {
-  width: 0px !important;  /* Hide vertical scrollbar globally */
-  height: 6px;           /* Show horizontal scrollbar globally */
+  width: 0px !important; /* Hide vertical scrollbar globally */
+  height: 6px; /* Show horizontal scrollbar globally */
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -323,8 +352,33 @@
   background-color: hsl(var(--muted-foreground) / 0.45);
 }
 
-html, body {
+html,
+body {
   -ms-overflow-style: none;
+}
+
+/* ============================================================
+   GLOBAL: force text selection + copy/cut/selectstart
+   (NOT inside @layer base — keeps higher specificity than Tailwind utilities)
+   ============================================================ */
+html,
+body,
+input,
+textarea,
+[contenteditable] {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+}
+
+*,
+*::before,
+*::after {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
 }
 
 /* ============================================================
@@ -338,7 +392,10 @@ html, body {
 }
 
 .bg-dots {
-  background-image: radial-gradient(hsl(var(--muted-foreground) / 0.18) 1px, transparent 1px);
+  background-image: radial-gradient(
+    hsl(var(--muted-foreground) / 0.18) 1px,
+    transparent 1px
+  );
   background-size: 16px 16px;
 }
 
@@ -364,8 +421,14 @@ html, body {
    ANIMATION: gentle fade-slide for page entries
    ============================================================ */
 @keyframes page-enter {
-  0% { opacity: 0; transform: translateY(8px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-page-enter {
@@ -374,8 +437,15 @@ html, body {
 
 /* Subtle pulse for live indicators */
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.55; transform: scale(0.92); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
 }
 .animate-pulse-dot {
   animation: pulse-dot 2s ease-in-out infinite;
@@ -385,21 +455,73 @@ html, body {
    MINDX BRAND UTILITIES & GRADIENTS
    ============================================================ */
 .bg-mindx-gradient {
-  background: linear-gradient(135deg, #000056 0%, #E31F26 100%);
+  background: linear-gradient(135deg, #000056 0%, #e31f26 100%);
 }
 
 .bg-mindx-hero-gradient {
-  background: linear-gradient(135deg, #000056 0%, #700d1e 50%, #E31F26 100%);
+  background: linear-gradient(135deg, #000056 0%, #700d1e 50%, #e31f26 100%);
 }
 
 .bg-mindx-accent-gradient {
-  background: linear-gradient(135deg, #E31F26 0%, #FFD62D 100%);
+  background: linear-gradient(135deg, #e31f26 0%, #ffd62d 100%);
 }
 
 .text-mindx-gradient {
-  background: linear-gradient(135deg, #E31F26 0%, #FFD62D 100%);
+  background-image: linear-gradient(135deg, #e31f26 0%, #ffd62d 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* ============================================================
+   LMS shimmer + streaming cursor (used by /lms chatbox)
+   ============================================================ */
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    currentColor 0%,
+    currentColor 40%,
+    color-mix(in srgb, currentColor 60%, transparent) 50%,
+    currentColor 60%,
+    currentColor 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: currentColor;
+  animation: shimmer-sweep var(--shimmer-duration, 2s) linear infinite;
+}
+
+@keyframes shimmer-sweep {
+  0% {
+    background-position: 100% center;
+  }
+  100% {
+    background-position: -100% center;
+  }
+}
+
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  animation: streaming-blink 0.9s steps(1) infinite;
+}
+
+@keyframes streaming-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
 }
 
 .glass-card-stratos {
@@ -416,18 +538,8 @@ html, body {
 
 .mindx-badge-crimson {
   background-color: rgba(227, 31, 38, 0.12);
-  color: #E31F26;
+  color: #e31f26;
   border: 1px solid rgba(227, 31, 38, 0.25);
-}
-
-.mindx-badge-sunglow {
-  background-color: rgba(255, 214, 45, 0.15);
-  color: #997a00;
-  border: 1px solid rgba(255, 214, 45, 0.35);
-}
-
-.dark .mindx-badge-sunglow {
-  color: #FFD62D;
 }
 
 .mindx-badge-stratos {
@@ -442,3 +554,315 @@ html, body {
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
+.mindx-badge-sunglow {
+  background-color: rgba(255, 214, 45, 0.2);
+  color: #6b5500;
+  border: 1px solid rgba(255, 214, 45, 0.5);
+}
+
+.dark .mindx-badge-sunglow {
+  background-color: rgba(255, 214, 45, 0.18);
+  color: #ffd62d;
+  border: 1px solid rgba(255, 214, 45, 0.4);
+}
+
+/* ============================================================
+   Copy button — success state (Zalo comment page)
+   ============================================================ */
+
+/* Khi copy thành công, button chuyển sang tone xanh + pulse + ring */
+[data-copy-state="success"] {
+  background-color: hsl(var(--success)) !important;
+  color: hsl(var(--success-foreground)) !important;
+  box-shadow: 0 0 0 4px hsl(var(--success) / 0.18) !important;
+  animation: copy-success-pop 1.8s ease-out;
+}
+
+@keyframes copy-success-pop {
+  0% {
+    transform: scale(1);
+  }
+  18% {
+    transform: scale(1.05);
+  }
+  35% {
+    transform: scale(0.98);
+  }
+  55% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ============================================================
+   LOGIN PAGE ANIMATIONS
+   ============================================================ */
+
+/* --- A1/A2: Text fade-in variants --- */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in var(--anim-dur, 600ms) var(--anim-delay, 0ms)
+    cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-fade-in-up {
+  animation: fade-in-up var(--anim-dur, 700ms) var(--anim-delay, 0ms)
+    cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-fade-in-down {
+  animation: fade-in-down var(--anim-dur, 600ms) var(--anim-delay, 0ms)
+    cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* --- A3-A7: Floating shapes (3 speeds) --- */
+@keyframes float-y-slow {
+  0%,
+  100% {
+    transform: translateY(0) translateX(0);
+  }
+  50% {
+    transform: translateY(-10px) translateX(4px);
+  }
+}
+@keyframes float-y-medium {
+  0%,
+  100% {
+    transform: translateY(0) translateX(0);
+  }
+  50% {
+    transform: translateY(-7px) translateX(-4px);
+  }
+}
+@keyframes float-y-fast {
+  0%,
+  100% {
+    transform: translateY(0) translateX(0);
+  }
+  50% {
+    transform: translateY(-9px) translateX(3px);
+  }
+}
+@keyframes rotate-drift {
+  0%,
+  100% {
+    transform: rotate(12deg) translateY(0);
+  }
+  50% {
+    transform: rotate(15deg) translateY(-8px);
+  }
+}
+
+.animate-float-slow {
+  animation: float-y-slow 8s ease-in-out infinite;
+}
+.animate-float-medium {
+  animation: float-y-medium 6s ease-in-out infinite;
+  animation-delay: -2s;
+}
+.animate-float-fast {
+  animation: float-y-fast 7s ease-in-out infinite;
+  animation-delay: -4s;
+}
+.animate-rotate-drift {
+  animation: rotate-drift 10s ease-in-out infinite;
+  animation-delay: -1s;
+}
+
+/* --- A8: Grid pattern pan --- */
+@keyframes grid-pan {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 48px 48px;
+  }
+}
+.animate-grid-pan {
+  animation: grid-pan 40s linear infinite;
+}
+
+/* --- A9: Radial gradient breathe --- */
+@keyframes gradient-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+.animate-gradient-breathe {
+  animation: gradient-breathe 12s ease-in-out infinite;
+}
+
+/* --- B3: Icon pop (Lock icon box) --- */
+@keyframes icon-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-icon-pop {
+  animation: icon-pop 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* --- Combo 1 — Shape-only upgrades (kept): scale-breathe, opacity-flicker, hue-soft --- */
+
+/* SH1: Scale breathe (compose với float-slow) — animated circles */
+@keyframes scale-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+.animate-scale-breathe {
+  animation: scale-breathe 6s ease-in-out infinite;
+}
+
+/* SH2: Opacity flicker (compose với float-medium) — animated circles */
+@keyframes opacity-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.animate-opacity-flicker {
+  animation: opacity-flicker 7s ease-in-out infinite;
+}
+
+/* SH7: Hue rotate nhẹ (compose với gradient-breathe) — radial gradient shape */
+@keyframes hue-soft {
+  0%,
+  100% {
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    filter: hue-rotate(10deg);
+  }
+}
+.animate-hue-soft {
+  animation: hue-soft 14s ease-in-out infinite;
+}
+
+/* --- B6: Submit button gradient sweep on hover --- */
+.btn-gradient-sweep {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.btn-gradient-sweep::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    hsl(var(--primary-foreground) / 0.18) 45%,
+    transparent 90%
+  );
+  background-size: 220% 100%;
+  background-position: 100% center;
+  pointer-events: none;
+  transition: background-position 700ms cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 0;
+}
+.btn-gradient-sweep:hover::before {
+  background-position: 0% center;
+}
+.btn-gradient-sweep > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* --- Reduced motion: kill all decorative animations --- */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-fade-in-up,
+  .animate-fade-in-down,
+  .animate-icon-pop,
+  .animate-page-enter,
+  .animate-pulse,
+  .animate-pulse-dot,
+  .animate-float-slow,
+  .animate-float-medium,
+  .animate-float-fast,
+  .animate-rotate-drift,
+  .animate-grid-pan,
+  .animate-gradient-breathe,
+  .animate-scale-breathe,
+  .animate-opacity-flicker,
+  .animate-hue-soft {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .btn-gradient-sweep::before {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   DATE INPUT — consistent styling with design system
+   ============================================================ */
+input[type="date"] {
+  color-scheme: light;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  filter: saturate(0.5) brightness(0.8);
+  transition: opacity 0.15s, filter 0.15s;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  filter: none;
+}
+
+/* ============================================================
+   DATE PICKER — custom Vietnamese calendar popup
+   ============================================================ */

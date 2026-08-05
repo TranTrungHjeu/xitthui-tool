@@ -2,6 +2,7 @@ const { graphqlClient } = require("../utils/httpClient");
 const config = require("../config/index");
 const { resolveUserRolesAndProfile } = require("../utils/roleResolver");
 const { ROLES } = require("../constants/roles");
+const { AsyncLocalStorage } = require("async_hooks");
 
 const { childLogger } = require("../utils/logger.js");
 const log = childLogger("LmsAuth");
@@ -9,14 +10,37 @@ const log = childLogger("LmsAuth");
 // Firebase project config extracted from config
 const FIREBASE_API_KEY = config.firebase.apiKey;
 
-// Simple cookie store
-const cookies = {};
+/**
+ * AsyncLocalStorage — provides request-scoped isolation for cookies.
+ * Before: `const cookies = {}` at module scope was shared by all concurrent logins,
+ * causing cookie pollution and auth failures.
+ * Fix: every async context (i.e. every incoming login request) gets its own
+ * isolated cookies map automatically via AsyncLocalStorage. No function signatures
+ * need to change; no caller code needs to change.
+ */
+const requestStorage = new AsyncLocalStorage();
 
-function setCookie(name, value) {
-  cookies[name] = value;
+/**
+ * Extract and store Set-Cookie headers from an Axios response.
+ * Operates on the cookies map belonging to the current async context.
+ */
+function applySetCookies(setCookieHeaders) {
+  const cookies = requestStorage.getStore();
+  if (!cookies || !setCookieHeaders) return;
+  const headers = Array.isArray(setCookieHeaders) ? setCookieHeaders : [setCookieHeaders];
+  headers.forEach((cookie) => {
+    const [nameVal] = cookie.split(";");
+    const [name, value] = nameVal.split("=");
+    if (name && value) cookies[name.trim()] = value.trim();
+  });
 }
 
+/**
+ * Read cookies for the current async context and return a Cookie header string.
+ */
 function getCookies() {
+  const cookies = requestStorage.getStore();
+  if (!cookies) return "";
   return Object.entries(cookies)
     .map(([k, v]) => `${k}=${v}`)
     .join("; ");
@@ -65,17 +89,7 @@ async function getUserByFirebaseId(firebaseIdToken, firebaseUid) {
       },
     );
 
-    // Store cookies from response
-    const setCookieHeaders = res.headers["set-cookie"];
-    if (setCookieHeaders) {
-      if (Array.isArray(setCookieHeaders)) {
-        setCookieHeaders.forEach((cookie) => {
-          const [nameVal] = cookie.split(";");
-          const [name, value] = nameVal.split("=");
-          if (name && value) setCookie(name, value);
-        });
-      }
-    }
+    applySetCookies(res.headers["set-cookie"]);
 
     if (res.data?.data?.User_getByFirebaseId) {
       return res.data.data.User_getByFirebaseId;
@@ -202,17 +216,7 @@ async function getCustomToken(firebaseIdToken) {
       throw error;
     }
 
-    // Store cookies from response
-    const setCookieHeaders = res.headers["set-cookie"];
-    if (setCookieHeaders) {
-      if (Array.isArray(setCookieHeaders)) {
-        setCookieHeaders.forEach((cookie) => {
-          const [nameVal] = cookie.split(";");
-          const [name, value] = nameVal.split("=");
-          if (name && value) setCookie(name, value);
-        });
-      }
-    }
+    applySetCookies(res.headers["set-cookie"]);
 
     // Try multiple paths to find customToken
     const token =
@@ -514,4 +518,5 @@ module.exports = {
   firebaseSignIn,
   getCustomToken,
   signInWithCustomToken,
+  requestStorage,
 };

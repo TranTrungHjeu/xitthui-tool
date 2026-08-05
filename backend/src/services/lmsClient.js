@@ -3,8 +3,27 @@ const config = require("../config/index");
 const { childLogger } = require("../utils/logger.js");
 const log = childLogger("LmsClient");
 
+// Retry cap constants.
+// The cap below prevents the scheduler (and any other caller) from hanging
+// indefinitely when the LMS gateway keeps returning 502/503/504. Each manual
+// retry loop in this file MUST honor TOTAL_TIMEOUT_MS by throwing
+// `new Error("LMS request timed out")` with the original error as `.cause`
+// before scheduling the next retry.
+const MAX_RETRIES = 3;
+const TOTAL_TIMEOUT_MS = 30_000;
+
 // Re-export all GraphQL query strings so callers can inspect them.
 const QUERIES = require("./lms/queries");
+
+/**
+ * Throw an LMS request timed-out error with the original cause attached.
+ * Used by every retry loop in this file when TOTAL_TIMEOUT_MS is reached.
+ */
+function throwLmsTimeout(originalError) {
+  const timeoutErr = new Error("LMS request timed out");
+  timeoutErr.cause = originalError;
+  throw timeoutErr;
+}
 
 class LMSClient {
   constructor(token) {
@@ -146,7 +165,8 @@ class LMSClient {
         };
 
         let res;
-        let retries = 2;
+        const startTime = Date.now();
+        let retries = MAX_RETRIES;
         while (retries >= 0) {
           try {
             res = await graphqlClient.post(
@@ -160,6 +180,9 @@ class LMSClient {
             );
             break;
           } catch (e) {
+            if (Date.now() - startTime >= TOTAL_TIMEOUT_MS) {
+              throwLmsTimeout(e);
+            }
             if (e.response && e.response.status === 502 && retries > 0) {
               log.info(
                 `[LMSClient] 502 Bad Gateway for GetClasses. Retrying... (${retries} left)`,
@@ -268,11 +291,15 @@ class LMSClient {
 
       const batchResults = await Promise.all(
         batch.map(async (classId) => {
-          let retries = 2;
+          const startTime = Date.now();
+          let retries = MAX_RETRIES;
           while (retries >= 0) {
             try {
               return await this.getClassByIdForNotifications(classId);
             } catch (err) {
+              if (Date.now() - startTime >= TOTAL_TIMEOUT_MS) {
+                throwLmsTimeout(err);
+              }
               // Lỗi xác thực thì văng ra ngoài ngay
               if (
                 err.message.includes("Authentication failed") ||
@@ -356,7 +383,8 @@ class LMSClient {
 
       // Thêm retry đơn giản cho lỗi 502 với Exponential Backoff
       let res;
-      let retries = 4;
+      const startTime = Date.now();
+      let retries = MAX_RETRIES;
       let delay = 1000;
       while (retries >= 0) {
         try {
@@ -371,6 +399,9 @@ class LMSClient {
           );
           break; // success
         } catch (e) {
+          if (Date.now() - startTime >= TOTAL_TIMEOUT_MS) {
+            throwLmsTimeout(e);
+          }
           if (e.response && e.response.status === 502 && retries > 0) {
             log.info(
               `[LMSClient] 502 Bad Gateway for GetClassById(${classId}). Retrying... (${retries} left)`,
@@ -730,7 +761,7 @@ class LMSClient {
     }
   }
 
-  async query(operationName, query, variables, retries = 2) {
+  async query(operationName, query, variables, retries = MAX_RETRIES, startTime = Date.now()) {
     try {
       const res = await graphqlClient.post(
         this.gatewayUrl,
@@ -750,23 +781,29 @@ class LMSClient {
             firstError.includes("Connection dropped")) &&
           retries > 0
         ) {
+          if (Date.now() - startTime >= TOTAL_TIMEOUT_MS) {
+            throwLmsTimeout(new Error(firstError));
+          }
           log.warn(
             `[LMSClient] Connection dropped. Retrying... (${retries} left)`,
           );
           // Đợi 1s trước khi thử lại
           await new Promise((resolve) => setTimeout(resolve, 1000));
-          return this.query(operationName, query, variables, retries - 1);
+          return this.query(operationName, query, variables, retries - 1, startTime);
         }
         throw new Error(firstError);
       }
       return res.data.data;
     } catch (err) {
       if (retries > 0 && err.code !== "ECONNABORTED") {
+        if (Date.now() - startTime >= TOTAL_TIMEOUT_MS) {
+          throwLmsTimeout(err);
+        }
         log.warn(
           `[LMSClient] Request failed. Retrying... (${retries} left)`,
         );
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        return this.query(operationName, query, variables, retries - 1);
+        return this.query(operationName, query, variables, retries - 1, startTime);
       }
       throw err;
     }

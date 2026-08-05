@@ -4,7 +4,7 @@
  */
 
 const { vertexAI, LMSClient, log } = require("./_shared");
-const { isLmsAuthError } = require("../utils/authError");
+const { isLmsAuthError } = require("../../utils/authError");
 
 exports.getStudentAIReport = async (req, res) => {
   try {
