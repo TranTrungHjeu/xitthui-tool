@@ -518,7 +518,7 @@ export default function TrialReportPage() {
                           {files.map((file) => (
                             <li key={file.id}>
                               <a
-                                href={file.webViewLink}
+                                href={file.webViewLink ?? undefined}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-primary/5 hover:text-primary transition-colors text-left"

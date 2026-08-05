@@ -317,10 +317,11 @@ export const initializeGoogleDrive = (): Promise<void> => {
               if (savedToken) {
                 try {
                   const tokenData = JSON.parse(savedToken);
-                  if (tokenData.expiry > Date.now()) {
-                    accessToken = tokenData.access_token;
+                  if (tokenData.expiry > Date.now() && typeof tokenData.access_token === "string") {
+                    const token: string = tokenData.access_token;
+                    accessToken = token;
                     hasEverSignedIn = true;
-                    gapi.client.setToken({ access_token: accessToken });
+                    gapi.client.setToken({ access_token: token });
                     updateAuthStatus(true);
                     startTokenRefreshMonitor();
                   } else {
@@ -687,14 +688,18 @@ export const uploadPDFFile = async (params: UploadParams): Promise<UploadedFileM
   try {
     const meta = await gapi.client.drive.files.get({
       fileId,
+      // The `fields` param is part of the Drive v3 API spec but is missing
+      // from the auto-generated `gapi.client.drive.files.get` typings, so
+      // we widen the params shape via `as unknown as` to pass it through.
       fields:
         "id,name,mimeType,size,webViewLink,webContentLink,parents,createdTime",
-    });
-    const f = meta.result || {};
+    } as unknown as { fileId: string; alt: string });
+    const f: Partial<DriveFile> =
+      (meta as unknown as { result?: DriveFile }).result || {};
     return {
-      id: f.id,
-      name: f.name,
-      mimeType: f.mimeType,
+      id: f.id || fileId,
+      name: f.name || `${params.studentName}.pdf`,
+      mimeType: f.mimeType || "application/pdf",
       size: f.size ? Number(f.size) : null,
       webViewLink: f.webViewLink || null,
       webContentLink: f.webContentLink || null,

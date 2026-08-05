@@ -67,7 +67,9 @@ interface ToastInput {
   description?: React.ReactNode
   /** ms — how long the toast stays. 0 = sticky. Default 4500. */
   duration?: number
-  /** Optional CTA button rendered to the right of the message. */
+  /**
+   * Optional CTA button rendered to the right of the message.
+   */
   action?: {
     label: string
     onClick: () => void
@@ -79,6 +81,13 @@ interface ToastInput {
   }
   /** Visual style override — see ToastStyle. Defaults to "4". */
   style?: ToastStyle
+  /**
+   * Stable id — if a toast with the same id is already on screen, the new
+   * call replaces it (in-place title/description update) instead of
+   * stacking a new card. Mirrors sonner's `id` semantics so call sites
+   * migrating from sonner work without changes.
+   */
+  id?: string
 }
 
 interface ToastItem extends Required<Omit<ToastInput, "action" | "cancel" | "description" | "title">> {
@@ -140,7 +149,10 @@ const VARIANT_TOKENS: Record<ToastVariant, VariantTokens> = {
   },
 }
 
-const VARIANT_ICON: Record<ToastVariant, React.ComponentType<{ className?: string }>> = {
+const VARIANT_ICON: Record<
+  ToastVariant,
+  React.ComponentType<{ className?: string; style?: React.CSSProperties }>
+> = {
   default: Info,
   success: Check,
   error: X,
@@ -172,6 +184,13 @@ function emit(e: BusEvent) {
 /* -------------------------------------------------------------------------- */
 
 function push(variant: ToastVariant, input: ToastInput): string {
+  // If a stable id was provided and an existing toast with that id is
+  // already on screen, update it in-place instead of stacking a new card.
+  if (input.id) {
+    emit({ type: "update", id: input.id, patch: { ...input, variant } })
+    return input.id
+  }
+
   const id = genId()
   emit({ type: "push", variant, input, id })
 
@@ -182,6 +201,10 @@ function push(variant: ToastVariant, input: ToastInput): string {
   }
 
   return id
+}
+
+function update(id: string, patch: Partial<ToastInput> & { variant?: ToastVariant }) {
+  emit({ type: "update", id, patch })
 }
 
 function dismiss(id: string) {
@@ -205,6 +228,7 @@ export const toast = {
     }),
   message: (title: React.ReactNode, opts: ToastInput = {}) =>
     push("default", { title, ...opts }),
+  update,
   dismiss,
 }
 

@@ -32,7 +32,7 @@ export type AlertModalVariant = "error" | "success" | "info" | "warning";
 
 export interface AlertModalAction {
   label: string;
-  icon?: LucideIcon;
+  icon?: LucideIcon | React.ComponentType<{ className?: string }>;
   variant?: "default" | "outline";
   href?: string;
   onClick?: () => void;
@@ -104,9 +104,11 @@ export interface AlertModalProps {
   action?: AlertModalAction;
   /**
    * Optional override for the icon shown next to the title. When
-   * omitted, we use the variant default.
+   * omitted, we use the variant default. Accepts either a Lucide
+   * icon (the common case) or any React component that takes a
+   * `className` prop so callers can pass custom icons.
    */
-  icon?: LucideIcon;
+  icon?: LucideIcon | React.ComponentType<{ className?: string }>;
 }
 
 export function AlertModal({

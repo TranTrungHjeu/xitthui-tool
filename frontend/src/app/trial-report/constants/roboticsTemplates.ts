@@ -1,9 +1,9 @@
-export interface CapabilityLevel {
+export interface RoboticsCapabilityLevel {
   score: 1 | 2 | 3 | 4 | 5;
   description: string;
 }
 
-export const recognitionLevels: CapabilityLevel[] = [
+export const recognitionLevels: RoboticsCapabilityLevel[] = [
   { score: 1, description: "Không phân biệt được thiết bị điện tử và chi tiết lắp ráp, cần hỗ trợ nhiều." },
   { score: 2, description: "Nhận biết được một vài thiết bị nhưng còn nhầm lẫn, cần nhắc lại nhiều." },
   { score: 3, description: "Phân biệt đúng thiết bị điện tử và chi tiết lắp ráp, nhận diện được tên." },
@@ -11,7 +11,7 @@ export const recognitionLevels: CapabilityLevel[] = [
   { score: 5, description: "Hiểu chức năng và biết vận dụng sáng tạo trong thiết kế mô hình." },
 ];
 
-export const assemblyLevels: CapabilityLevel[] = [
+export const assemblyLevels: RoboticsCapabilityLevel[] = [
   { score: 1, description: "Chưa chọn đúng chi tiết và không xác định được hướng và vị trí lắp ráp." },
   { score: 2, description: "Chọn đúng chi tiết, nhưng không xác định được hướng hoặc vị trí đúng, cần hỗ trợ thường xuyên." },
   { score: 3, description: "Chọn đúng chi tiết, xác định được hướng và vị trí lắp ráp, nhưng đôi khi mắc lỗi, cần nhắc nhở để sửa sai." },
@@ -19,7 +19,7 @@ export const assemblyLevels: CapabilityLevel[] = [
   { score: 5, description: "Lắp ráp chính xác, có thể tự sửa sai mà không cần hỗ trợ." },
 ];
 
-export const programmingLevels: CapabilityLevel[] = [
+export const programmingLevels: RoboticsCapabilityLevel[] = [
   { score: 1, description: "Chưa kéo thả được khối lệnh, gặp nhiều khó khăn dù được hỗ trợ." },
   { score: 2, description: "Kéo thả được nhưng vẫn còn nhầm lẫn chức năng khối lệnh, cần hướng dẫn." },
   { score: 3, description: "Biết kéo thả và dùng đúng chức năng khối lệnh, đôi lúc sai nhưng tự sửa được khi gợi ý." },
@@ -27,7 +27,7 @@ export const programmingLevels: CapabilityLevel[] = [
   { score: 5, description: "Hoàn thành hết tất cả nhiệm vụ, có sự sáng tạo trong chương trình." },
 ];
 
-export const communicationLevels: CapabilityLevel[] = [
+export const communicationLevels: RoboticsCapabilityLevel[] = [
   { score: 1, description: "Chưa chủ động giao tiếp, ngại trả lời khi được hỏi. Chưa hợp tác trong buổi trải nghiệm." },
   { score: 2, description: "Có tương tác với giáo viên nhưng chưa chủ động, chỉ trả lời khi được hỏi." },
   { score: 3, description: "Hợp tác với giáo viên, nhưng còn nhút nhát, chưa tự tin chia sẻ." },
