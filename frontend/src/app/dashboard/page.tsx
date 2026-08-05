@@ -61,7 +61,7 @@ import { cn, isKhiemAccount, isActualKhiemAccount, formatSlotDateTime } from "@/
 import { ClassData, Slot } from "@/types";
 import { getSessionExamType, getSessionExamLabel } from "@/lib/courseConfig";
 import WeeklyScheduleList from "@/components/WeeklyScheduleList";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 interface NotificationItem {
   classId: string;

@@ -176,7 +176,12 @@ async function performLogin(email, password, req) {
       profile = await client.getProfile(result.mindxUser.id);
 
       // Lưu active token để dùng cho background job
-      roles = result.mindxUser.roles || [];
+      // Use the *resolved* `appRoles` (after roleResolver), not the raw
+      // LMS `roles` field — for special accounts (e.g. `thekhiem`)
+      // `result.mindxUser.roles` is empty even though the user is a
+      // legitimate TE. Storing the resolved list keeps session-based
+      // authorization (`requireRole`) working.
+      roles = result.mindxUser.appRoles || result.mindxUser.roles || [];
       centreIds =
         teacher?.centres?.map((c) => (typeof c === "object" ? c.id : c)) ||
         [];

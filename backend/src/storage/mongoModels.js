@@ -658,6 +658,62 @@ PayrollRecordSchema.index({ periodId: 1, teacherName: 1 });
 PayrollRecordSchema.index({ periodId: 1, className: 1 });
 PayrollRecordSchema.index({ periodId: 1, status: 1, classRole: 1 });
 
+// 23. Payroll Issue Report Schema
+// Reports submitted by GV TDM when a salary row looks "Uncheck vô lý":
+// flagged as UNCHECKED but still showing up in totals. TE thekhiem later
+// collates these and emails the Tech team.
+const PayrollIssueReportSchema = new mongoose.Schema(
+  {
+    _id: { type: String, required: true }, // uuid
+    payrollRecordId: { type: String, required: true }, // ref PayrollRecord._id = `${periodId}:${rowIndex}`
+    periodId: { type: String, required: true, index: true },
+    centreShortname: { type: String, required: true, index: true }, // snapshot "TDM"
+    teacherName: { type: String, default: "" },
+    teacherUsername: { type: String, default: "" },
+    teacherWorkEmail: { type: String, default: "" },
+    teacherClassName: { type: String, default: "" },
+    teacherSlotTime: { type: String, default: null },
+    teacherEffectiveDuration: { type: Number, default: 0 },
+    payrollRecordStatus: {
+      type: String,
+      enum: ["CHECKED", "UNCHECKED"],
+      default: "UNCHECKED",
+    },
+    reason: { type: String, required: true },
+    reporterUserId: { type: String, default: null },
+    reporterUsername: { type: String, required: true },
+    reporterFullName: { type: String, default: "" },
+    reporterEmail: { type: String, default: "" },
+    status: {
+      type: String,
+      enum: ["pending", "notified", "resolved", "dismissed"],
+      default: "pending",
+      index: true,
+    },
+    emailHistory: [
+      {
+        sentAt: { type: Date, default: Date.now },
+        sentByUserId: { type: String, default: null },
+        sentByName: { type: String, default: "" },
+        to: { type: [String], default: [] },
+        cc: { type: [String], default: [] },
+        subject: { type: String, default: "" },
+        messageId: { type: String, default: "" },
+        success: { type: Boolean, default: false },
+        error: { type: String, default: "" },
+      },
+    ],
+    reviewedByUserId: { type: String, default: null },
+    reviewedByName: { type: String, default: "" },
+    reviewedAt: { type: Date, default: null },
+    resolutionNote: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+PayrollIssueReportSchema.index({ status: 1, createdAt: -1 });
+PayrollIssueReportSchema.index({ periodId: 1, status: 1 });
+PayrollIssueReportSchema.index({ reporterUsername: 1, createdAt: -1 });
+
 module.exports = {
   Session: mongoose.model("Session", SessionSchema),
   ActiveToken: mongoose.model("ActiveToken", ActiveTokenSchema),
@@ -683,5 +739,9 @@ module.exports = {
   ZaloTemplate: mongoose.model("ZaloTemplate", ZaloTemplateSchema),
   PayrollPeriod: mongoose.model("PayrollPeriod", PayrollPeriodSchema),
   PayrollRecord: mongoose.model("PayrollRecord", PayrollRecordSchema),
+  PayrollIssueReport: mongoose.model(
+    "PayrollIssueReport",
+    PayrollIssueReportSchema,
+  ),
 };
 

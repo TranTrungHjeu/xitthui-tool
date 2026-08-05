@@ -34,7 +34,7 @@ import { authService } from "@/services/authService";
 import { useRouter } from "next/navigation";
 import { isKhiemAccount } from "@/lib/utils";
 import { useTheme } from "next-themes";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 export default function SettingsPage() {
   const { user, logout } = useAuthStore();

@@ -10,6 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -20,7 +25,7 @@ import {
 import { LoginModal } from "@/components/LoginModal";
 import { cn, isKhiemAccount } from "@/lib/utils";
 import { useSessionExpiredGuard } from "@/hooks/useSessionExpiredGuard";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import {
   NAV_ACCESS,
   PUBLIC_TOOLS,
@@ -45,6 +50,7 @@ import {
   ChevronsRight,
   GraduationCap,
   Wallet,
+  AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -65,6 +71,7 @@ const NAV_ICON_MAP: Record<string, LucideIcon> = {
   "/dashboard/spreadsheet": TableProperties,
   "/dashboard/office-hours": Clock,
   "/dashboard/payroll": Wallet,
+  "/dashboard/payroll/reports": AlertTriangle,
   "/dashboard/settings": Settings,
 };
 

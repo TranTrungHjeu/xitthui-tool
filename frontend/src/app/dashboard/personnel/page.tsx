@@ -38,7 +38,7 @@ import {
 import { Search, Users, Eye, EyeOff, Info, RefreshCw, RotateCcw, X } from "lucide-react";
 import { useMinLoading } from "@/hooks/useMinLoading";
 import { Teacher } from "@/types";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 const formatGender = (gender: string) => {
   if (!gender) return "—";

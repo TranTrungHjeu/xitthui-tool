@@ -45,7 +45,7 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 interface StudentData {
   id: string;

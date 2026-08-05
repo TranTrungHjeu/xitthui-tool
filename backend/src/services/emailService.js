@@ -1,5 +1,6 @@
 const { createProvider } = require("./emailProviders");
 const { renderReminderEmail } = require("./emailTemplates/reminder");
+const { renderPayrollIssueEmail } = require("./emailTemplates/payrollIssueReport");
 
 const { childLogger } = require("../utils/logger.js");
 const log = childLogger("EmailService");
@@ -35,7 +36,7 @@ class EmailService {
 
   // Generic send: caller passes already-rendered subject/html/text.
   // Returns { ok: true, messageId } or { ok: false, error }.
-  async sendMail({ to, subject, html, text }) {
+  async sendMail({ to, cc, bcc, replyTo, subject, html, text }) {
     if (!this.isReady()) {
       log.warn("[EmailService] Cannot send email. Service not initialized.");
       return { ok: false, error: "service_not_initialized" };
@@ -45,13 +46,17 @@ class EmailService {
       return { ok: false, error: "no_destination" };
     }
     try {
-      const info = await this.transporter.sendMail({
+      const mailOptions = {
         from: this.fromAddress,
         to,
         subject,
         html,
         text,
-      });
+      };
+      if (cc) mailOptions.cc = cc;
+      if (bcc) mailOptions.bcc = bcc;
+      if (replyTo) mailOptions.replyTo = replyTo;
+      const info = await this.transporter.sendMail(mailOptions);
       log.info(`[EmailService] Email sent to ${to}: ${info.messageId}`);
       return { ok: true, messageId: info.messageId };
     } catch (err) {
@@ -76,6 +81,19 @@ class EmailService {
       text: rendered.text,
     });
     return result;
+  }
+
+  // Render and send the payroll issue report email to Tech team.
+  // `payload` matches the input contract of `renderPayrollIssueEmail`.
+  async sendPayrollIssueEmail({ to, cc, ...rest }) {
+    const rendered = renderPayrollIssueEmail(rest);
+    return this.sendMail({
+      to,
+      cc,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+    });
   }
 }
 

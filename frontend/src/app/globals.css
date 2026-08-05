@@ -151,6 +151,21 @@
   --brand-10: hsl(358 78% 51%); /* Alizarin Crimson #E31F26 */
   --brand-10-soft: hsl(358 78% 95%); /* Crimson tinted surface */
 
+  /* Toast variants — sourced from the Toast Component UI Design
+     (Community) Figma file. These are intentionally distinct from
+     the brand palette so toast colors read as "system feedback"
+     rather than "MindX marketing" (brand-10 etc.). Used by
+     <Toast /> (frontend/src/components/ui/toast.tsx). */
+  --toast-info: hsl(217 89% 59%);     /* #4B85F5 — Figma Accent/Info */
+  --toast-info-tint: hsl(217 89% 95%);
+  --toast-success: hsl(151 99% 45%);  /* #01E17B — Figma Accent/Success */
+  --toast-success-tint: hsl(151 99% 95%);
+  --toast-error: hsl(358 88% 61%);    /* #F04349 — Figma Accent/Error */
+  --toast-error-tint: hsl(358 88% 96%);
+  --toast-warning: hsl(49 98% 52%);   /* #FDCD0F — Figma Accent/Warning */
+  --toast-warning-tint: hsl(49 98% 95%);
+  --toast-neutral: hsl(220 13% 19%);  /* #2D3438 — Figma Black */
+
   /* MindX Chart Palette */
   --chart-1: hsl(358 78% 51%); /* Alizarin Crimson */
   --chart-2: hsl(240 100% 25%); /* Stratos Navy */
@@ -217,6 +232,18 @@
   --chart-3: hsl(217 91% 65%);
   --chart-4: hsl(142 71% 48%);
   --chart-5: hsl(280 80% 65%);
+
+  /* Toast variants — same Figma-derived values, kept identical across
+     light/dark so toasts read consistently as system feedback. */
+  --toast-info: hsl(217 89% 65%);
+  --toast-info-tint: hsl(217 60% 18%);
+  --toast-success: hsl(151 99% 50%);
+  --toast-success-tint: hsl(151 60% 14%);
+  --toast-error: hsl(358 88% 65%);
+  --toast-error-tint: hsl(358 60% 18%);
+  --toast-warning: hsl(49 98% 58%);
+  --toast-warning-tint: hsl(49 70% 16%);
+  --toast-neutral: hsl(220 13% 90%);
 }
 
 /* ============================================================
@@ -866,3 +893,26 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 /* ============================================================
    DATE PICKER — custom Vietnamese calendar popup
    ============================================================ */
+
+/* ============================================================
+   TOAST PROGRESS ANIMATION
+   Used by the custom <Toast /> component (frontend/src/components/ui/toast.tsx).
+   Scales an absolute-positioned bar from full width to zero over a
+   duration set inline via `style.animationDuration`. Pauses on hover
+   via the [animation-play-state:paused] utility.
+   ============================================================ */
+@layer utilities {
+  @keyframes toast-progress {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
+
+  .animate-toast-progress {
+    animation: toast-progress linear forwards;
+    animation-fill-mode: both;
+  }
+}
