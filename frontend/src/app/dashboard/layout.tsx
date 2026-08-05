@@ -33,6 +33,7 @@ import {
   DEFAULT_FALLBACK_HREF,
   type PublicToolEntry,
 } from "@/lib/access";
+import { toolHref as toolHrefImpl } from "@/lib/dashboardNav";
 import {
   LayoutDashboard,
   Calendar,
@@ -96,22 +97,12 @@ function buildNavItems(user: {
 
 /**
  * Build the URL a public tool renders at inside the dashboard shell.
- * All tools share the `/dashboard` shell and switch via `?tool=<key>`.
+ * Re-exported from `@/lib/dashboardNav` so this layout's component code can
+ * reference it locally. The canonical home of this helper is
+ * `src/lib/dashboardNav.ts` — do NOT add new `export` declarations to this
+ * file (App Router layouts only permit `default` + a small allowlist).
  */
-export function toolHref(toolKey: string): string {
-  return `/dashboard/tools/${toolKey}`;
-}
-
-/**
- * Returns the public tool entry matching the given query string key,
- * or null when the key is unknown.
- */
-export function findPublicTool(
-  toolKey: string | null | undefined,
-): PublicToolEntry | null {
-  if (!toolKey) return null;
-  return PUBLIC_TOOLS.find((t) => t.key === toolKey) ?? null;
-}
+const toolHref = toolHrefImpl;
 
 /** True when the pathname targets a dashboard route that requires auth. */
 function isProtectedRoute(pathname: string | null): boolean {

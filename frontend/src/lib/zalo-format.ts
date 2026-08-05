@@ -144,7 +144,6 @@ export const copyWithFormatting = async (sourceText: string) => {
     const blobHtml = new Blob([html], { type: "text/html" });
     const blobPlain = new Blob([text], { type: "text/plain" });
     await navigator.clipboard.write([
-      // @ts-expect-error ClipboardItem is available in modern browsers
       new ClipboardItem({ "text/html": blobHtml, "text/plain": blobPlain }),
     ]);
     return { ok: true, mode: "html" };

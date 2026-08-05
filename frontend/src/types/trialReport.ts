@@ -237,6 +237,8 @@ export interface RoboticsCapability {
   score: 1 | 2 | 3 | 4 | 5;
 }
 
+export type RoboticsScore = 1 | 2 | 3 | 4 | 5;
+
 export interface RoboticsReportData extends BaseTrialReportData {
   subject: string;
   recognition?: RoboticsCapability;

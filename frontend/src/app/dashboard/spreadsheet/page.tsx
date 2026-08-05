@@ -351,7 +351,9 @@ export default function SpreadsheetPage() {
   const [teacherSearch, setTeacherSearch] = useState("");
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
-  const trialsDataCache = useRef<Map<string, any[]>>(new Map());
+  const trialsDataCache = useRef<
+    Map<string, { trials: any[]; sheetName: string; datesWithTrials: any[] }>
+  >(new Map());
   const trialsFetchedKeys = useRef<Set<string>>(new Set());
 
   useEffect(() => {

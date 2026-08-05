@@ -292,13 +292,20 @@ export default function PayrollReportsPage() {
       const url = res.data?.outlookComposeUrl;
       if (notifyMode === "outlook" && url) {
         window.open(url, "_blank", "noopener,noreferrer");
-        toast.success(
-          `Đã mở Outlook compose với ${res.data.sent} báo cáo. ` +
-            `Bấm Send trong Outlook để hoàn tất.`,
-        );
+        const sent = res.data?.sent;
+        if (typeof sent === "number") {
+          toast.success(
+            `Đã mở Outlook compose với ${sent} báo cáo. ` +
+              `Bấm Send trong Outlook để hoàn tất.`,
+          );
+        } else {
+          toast.success(
+            `Đã mở Outlook compose. Bấm Send trong Outlook để hoàn tất.`,
+          );
+        }
       } else {
         toast.success(
-          `Đã gửi email tới Tech team (${res.data.sent} báo cáo).`,
+          `Đã gửi email tới Tech team (${res.data?.sent ?? 0} báo cáo).`,
         );
       }
       setNotifyOpen(false);
