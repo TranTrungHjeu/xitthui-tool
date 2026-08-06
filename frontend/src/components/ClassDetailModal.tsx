@@ -586,7 +586,7 @@ export default function ClassDetailModal({
                             <TableHead className="w-[180px] text-xs font-bold uppercase tracking-wider">Học viên</TableHead>
                             {homeworkLessons.map((l: any) => (
                               <TableHead key={l.id} className="text-xs font-bold text-center uppercase tracking-wider min-w-[100px]">
-                                {l.title || `Bài ${l.index}`}
+                                {l.name || `Bài ${l.displayOrder}`}
                               </TableHead>
                             ))}
                           </TableRow>

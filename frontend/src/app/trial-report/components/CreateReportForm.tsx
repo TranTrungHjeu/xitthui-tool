@@ -13,7 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/components/ui/toast";
 import { trialReportService } from "@/services/trialReportService";
+import { getTodayVietnam } from "@/lib/utils";
 import {
   uploadPDFFile as driveUploadPDFFile,
   getGoogleUserInfo,
@@ -38,8 +40,8 @@ import { generateKiro4PlusPDF, generateKiro4PlusFilename } from "@/lib/kiro4Plus
 interface CreateReportFormProps {
   folderId: string | null;
   onError: (msg: string | null) => void;
-  onSuccess: (msg: string) => void;
   onClose: () => void;
+  onRefresh: () => void;
 }
 
 const TEMPLATE_OPTIONS: { type: ReportType; icon: string; label: string }[] = [
@@ -137,11 +139,11 @@ async function uploadAndRegister(
 export function CreateReportForm({
   folderId,
   onError,
-  onSuccess,
   onClose,
+  onRefresh,
 }: CreateReportFormProps) {
   const [reportType, setReportType] = useState<ReportType>("Kiro4+");
-  const [classDate, setClassDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [classDate, setClassDate] = useState<string>(getTodayVietnam());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleDateChange = (date: string) => {
@@ -165,8 +167,9 @@ export function CreateReportForm({
       });
 
       if (res.success) {
-        onSuccess(`Đã tạo phiếu: ${fileName}`);
+        toast.success("Đã tạo phiếu thành công");
         onClose();
+        onRefresh();
       } else {
         throw new Error(res.error || "Không thể tạo phiếu.");
       }
@@ -194,8 +197,9 @@ export function CreateReportForm({
       });
 
       if (res.success) {
-        onSuccess(`Đã tạo phiếu: ${fileName}`);
+        toast.success("Đã tạo phiếu thành công");
         onClose();
+        onRefresh();
       } else {
         throw new Error(res.error || "Không thể tạo phiếu.");
       }
@@ -223,8 +227,9 @@ export function CreateReportForm({
       });
 
       if (res.success) {
-        onSuccess(`Đã tạo phiếu: ${fileName}`);
+        toast.success("Đã tạo phiếu thành công");
         onClose();
+        onRefresh();
       } else {
         throw new Error(res.error || "Không thể tạo phiếu.");
       }
@@ -252,8 +257,9 @@ export function CreateReportForm({
       });
 
       if (res.success) {
-        onSuccess(`Đã tạo phiếu: ${fileName}`);
+        toast.success("Đã tạo phiếu thành công");
         onClose();
+        onRefresh();
       } else {
         throw new Error(res.error || "Không thể tạo phiếu.");
       }

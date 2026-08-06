@@ -22,7 +22,9 @@ import {
   DrawerDescription,
   DrawerClose,
 } from "@/components/ui/drawer";
+import { toast } from "@/components/ui/toast";
 import { trialReportService } from "@/services/trialReportService";
+import { getTodayVietnam } from "@/lib/utils";
 import {
   uploadPDFFile as driveUploadPDFFile,
   getGoogleUserInfo,
@@ -35,7 +37,6 @@ interface UploadDialogProps {
   onOpenChange: (open: boolean) => void;
   folderId: string | null;
   onError: (msg: string | null) => void;
-  onSuccess: (msg: string) => void;
   onRefresh: () => void;
 }
 
@@ -77,18 +78,11 @@ export function UploadDialog({
   onOpenChange,
   folderId,
   onError,
-  onSuccess,
   onRefresh,
 }: UploadDialogProps) {
   const [tab, setTab] = useState<"upload" | "create">("upload");
   const [pickedFile, setPickedFile] = useState<File | null>(null);
-  const [classDate, setClassDate] = useState<string>(() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  });
+  const [classDate, setClassDate] = useState<string>(getTodayVietnam());
   const [teacherName, setTeacherName] = useState("");
   const [studentName, setStudentName] = useState("");
   const [reportType, setReportType] = useState<ReportType>("pdf-upload");
@@ -96,10 +90,7 @@ export function UploadDialog({
 
   const reset = () => {
     setPickedFile(null);
-    setClassDate(() => {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    });
+    setClassDate(getTodayVietnam());
     setTeacherName("");
     setStudentName("");
     setReportType("pdf-upload");
@@ -173,7 +164,7 @@ export function UploadDialog({
       });
 
       if (res.success) {
-        onSuccess(`Đã upload: ${uploaded.name}`);
+        toast.success("Đã upload phiếu thành công");
         handleOpenChange(false);
         onRefresh();
       } else {
@@ -332,12 +323,8 @@ export function UploadDialog({
             <CreateReportForm
               folderId={folderId}
               onError={onError}
-              onSuccess={(msg) => {
-                onSuccess(msg);
-                handleOpenChange(false);
-                onRefresh();
-              }}
               onClose={() => handleOpenChange(false)}
+              onRefresh={onRefresh}
             />
           </TabsContent>
         </Tabs>

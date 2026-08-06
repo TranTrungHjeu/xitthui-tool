@@ -12,6 +12,7 @@ import { CapabilityRadio } from "./CapabilityRadio";
 import type { ArtReportData } from "@/types/trialReport";
 import type { ArtScore } from "@/types/trialReport";
 import { technologyLevels, creativityLevels, designPrinciplesLevels, artCommunicationLevels, selfLearningLevels } from "../constants";
+import { getTodayVietnamDate } from "@/lib/utils";
 import { formatDateForPdfShortYear } from "./CreateReportForm";
 
 const ART_SUBJECTS = ["Art 4+", "Kids Art", "Visual Art", "Visual Creation", "Art Illustration", "Graphic Design"];
@@ -52,7 +53,7 @@ export function ArtForm({ onSubmit, loading, initialData }: ArtFormProps) {
       subject,
       teacher: teacher.trim(),
       campus: campus.trim(),
-      date: initialData?.date || formatDateForPdfShortYear(new Date()),
+      date: initialData?.date || formatDateForPdfShortYear(getTodayVietnamDate()),
       technology: technology ? { score: technology } : undefined,
       creativity: creativity ? { score: creativity } : undefined,
       designPrinciples: designPrinciples ? { score: designPrinciples } : undefined,

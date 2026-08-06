@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CriteriaScoreInput } from "./CriteriaScoreInput";
 import { CapabilityScoreDisplay } from "./CapabilityScoreDisplay";
 import { codingCriteriaGroups } from "../constants";
+import { getTodayVietnamDate } from "@/lib/utils";
 import { formatDateForPdfShortYear } from "./CreateReportForm";
 import type { CodingReportData, CodingCriteriaGroup } from "@/types/trialReport";
 
@@ -72,7 +73,7 @@ export function CodingForm({ onSubmit, loading, initialData }: CodingFormProps) 
       age_grade: ageGrade.trim(),
       subject,
       teacher: teacher.trim(),
-      date: initialData?.date || formatDateForPdfShortYear(new Date()),
+      date: initialData?.date || formatDateForPdfShortYear(getTodayVietnamDate()),
       computationalThinking: {
         understand_digital_products: criteria.understand_digital_products || 0,
         explain_knowledge: criteria.explain_knowledge || 0,

@@ -1,20 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  CheckCircle,
-  LogOut,
-  LogIn,
-  FileText,
-  Folder,
-  List,
-  Upload,
-  RefreshCw,
-  ChevronRight,
-  Loader2,
-} from "lucide-react";
+import { CheckCircle, LogOut, LogIn, FileText, Folder, List, Upload, RefreshCw, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AlertModal } from "@/components/ui/alert-modal";
+import { toast } from "@/components/ui/toast";
 import { useAuthStore } from "@/store/useAuthStore";
 import { isTE } from "@/lib/utils";
 import { FileList } from "./components/FileList";
@@ -63,16 +52,6 @@ export default function TrialReportPage() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  // Errors and successes are surfaced via <AlertModal> instead of
-  // inline banners so they get a consistent, dismissible, full-screen
-  // experience across the app. `errorTitle`/`successTitle` are kept
-  // separate so callers that need a non-default heading (e.g. the
-  // Drive sign-in flow) can override without losing the simpler
-  // string-only path used by FileList/AllFilesList callbacks.
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [errorTitle, setErrorTitle] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [successTitle, setSuccessTitle] = useState<string | null>(null);
   const [isDriveSignedIn, setIsDriveSignedIn] = useState(false);
   const [driveUserEmail, setDriveUserEmail] = useState<string | null>(null);
   const [driveRemainingMinutes, setDriveRemainingMinutes] = useState<number>(0);
@@ -82,28 +61,8 @@ export default function TrialReportPage() {
   // silently opening before sign-in lands.
   const [isSigningIn, setIsSigningIn] = useState(false);
 
-  // Convenience wrappers around the error/success state so that any
-  // plain `setErrorMsg(s)` call also resets `errorTitle` to the
-  // variant default. Callers that want a custom title pair the two
-  // setters explicitly (see the Drive sign-in expiry handler).
-  // Accepts `string | null` so it can be passed directly to
-  // child-component `onError` props (FileList, AllFilesList,
-  // UploadDialog) without forcing each child to filter nulls.
   const showError = (msg: string | null) => {
-    setErrorTitle(null);
-    setErrorMsg(msg);
-  };
-  const showSuccess = (msg: string | null) => {
-    setSuccessTitle(null);
-    setSuccessMsg(msg);
-  };
-  const clearError = () => {
-    setErrorMsg(null);
-    setErrorTitle(null);
-  };
-  const clearSuccess = () => {
-    setSuccessMsg(null);
-    setSuccessTitle(null);
+    if (msg) toast.error(msg);
   };
 
   const isAdmin = isTE(user);
@@ -688,34 +647,7 @@ export default function TrialReportPage() {
         onOpenChange={setUploadOpen}
         folderId={currentFolderId}
         onError={showError}
-        onSuccess={(msg) => {
-          showSuccess(msg);
-          // No auto-dismiss — the success modal now stays open until
-          // the user closes it, mirroring the new alert-modal UX. The
-          // previous 4s banner timer was too short to read backend
-          // confirmation messages in full.
-        }}
         onRefresh={handleRefresh}
-      />
-
-      <AlertModal
-        variant="error"
-        open={!!errorMsg}
-        onOpenChange={(open) => {
-          if (!open) clearError();
-        }}
-        title={errorTitle ?? undefined}
-        message={errorMsg ?? ""}
-      />
-
-      <AlertModal
-        variant="success"
-        open={!!successMsg}
-        onOpenChange={(open) => {
-          if (!open) clearSuccess();
-        }}
-        title={successTitle ?? undefined}
-        message={successMsg ?? ""}
       />
     </>
   );

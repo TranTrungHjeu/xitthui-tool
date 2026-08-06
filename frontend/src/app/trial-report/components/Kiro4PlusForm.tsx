@@ -18,6 +18,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { CapabilityRadio } from "./CapabilityRadio";
 import { kiro4PlusCapabilities } from "../constants";
 import { formatDateForPdfShortYear } from "./CreateReportForm";
+import { getTodayVietnam } from "@/lib/utils";
 import type { Kiro4PlusReportData, Kiro4PlusScore } from "@/types/trialReport";
 
 const KIRO_SUBJECTS = ["Kiro 4+", "Kiro Basic"];
@@ -41,10 +42,7 @@ export function Kiro4PlusForm({ onSubmit, loading, initialData, onDateChange }: 
   const [communication, setCommunication] = useState<Kiro4PlusScore | undefined>(initialData?.communication?.score);
   const [teacherComment, setTeacherComment] = useState(initialData?.teacherComment || "");
   const [recommendation, setRecommendation] = useState(initialData?.recommendation || "");
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  });
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayVietnam());
 
   const calculateAverage = () => {
     const scores = [recognition, assembly, programming, communication].filter(s => s !== undefined) as number[];

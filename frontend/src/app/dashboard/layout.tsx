@@ -477,7 +477,8 @@ export default function DashboardLayout({
                 alt="MindX"
                 width={160}
                 height={40}
-                className="h-10 w-auto object-contain"
+                className="h-10 object-contain"
+                style={{ width: "auto" }}
                 priority
               />
             </Link>
@@ -493,7 +494,8 @@ export default function DashboardLayout({
                     alt="MindX"
                     width={40}
                     height={40}
-                    className="h-9 w-auto object-contain"
+                    className="h-9 object-contain"
+                    style={{ width: "auto" }}
                     priority
                   />
                 </Link>
@@ -638,7 +640,8 @@ export default function DashboardLayout({
                   alt="MindX"
                   width={120}
                   height={32}
-                  className="h-7 w-auto object-contain"
+                  className="h-7 object-contain"
+                  style={{ width: "auto" }}
                 />
               </Link>
               <button

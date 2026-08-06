@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CapabilityRadio } from "./CapabilityRadio";
 import { roboticsCapabilities } from "../constants";
+import { getTodayVietnam, getTodayVietnamDate } from "@/lib/utils";
 import { formatDateForPdfShortYear } from "./CreateReportForm";
 import type { RoboticsReportData } from "@/types/trialReport";
 import type { RoboticsScore } from "@/types/trialReport";
@@ -51,7 +52,7 @@ export function RoboticsForm({ onSubmit, loading, initialData }: RoboticsFormPro
       subject,
       teacher: teacher.trim(),
       campus: campus.trim(),
-      date: initialData?.date || formatDateForPdfShortYear(new Date()),
+      date: initialData?.date || formatDateForPdfShortYear(getTodayVietnamDate()),
       recognition: recognition ? { score: recognition } : undefined,
       assembly: assembly ? { score: assembly } : undefined,
       programming: programming ? { score: programming } : undefined,

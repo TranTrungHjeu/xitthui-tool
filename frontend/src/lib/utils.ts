@@ -145,6 +145,29 @@ export function formatDateDMY(date: Date): string {
   return `${d}/${m}/${y}`;
 }
 
+/**
+ * Get current date in Vietnam timezone (UTC+7) as YYYY-MM-DD string.
+ * This fixes the issue where `new Date().toISOString()` returns UTC date,
+ * causing files to be saved under the previous day when it's still
+ * before midnight in Vietnam.
+ */
+export function getTodayVietnam(): string {
+  // Create date in Vietnam timezone by adding 7 hours to UTC
+  const vnDate = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  const y = vnDate.getUTCFullYear();
+  const m = String(vnDate.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(vnDate.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Get current date as Date object in Vietnam timezone (UTC+7).
+ * Use this instead of `new Date()` when you need Vietnam local date.
+ */
+export function getTodayVietnamDate(): Date {
+  return new Date(Date.now() + 7 * 60 * 60 * 1000);
+}
+
 export function formatSlotDateTime(
   dateInput: string | Date | null | undefined,
   startTime?: string,
