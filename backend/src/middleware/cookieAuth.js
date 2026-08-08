@@ -30,10 +30,23 @@ const SESSION_COOKIE = "session_id";
 /** Cookie options shared by both auth cookies. */
 function getCookieOptions() {
   const isProduction = process.env.NODE_ENV === "production";
+  // Strict = no cross-site at all (only same-site requests).
+  // Lax    = top-level same-site + cross-site GET navigations.
+  // None   = always sent, but MUST be paired with Secure (browser
+  //          rejects cookies that violate this rule).
+  //
+  // When the FE and BE are on different eTLD+1 (e.g. Vercel → nip.io),
+  // the browser treats the request as cross-site and refuses to attach
+  // cookies with sameSite=Lax/Strict on XHR/fetch. Override via the
+  // COOKIE_SAME_SITE env so we can keep `lax` for dev (same-origin) and
+  // force `none` for cross-site production without forking the code.
+  const sameSite = (process.env.COOKIE_SAME_SITE || "lax").toLowerCase();
+  const isCrossSite = sameSite === "none";
   return {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: "lax",
+    // sameSite=None mandates Secure; otherwise `secure` follows NODE_ENV.
+    secure: isCrossSite || isProduction,
+    sameSite,
     path: "/",
     maxAge: 30 * 24 * 60 * 60, // 30 days in seconds
   };
