@@ -90,6 +90,9 @@ const HEADER_ALIASES = {
     "shortname",
     "ma trung tam",
     "ma trung tam ngan",
+    "ma tt",
+    "ma trung tam day",
+    "ma centre",
   ],
   classSiteCentre: [
     "class site centre",
@@ -146,7 +149,7 @@ const HEADER_ALIASES = {
     "vai tro",
     "loai office hour",
   ],
-  status: ["status", "trang thai", "tinh trang"],
+  status: ["status", "trang thai", "tinh trang", "trangthai", "trang thai check"],
   slotTime: [
     "slot time",
     "slot datetime",
@@ -177,6 +180,11 @@ const HEADER_ALIASES = {
     "thoi luong hieu luc",
     "real duration",
     "actual duration",
+    "hieu luc gio",
+    "hieu luc tiet",
+    "so gio",
+    "so gio day",
+    "so gio hieu luc",
   ],
   studentCount: [
     "student count",
@@ -185,6 +193,10 @@ const HEADER_ALIASES = {
     "hoc sinh",
     "sl hoc sinh",
     "count",
+    "si so",
+    "so luong hoc sinh",
+    "slhs",
+    "hs",
   ],
   requestedBy: [
     "requested by",

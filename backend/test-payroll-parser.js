@@ -54,7 +54,7 @@ console.log("parsePayrollWorkbook (VN headers, partial)");
 
 const data = [
   ["Công GV T8/2026"],                       // title row (should be skipped)
-  ["Mã TT", "Lớp", "GV", "Email", "Giờ", "Hiệu lực (giờ)", "Sĩ số", "TT"],
+  ["Mã TT", "Lớp", "GV", "Email", "Giờ", "Hiệu lực", "Sĩ số", "Trạng thái"],
   [
     "HAN01",
     "L1.S2.SCR.AI-1",
