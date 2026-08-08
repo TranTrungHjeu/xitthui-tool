@@ -24,6 +24,36 @@ const Drawer: React.FC<{
   onOpenChange?: (open: boolean) => void
   children: React.ReactNode
 }> = ({ open = false, onOpenChange, children }) => {
+  // ESC closes the drawer, matching Radix Dialog / native <dialog>.
+  React.useEffect(() => {
+    if (!open) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation()
+        onOpenChange?.(false)
+      }
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [open, onOpenChange])
+
+  // Lock body scroll while a drawer is open so the page underneath
+  // doesn't scroll when the user scrolls inside the drawer on mobile.
+  React.useEffect(() => {
+    if (!open) return
+    const prevOverflow = document.body.style.overflow
+    const prevPaddingRight = document.body.style.paddingRight
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+    document.body.style.overflow = "hidden"
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`
+    }
+    return () => {
+      document.body.style.overflow = prevOverflow
+      document.body.style.paddingRight = prevPaddingRight
+    }
+  }, [open])
+
   return (
     <DrawerContext.Provider value={{ open, onOpenChange: onOpenChange || (() => {}) }}>
       {children}
@@ -114,13 +144,12 @@ const DrawerContent = React.forwardRef<
         className={cn(
           "fixed z-50 bg-background shadow-xl",
           "flex flex-col",
-          "duration-300 ease-in-out",
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
           sizeClass,
-          side === "right" && "data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right",
-          side === "left" && "data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left",
-          side === "bottom" && "data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom",
-          side === "top" && "data-[state=open]:slide-in-from-top data-[state=closed]:slide-out-to-top",
+          side === "right" && "data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right duration-400 ease-out",
+          side === "left" && "data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left duration-400 ease-out",
+          side === "bottom" && "data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom duration-400 ease-out",
+          side === "top" && "data-[state=open]:slide-in-from-top data-[state=closed]:slide-out-to-top duration-400 ease-out",
           className,
         )}
         style={dimensionStyle}

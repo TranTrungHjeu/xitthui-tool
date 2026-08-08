@@ -72,9 +72,6 @@ function LoginPageInner() {
           : res;
 
       const mindxUser = data.mindxUser || data.user;
-      const lmsToken = data.lmsToken || data.token;
-      const sessionId =
-        data.sessionId || data.lmsRefreshToken || data.refreshToken;
 
       if (!mindxUser || !mindxUser.id) {
         console.error("Login response missing user info:", res);
@@ -83,7 +80,10 @@ function LoginPageInner() {
         );
       }
 
-      login(mindxUser, lmsToken, sessionId);
+      // The LMS token now lives in an httpOnly cookie set by the server.
+      // We intentionally drop `lmsToken` / `sessionId` from the store so
+      // they never reach localStorage / sessionStorage (XSS-safe).
+      login(mindxUser);
       router.push("/dashboard");
       return true;
     }

@@ -51,9 +51,6 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
           : res;
 
       const mindxUser = data.mindxUser || data.user;
-      const lmsToken = data.lmsToken || data.token;
-      const sessionId =
-        data.sessionId || data.lmsRefreshToken || data.refreshToken;
 
       if (!mindxUser || !mindxUser.id) {
         throw new Error(
@@ -61,7 +58,10 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
         );
       }
 
-      login(mindxUser, lmsToken, sessionId);
+      // Auth tokens now live in httpOnly cookies set by the server.
+      // We intentionally drop them from the FE store to avoid XSS
+      // exposure.
+      login(mindxUser);
       onOpenChange(false);
       return true;
     }

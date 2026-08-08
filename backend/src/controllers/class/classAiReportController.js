@@ -5,18 +5,17 @@
 
 const { vertexAI, LMSClient, log } = require("./_shared");
 const { isLmsAuthError } = require("../../utils/authError");
+const { withLmsAuthRefresh } = require("../../utils/lmsAuthRefresh");
 
-exports.getStudentAIReport = async (req, res) => {
+exports.getStudentAIReport = withLmsAuthRefresh(async (req, res) => {
   try {
     const { classId } = req.body;
     const { studentId } = req.body;
-    let token = req.body.token || req.headers.authorization?.split(" ")[1];
 
-    if (!token) return res.status(400).json({ error: "Token is required" });
     if (!classId) return res.status(400).json({ error: "Class ID is required" });
     if (!studentId) return res.status(400).json({ error: "Student ID is required" });
 
-    const client = new LMSClient(token);
+    const client = new LMSClient(req.lmsToken);
     const classData = await client.getClassById(classId);
     const submissionsData = await client.getStudentSubmissionsByClass(classId);
 
@@ -101,4 +100,4 @@ exports.getStudentAIReport = async (req, res) => {
     const statusCode = isLmsAuthError(err) ? 401 : 500;
     res.status(statusCode).json({ success: false, error: err.message });
   }
-};
+});

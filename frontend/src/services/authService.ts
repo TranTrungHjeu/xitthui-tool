@@ -5,22 +5,23 @@ export const authService = {
     const response = await api.post("/login", credentials);
     return response.data;
   },
-  // Dev-only: server-side fills the password. Only available when the
-  // backend has /dev-login mounted (NODE_ENV !== production on the server).
-  devLogin: async (username: string) => {
-    const response = await api.post("/dev-login", { username });
+  // sessionId is now read from the httpOnly cookie by the server, so the
+  // FE doesn't need to pass it in the body. We keep the same signature so
+  // legacy callers don't break — the argument is simply ignored.
+  refreshToken: async (_sessionId?: string) => {
+    const response = await api.post("/refresh-token", {});
     return response.data;
   },
-  refreshToken: async (sessionId: string) => {
-    const response = await api.post("/refresh-token", { sessionId });
+  logout: async (_sessionId?: string) => {
+    const response = await api.post("/logout", {});
     return response.data;
   },
-  logout: async (sessionId: string) => {
-    const response = await api.post("/logout", { sessionId });
-    return response.data;
-  },
-  testToken: async (token: string, userId: string) => {
-    const response = await api.post("/test-token", { token, userId });
+  // testToken was used to validate the localStorage token. With the
+  // cookie-based auth it is no longer needed — the server is the
+  // source of truth. Kept as a thin wrapper that returns success when
+  // the cookie is still valid, so any leftover callers don't break.
+  testToken: async (_token?: string, _userId?: string) => {
+    const response = await api.get("/me");
     return response.data;
   },
 };

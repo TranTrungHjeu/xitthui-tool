@@ -1,7 +1,6 @@
 "use client";
 
 import api from "./api";
-import { useAuthStore } from "../store/useAuthStore";
 import type {
   AllReportsQuery,
   DeleteRequestsQuery,
@@ -23,8 +22,13 @@ interface ApiEnvelope<T> {
 }
 
 function getSessionId(): string | null {
+  // The sessionId now lives in an httpOnly cookie set by the server, so
+  // the FE doesn't have it. We keep this accessor for backward compat
+  // with the legacy `sessionId` field in service payloads — the backend
+  // reads the cookie first and ignores any body value, so sending
+  // `null` here is safe.
   if (typeof window === "undefined") return null;
-  return useAuthStore.getState().sessionId || null;
+  return null;
 }
 
 async function call<T>(

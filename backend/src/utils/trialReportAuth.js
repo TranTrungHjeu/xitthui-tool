@@ -35,7 +35,16 @@ function normalizeRoles(input) {
  */
 async function attachSession(req, _res, next) {
   try {
+    // Order of preference:
+    //   1. `cookieAuth` middleware (req.sessionId) — the modern path.
+    //      The LMS session id now travels in an httpOnly cookie, so
+    //      `cookieAuth` populates `req.sessionId` from `req.cookies.session_id`
+    //      before this middleware runs. Frontend callers using
+    //      `withCredentials: true` land here.
+    //   2. Explicit body / query / header — kept for legacy callers and
+    //      internal server-to-server jobs that don't have a cookie.
     const sessionId =
+      req.sessionId ||
       req.body?.sessionId ||
       req.query?.sessionId ||
       req.headers?.["x-session-id"] ||
@@ -83,7 +92,11 @@ function requireRole(allowedRoles) {
       let user = req.trialReportUser || null;
 
       if (!user) {
+        // Same lookup order as `attachSession` — prefer `req.sessionId`
+        // (set by cookieAuth) over legacy body/query/header, so cookie
+        // auth callers work without sending anything else.
         const sessionId =
+          req.sessionId ||
           req.body?.sessionId ||
           req.query?.sessionId ||
           req.headers?.["x-session-id"] ||

@@ -1,5 +1,6 @@
 const LMSClient = require("../services/lmsClient");
 const { isLmsAuthError } = require("../utils/authError");
+const { withLmsAuthRefresh } = require("../utils/lmsAuthRefresh");
 const { getSessionExamType } = require("../utils/courseConfig");
 const { TeacherVisibilityPrefs } = require("../storage/mongoModels");
 const TeacherStorage = require("../storage/teacherStorage");
@@ -65,16 +66,14 @@ exports.getTeacherVisibility = async (req, res) => {
   }
 };
 
-exports.getTeacherSchedules = async (req, res) => {
+exports.getTeacherSchedules = withLmsAuthRefresh(async (req, res) => {
   log.info("[Controller] getTeacherSchedules request body:", req.body);
   try {
-    let token = req.body.token;
-    if (!token && req.headers.authorization) {
-      token = req.headers.authorization.split(" ")[1];
-    }
     const { teacherIds, dateGte, dateLte, forceRefresh = false } = req.body;
 
-    if (!token) return res.status(400).json({ error: "Token is required" });
+    // Auth check is handled by `withLmsAuthRefresh` — if `req.lmsToken`
+    // is missing the wrapper returns 400 "Token is required" before we
+    // ever get here. Don't add a redundant `if (!token)` check here.
     if (!Array.isArray(teacherIds) || teacherIds.length === 0) {
       return res.status(400).json({ error: "teacherIds array is required" });
     }
@@ -132,7 +131,7 @@ exports.getTeacherSchedules = async (req, res) => {
     // 3. Fallback: Query LMS directly
     if (!fetchedFromDb) {
       log.info(`[Controller] Fetching schedules from LMS directly...`);
-      const client = new LMSClient(token);
+      const client = new LMSClient(req.lmsToken);
       allSchedules = await client.getTeacherSchedulesBatch(
         teacherIds,
         dateGte,
@@ -301,22 +300,16 @@ exports.getTeacherSchedules = async (req, res) => {
       error: err.response?.data?.errors?.[0]?.message || err.message,
     });
   }
-};
+});
 
-exports.getTeachers = async (req, res) => {
+exports.getTeachers = withLmsAuthRefresh(async (req, res) => {
   log.info("[Controller] getTeachers request body:", req.body);
   try {
-    let token = req.body.token;
-    if (!token && req.headers.authorization) {
-      token = req.headers.authorization.split(" ")[1];
-    }
     const {
       centers = [getTdmCentreId()],
       pageIndex = 0,
       itemsPerPage = 100,
     } = req.body;
-
-    if (!token) return res.status(400).json({ error: "Token is required" });
 
     // 1. Try MongoDB first (the source of truth after the first successful sync).
     try {
@@ -366,7 +359,7 @@ exports.getTeachers = async (req, res) => {
       return res.json({ ...cached, source: "cache" });
     }
 
-    const client = new LMSClient(token);
+    const client = new LMSClient(req.lmsToken);
     const result = await client.getTeachers(centers, pageIndex, itemsPerPage);
 
     const response = {
@@ -389,7 +382,7 @@ exports.getTeachers = async (req, res) => {
       error: err.response?.data?.errors?.[0]?.message || err.message,
     });
   }
-};
+});
 
 /**
  * POST /teachers/sync

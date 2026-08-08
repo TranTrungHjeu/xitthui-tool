@@ -141,7 +141,7 @@ function CustomDatePicker({
 }
 
 export default function SpreadsheetPage() {
-  const { user, token } = useAuthStore();
+  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<SpreadsheetTabKey>("trial");
 
   // --- TAB: Google Sheet View ---
@@ -392,7 +392,7 @@ export default function SpreadsheetPage() {
   };
 
   const fetchTrialAvailabilities = async (silent = false, force = false) => {
-    if (!token) return;
+    if (!user?.id) return;
     let centres: any[] = user?.teacherCentres || [];
     if (isActualKhiemAccount(user)) {
       const tdmCentre = centres.find((c: any) => {

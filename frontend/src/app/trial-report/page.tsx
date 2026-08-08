@@ -61,6 +61,17 @@ export default function TrialReportPage() {
   // silently opening before sign-in lands.
   const [isSigningIn, setIsSigningIn] = useState(false);
 
+  // Persistent banner shown when the Google access token expires.
+  // Distinct from `toast.error` because the auto re-auth flow needs
+  // the message to stay visible until the user successfully signs back
+  // in (toasts auto-dismiss and would leave the page looking stale).
+  const [errorTitle, setErrorTitle] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const clearError = () => {
+    setErrorTitle(null);
+    setErrorMsg(null);
+  };
+
   const showError = (msg: string | null) => {
     if (msg) toast.error(msg);
   };
@@ -191,6 +202,10 @@ export default function TrialReportPage() {
     const unsubscribe = setAuthStatusListener((status) => {
       setIsDriveSignedIn(status.isSignedIn);
       if (status.isSignedIn) {
+        // Successful re-auth (e.g. after the token-expired banner was
+        // shown) — clear the persistent banner so the user can see
+        // the recovered state.
+        clearError();
         setDriveUserEmail(null);
         setDriveRemainingMinutes(getTokenInfo().remainingMinutes);
         getGoogleUserInfo().then((info) => {
@@ -654,6 +669,35 @@ export default function TrialReportPage() {
 
   return (
     <main className="space-y-4 mx-auto px-4 sm:px-6 py-5">
+      {/* Persistent banner for token-expired / re-auth flow. Renders
+          above main content so it stays visible until the user signs
+          back in. Hidden when there's no error to show. */}
+      {(errorTitle || errorMsg) && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 shadow-sm"
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100">
+            <RefreshCw className="h-4 w-4 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            {errorTitle && (
+              <p className="text-sm font-semibold leading-tight">{errorTitle}</p>
+            )}
+            {errorMsg && (
+              <p className="text-xs text-amber-800/90 mt-0.5">{errorMsg}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={clearError}
+            className="shrink-0 rounded-md p-1 text-amber-700/70 hover:bg-amber-100 hover:text-amber-900 transition-colors"
+            aria-label="Đóng thông báo"
+          >
+            <span className="text-xs font-semibold">Đóng</span>
+          </button>
+        </div>
+      )}
       {mainContent}
     </main>
   );

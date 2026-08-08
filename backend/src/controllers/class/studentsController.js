@@ -5,14 +5,10 @@
 
 const { FirestoreStudent, StudentScheduler, log } = require("./_shared");
 const { isLmsAuthError } = require("../../utils/authError");
+const { withLmsAuthRefresh } = require("../../utils/lmsAuthRefresh");
 
-exports.getStudents = async (req, res) => {
+exports.getStudents = withLmsAuthRefresh(async (req, res) => {
   try {
-    let token = req.body.token;
-    if (!token && req.headers.authorization) {
-      token = req.headers.authorization.split(" ")[1];
-    }
-
     const {
       teacherId, centreIds, roles,
       statusIn = ["RUNNING", "OPEN", "PRE_OPEN"],
@@ -21,7 +17,6 @@ exports.getStudents = async (req, res) => {
 
     const isTE = Array.isArray(roles) && roles.includes("TE");
 
-    if (!token) return res.status(400).json({ error: "Token is required" });
     if (!isTE && !teacherId) return res.status(400).json({ error: "Teacher ID is required" });
 
     // 1. Get all students from MongoDB by teacherId or centreIds
@@ -78,18 +73,13 @@ exports.getStudents = async (req, res) => {
     const statusCode = isLmsAuthError(err) ? 401 : 500;
     res.status(statusCode).json({ success: false, error: err.message });
   }
-};
+});
 
-exports.syncStudents = async (req, res) => {
+exports.syncStudents = withLmsAuthRefresh(async (req, res) => {
   try {
-    let token = req.body.token;
-    if (!token && req.headers.authorization) {
-      token = req.headers.authorization.split(" ")[1];
-    }
     const { roles } = req.body;
     const isTE = Array.isArray(roles) && roles.includes("TE");
 
-    if (!token) return res.status(400).json({ error: "Token is required" });
     if (!isTE) return res.status(403).json({ error: "Access denied. TE role required." });
 
     log.info("[Controller] Manual student sync triggered by TE");
@@ -102,4 +92,4 @@ exports.syncStudents = async (req, res) => {
       res.status(statusCode).json({ success: false, error: err.message });
     }
   }
-};
+});

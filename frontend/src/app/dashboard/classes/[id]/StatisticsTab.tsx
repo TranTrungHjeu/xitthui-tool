@@ -76,7 +76,7 @@ export default function StatisticsTab({
   rosterToApiStudentMap,
   submissionMap,
 }: StatisticsTabProps) {
-  const { token } = useAuthStore();
+  const {} = useAuthStore();
   const [selectedStudentId, setSelectedStudentId] = useState<string>("all");
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [aiReport, setAiReport] = useState<any>(null);
@@ -389,7 +389,6 @@ export default function StatisticsTab({
 
     try {
       const result = await classService.getAIStudentEvaluation(
-        token || "",
         classData.id,
         targetId,
         rosterToApiStudentMap,

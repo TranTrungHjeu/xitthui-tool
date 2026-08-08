@@ -38,7 +38,7 @@ export default function EvaluationDialog({
   classId,
   onSuccess,
 }: EvaluationDialogProps) {
-  const { token, clearClasses } = useAuthStore();
+  const { user, clearClasses } = useAuthStore();
   const [comment, setComment] = useState(student?.comment || "");
   const [status, setStatus] = useState(student?.status || "PRESENT");
   const [isLoading, setIsLoading] = useState(false);
@@ -63,7 +63,7 @@ export default function EvaluationDialog({
         ],
       };
 
-      const res = await classService.updateEvaluation(token || "", payload);
+      const res = await classService.updateEvaluation(payload);
       if (res.success) {
         setSuccess(true);
         // Clear classes cache to force refetch with new evaluation data

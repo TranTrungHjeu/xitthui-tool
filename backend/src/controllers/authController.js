@@ -5,6 +5,10 @@ const LMSClient = require("../services/lmsClient");
 const FirestoreNotification = require("../storage/notificationStorage");
 const FirestoreSession = require("../storage/sessionStorage");
 const { isSpecialAccount } = require("../utils/roleUtils");
+const {
+  buildAuthCookieHeaders,
+  buildClearCookieHeaders,
+} = require("../middleware/cookieAuth");
 
 const { childLogger } = require("../utils/logger.js");
 const log = childLogger("AuthController");
@@ -139,16 +143,13 @@ function classifyLoginError(err) {
   };
 }
 
-// ---- Dev-only credentials (server-side only, never sent to client) ----
-// Hardcoded so passwords never leak to the browser bundle or network tab.
-// Only active when NODE_ENV !== 'production'. Add accounts here for new devs.
-const DEV_ACCOUNTS = {
-  I3470: "MindX@2024",
-  hieutt1: "ula4e6maznm",
-};
+// ---- Dev-only credentials removed ----
+// The dev-login flow (username-only quick login) has been removed. All
+// callers must go through the standard `/login` endpoint with email + 
+// password.
 
 /**
- * Core login flow shared by /login and /dev-login.
+ * Core login flow shared by /login.
  * Throws on auth/credential failures; caller decides HTTP status.
  */
 async function performLogin(email, password, req) {
@@ -255,43 +256,14 @@ exports.login = async (req, res) => {
 
   try {
     const responseData = await requestStorage.run({}, () => performLogin(email, password, req));
-    res.json({ success: true, data: responseData });
-  } catch (err) {
-    const { status, code, message } = classifyLoginError(err);
-    res.status(status).json({ success: false, code, error: message });
-  }
-};
-
-/**
- * Dev-only quick login: client only sends a username, server fills the password.
- * Refuses to run in production. Returns 404 on unknown dev username.
- */
-exports.devLogin = async (req, res) => {
-  if (process.env.NODE_ENV === "production") {
-    return res.status(404).json({ success: false, error: "Not found" });
-  }
-
-  const { username } = req.body || {};
-  if (!username || typeof username !== "string") {
-    return res.status(400).json({
-      success: false,
-      code: "missing_credentials",
-      error: "username is required",
-    });
-  }
-
-  const password = DEV_ACCOUNTS[username];
-  if (!password) {
-    return res.status(404).json({
-      success: false,
-      code: "user_not_found",
-      error: `Unknown dev account: ${username}`,
-    });
-  }
-
-  try {
-    log.warn(`[Auth] Dev login attempt for username: ${username}`);
-    const responseData = await requestStorage.run({}, () => performLogin(username, password, req));
+    // Set httpOnly auth cookies so the FE no longer needs to inject the
+    // LMS token into request bodies. The body below is kept for the
+    // dev-login / mobile cases that still want to read the token once.
+    const cookies = buildAuthCookieHeaders(
+      responseData.lmsToken,
+      responseData.sessionId,
+    );
+    cookies.forEach((c) => res.append("Set-Cookie", c));
     res.json({ success: true, data: responseData });
   } catch (err) {
     const { status, code, message } = classifyLoginError(err);
@@ -300,7 +272,9 @@ exports.devLogin = async (req, res) => {
 };
 
 exports.refreshToken = async (req, res) => {
-  const { sessionId } = req.body;
+  // Prefer the cookie-based sessionId; fall back to the body for clients
+  // that haven't migrated yet (e.g. internal jobs).
+  const sessionId = req.sessionId || req.body?.sessionId;
 
   if (!sessionId) {
     return res.status(400).json({ error: "Session ID is required" });
@@ -338,6 +312,10 @@ exports.refreshToken = async (req, res) => {
       session.centreIds || [],
       session.roles || [],
     );
+
+    // Rotate the httpOnly cookie too so the FE keeps the new token.
+    const cookies = buildAuthCookieHeaders(refreshed.idToken, sessionId);
+    cookies.forEach((c) => res.append("Set-Cookie", c));
 
     res.json({
       success: true,
@@ -383,14 +361,23 @@ exports.refreshToken = async (req, res) => {
 };
 
 exports.logout = async (req, res) => {
-  const { sessionId } = req.body;
+  const sessionId = req.sessionId || req.body?.sessionId;
 
   if (!sessionId) {
-    return res.status(400).json({ error: "Session ID is required" });
+    // Even without a session, clear the cookies so the browser stops
+    // sending them on subsequent requests.
+    const cookies = buildClearCookieHeaders();
+    cookies.forEach((c) => res.append("Set-Cookie", c));
+    return res.json({
+      success: true,
+      message: "Successfully logged out (no session)",
+    });
   }
 
   try {
     await FirestoreSession.revokeSession(sessionId);
+    const cookies = buildClearCookieHeaders();
+    cookies.forEach((c) => res.append("Set-Cookie", c));
     res.json({
       success: true,
       message: "Successfully logged out",

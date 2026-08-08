@@ -185,7 +185,7 @@ function CustomDatePicker({
 }
 
 export default function SchedulesPage() {
-  const { token, user } = useAuthStore();
+  const { user } = useAuthStore();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [teachersList, setTeachersList] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -387,7 +387,7 @@ export default function SchedulesPage() {
   }, [user?.id]);
 
   const fetchSchedulesForDate = async (date: Date, forceRefresh = false) => {
-    if (!token) return;
+    if (!user?.id) return;
 
     const timer = setTimeout(() => {
       setIsLoading(true);
@@ -402,7 +402,6 @@ export default function SchedulesPage() {
       const dateLte = sunday.toISOString();
 
       const teachersRes = await teacherService.getTeachers(
-        token,
         teacherCentreIds,
       );
       if (!teachersRes.success) {
@@ -420,7 +419,6 @@ export default function SchedulesPage() {
       }
 
       const schedulesRes = await teacherService.getTeacherSchedules(
-        token,
         teacherIds,
         dateGte,
         dateLte,
@@ -460,7 +458,7 @@ export default function SchedulesPage() {
     }, 0);
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, teacherCentreIds, selectedDate]);
+  }, [user?.id, teacherCentreIds, selectedDate]);
 
   const handleDateChange = (newDate: Date) => {
     setSelectedDate(newDate);
@@ -569,19 +567,6 @@ export default function SchedulesPage() {
       .replace(/^(C4K|ROB|ART)-/i, ""); // Remove division prefix
   };
 
-  const getShortCentreName = (name: string): string => {
-    if (!name) return "";
-    const lower = name.toLowerCase();
-    if (lower.includes("thuận an")) return "TA";
-    if (lower.includes("thủ dầu một")) return "TDM";
-    if (lower.includes("dĩ an")) return "DA";
-    if (lower.includes("online")) return "OL";
-    if (lower.includes("song hành")) return "SH";
-    if (lower.includes("hà đông")) return "HĐ";
-    if (lower.includes("nguyễn trãi")) return "NT";
-    return name.split(/\s+/).map(w => w[0]).join("").toUpperCase();
-  };
-
   const getShortTeacherName = (fullName: string): string => {
     if (!fullName) return "";
     const parts = fullName.trim().split(/\s+/);
@@ -594,16 +579,6 @@ export default function SchedulesPage() {
       return s.type === "CLASS_SESSION" || s.type === "OFFICE_HOURS";
     });
   }, [schedules]);
-
-  const checkIsOtherCentre = (sch: Schedule) => {
-    const scheduleCentreId =
-      sch.classSite?.centre?.id || sch.officeHour?.centre?.id;
-    return (
-      !!scheduleCentreId &&
-      teacherCentreIds.length > 0 &&
-      !teacherCentreIds.includes(scheduleCentreId)
-    );
-  };
 
   const teachersWithSchedules = useMemo(() => {
     return new Set(centerSchedules.map((s) => s.teacherId));
@@ -876,10 +851,6 @@ export default function SchedulesPage() {
   };
 
   const getScheduleStyle = (sch: Schedule) => {
-    if (checkIsOtherCentre(sch)) {
-      return "bg-muted/80 text-muted-foreground border-border/80";
-    }
-
     const titleLower = (sch.title || "").toLowerCase();
 
     if (sch.type === "OFFICE_HOURS") {
@@ -1245,11 +1216,10 @@ export default function SchedulesPage() {
                               <div className="flex flex-col w-full h-full gap-[1px]">
                                 {cellSchedules.map((sch, i) => {
                                   const cardData = cellData.cards[i];
-                                  const isOther = checkIsOtherCentre(sch);
 
                                   return (
-                                    <div 
-                                      key={i} 
+                                    <div
+                                      key={i}
                                       className="relative group/tooltip hover:z-[100] transition-all"
                                       style={{
                                         marginLeft: cardData?.left || "0%",
@@ -1283,16 +1253,10 @@ export default function SchedulesPage() {
                                               {sch.teacherRole && renderRoleBadge(sch.teacherRole)}
                                             </div>
                                           </div>
-                                          {isOther ? (
-                                            <span className="truncate text-[7.5px] md:text-[8px] block text-muted-foreground font-normal leading-none">
-                                              ({getShortCentreName(sch.classSite?.centre?.name || sch.officeHour?.centre?.name || "Cơ sở khác")})
+                                          {sch.type !== "OFFICE_HOURS" && (
+                                            <span className="truncate text-[7.5px] md:text-[9px] block opacity-90 leading-none">
+                                              {getSessionShortName(sch)}
                                             </span>
-                                          ) : (
-                                            sch.type !== "OFFICE_HOURS" && (
-                                              <span className="truncate text-[7.5px] md:text-[9px] block opacity-90 leading-none">
-                                                {getSessionShortName(sch)}
-                                              </span>
-                                            )
                                           )}
                                         </div>
                                       </div>
@@ -1393,7 +1357,6 @@ export default function SchedulesPage() {
                   <span className="text-muted-foreground font-medium">Cơ sở:</span>
                   <span className="text-foreground font-semibold text-right">
                     {viewingSchedule.classSite?.centre?.name || viewingSchedule.officeHour?.centre?.name || "—"}
-                    {checkIsOtherCentre(viewingSchedule) && " (Dạy chéo)"}
                   </span>
                 </div>
 

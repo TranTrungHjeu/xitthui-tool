@@ -2,7 +2,7 @@
 
 import { use } from "react";
 import { useRouter } from "next/navigation";
-import ClassDetailModal from "@/components/ClassDetailModal";
+import ClassDetailDrawer from "@/components/ClassDetailDrawer";
 
 export default function ClassDetailsPage({
   params,
@@ -14,7 +14,7 @@ export default function ClassDetailsPage({
 
   return (
     <div className="min-h-[80vh] p-6 flex items-center justify-center">
-      <ClassDetailModal
+      <ClassDetailDrawer
         classId={id}
         open={true}
         onClose={() => router.push("/dashboard/classes")}

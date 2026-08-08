@@ -3,7 +3,6 @@ import { ClassData } from "../types";
 
 export const classService = {
   getClasses: async (
-    _token: string, // Unused as interceptor handles it
     teacherId: string,
     centreIds?: string[],
     roles?: string[],
@@ -38,7 +37,6 @@ export const classService = {
     return { data: response.data.data, meta: response.data.meta };
   },
   getClassesNotifications: async (
-    _token: string,
     teacherId: string,
     centreIds?: string[],
     roles?: string[],
@@ -52,64 +50,44 @@ export const classService = {
     });
     return response.data.data;
   },
-  sendReminderEmailsNow: async (
-    _token: string,
-    roles?: string[],
-  ): Promise<any> => {
+  sendReminderEmailsNow: async (roles?: string[]): Promise<any> => {
     const response = await api.post("/classes/notifications/send-emails-now", {
       roles,
     });
     return response.data;
   },
-  syncNotifications: async (
-    _token: string,
-    roles?: string[],
-  ): Promise<any> => {
+  syncNotifications: async (roles?: string[]): Promise<any> => {
     const response = await api.post("/classes/notifications/sync", {
       roles,
     });
     return response.data;
   },
-  getClassesDetails: async (
-    _token: string,
-    classIds: string[],
-  ): Promise<ClassData[]> => {
+  getClassesDetails: async (classIds: string[]): Promise<ClassData[]> => {
     const response = await api.post("/classes/details", { classIds });
     return response.data.data;
   },
-  getClassById: async (_token: string, classId: string, noCache?: boolean): Promise<ClassData> => {
+  getClassById: async (classId: string, noCache?: boolean): Promise<ClassData> => {
     const response = await api.post("/classes/detail", { classId, noCache });
     return response.data.data;
   },
-  updateEvaluation: async (token: string, payload: any) => {
-    const response = await api.post("/update-evaluation", {
-      token,
-      payload,
-    });
+  updateEvaluation: async (payload: any) => {
+    const response = await api.post("/update-evaluation", { payload });
     return response.data;
   },
-  getSubmissions: async (token: string, classId: string): Promise<any> => {
-    const response = await api.post("/submissions", {
-      token,
-      classId,
-    });
+  getSubmissions: async (classId: string): Promise<any> => {
+    const response = await api.post("/submissions", { classId });
     return response.data.data;
   },
-  getCourseVersion: async (token: string, classId: string): Promise<any> => {
-    const response = await api.post("/course-version", {
-      token,
-      classId,
-    });
+  getCourseVersion: async (classId: string): Promise<any> => {
+    const response = await api.post("/course-version", { classId });
     return response.data.data;
   },
   getAIStudentEvaluation: async (
-    token: string,
     classId: string,
     studentId: string,
     rosterToApiMap: Record<string, string>,
   ): Promise<any> => {
     const response = await api.post("/student-evaluation", {
-      token,
       classId,
       studentId,
       rosterToApiMap,
@@ -117,7 +95,6 @@ export const classService = {
     return response.data;
   },
   getStudents: async (
-    _token: string, // Unused as interceptor handles it
     teacherId: string,
     centreIds?: string[],
     roles?: string[],

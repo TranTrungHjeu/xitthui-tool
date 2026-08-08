@@ -86,10 +86,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       icon: <LogOut className="h-4 w-4 text-destructive" />,
       group: "Tài khoản",
       action: () => {
-        const sessionId = useAuthStore.getState().sessionId;
-        if (sessionId) {
-          authService.logout(sessionId).catch(() => {});
-        }
+        // Server reads sessionId from the httpOnly cookie now.
+        authService.logout().catch(() => {});
         logout();
         router.push("/login");
       },

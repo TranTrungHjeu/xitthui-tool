@@ -43,6 +43,8 @@ const TeacherScheduler = require("./services/teacherScheduler");
 const { ScheduleScheduler } = require("./services/scheduleScheduler");
 const { connectMongoDB } = require("./config/mongodb");
 const { initializeKeys } = require("./utils/apiKeyManager");
+const { cookieParser } = require("./utils/cookies");
+const { cookieAuth } = require("./middleware/cookieAuth");
 
 // ---- 0. Required Environment Variables Validation ----
 // Small-team project: only 2 keys are required. Optional keys are not validated here
@@ -178,6 +180,8 @@ const requireSameOrigin =
 app.use(requireSameOrigin); // production-only origin check on mutations
 app.use(express.json({ limit: "200kb" }));
 app.use(express.urlencoded({ extended: true, limit: "200kb" }));
+app.use(cookieParser); // populates req.cookies from the Cookie header
+app.use(cookieAuth); // copies req.cookies.lms_token/session_id into req.lmsToken/req.sessionId
 app.use("/", healthRoutes);
 app.use("/", authRoutes);
 app.use("/", classRoutes);

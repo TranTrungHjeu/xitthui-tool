@@ -203,10 +203,7 @@ function parseTrialSlotTimes(timeSlot, dateStr) {
 }
 
 const getTrialAvailabilities = async (req, res) => {
-  let token = req.query.token;
-  if (!token && req.headers.authorization) {
-    token = req.headers.authorization.split(" ")[1];
-  }
+  const token = req.lmsToken || req.query.token;
   if (!token) {
     return res.status(400).json({ success: false, error: "Token is required" });
   }
@@ -646,6 +643,9 @@ function resolveCentreIds(raw) {
 }
 
 function resolveToken(req) {
+  // Cookie-first (preferred), then explicit query string (Zalo bot etc.),
+  // then Authorization header.
+  if (req.lmsToken) return req.lmsToken;
   if (req.query && req.query.token) return req.query.token;
   if (req.headers && req.headers.authorization) {
     const parts = req.headers.authorization.split(" ");

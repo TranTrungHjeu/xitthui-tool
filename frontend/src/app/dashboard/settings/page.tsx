@@ -61,10 +61,10 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      const sessionId = useAuthStore.getState().sessionId;
-      if (sessionId) {
-        await authService.logout(sessionId);
-      }
+      // `authService.logout` no longer needs a sessionId — the server
+      // reads the httpOnly cookie. We still call the endpoint so the
+      // server can revoke the session record server-side.
+      await authService.logout();
       logout();
       toast.success("Đã đăng xuất");
       router.push("/login");

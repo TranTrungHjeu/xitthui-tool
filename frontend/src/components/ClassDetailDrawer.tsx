@@ -27,9 +27,10 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
+  Drawer,
+  DrawerContent,
+  DrawerClose,
+} from "@/components/ui/drawer";
 import {
   Select,
   SelectContent,
@@ -55,18 +56,18 @@ import { formatDate, formatTime } from "@/lib/date";
 import { shouldShowGrading } from "@/lib/class";
 import { useMinLoading } from "@/hooks/useMinLoading";
 
-interface ClassDetailModalProps {
+interface ClassDetailDrawerProps {
   classId: string | null;
   open: boolean;
   onClose: () => void;
 }
 
-export default function ClassDetailModal({
+export default function ClassDetailDrawer({
   classId,
   open,
   onClose,
-}: ClassDetailModalProps) {
-  const { user, token } = useAuthStore();
+}: ClassDetailDrawerProps) {
+  const { user } = useAuthStore();
   const [classData, setClassData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeSlotIndex, setActiveSlotIndex] = useState<number>(0);
@@ -114,10 +115,7 @@ export default function ClassDetailModal({
 
     try {
       setIsLoading(true);
-      const classDetails = await classService.getClassById(
-        token || "",
-        classId,
-      );
+      const classDetails = await classService.getClassById(classId);
       if (classDetails) {
         processClassData(classDetails);
       }
@@ -134,7 +132,7 @@ export default function ClassDetailModal({
     } else {
       setClassData(null);
     }
-  }, [classId, open, user, token]);
+  }, [classId, open, user]);
 
   const activeSlot = classData?.slots?.[activeSlotIndex];
 
@@ -152,10 +150,7 @@ export default function ClassDetailModal({
   const fetchHomeworkData = async () => {
     if (!classId) return;
     try {
-      const courseVersionData = await classService.getCourseVersion(
-        token || "",
-        classId,
-      );
+      const courseVersionData = await classService.getCourseVersion(classId);
       if (courseVersionData?.lessons) {
         setHomeworkLessons(courseVersionData.lessons);
       }
@@ -167,7 +162,7 @@ export default function ClassDetailModal({
   const fetchSubmissions = async () => {
     if (!classId) return;
     try {
-      const data = await classService.getSubmissions(token || "", classId);
+      const data = await classService.getSubmissions(classId);
       if (data && data.students && data.lessons && data.submissions) {
         setSubmissionsData(data);
       }
@@ -181,7 +176,7 @@ export default function ClassDetailModal({
       fetchHomeworkData();
       fetchSubmissions();
     }
-  }, [canShowGrading, classId, open, token]);
+  }, [canShowGrading, classId, open]);
 
   const submissionMap = useMemo(() => {
     const map: Record<string, any> = {};
@@ -333,10 +328,14 @@ export default function ClassDetailModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl border border-border/80 bg-card shadow-2xl">
-        {/* Modal Header */}
-        <div className="p-4 sm:p-5 border-b border-border bg-muted/20 shrink-0 flex items-start justify-between gap-4">
+    <Drawer open={open} onOpenChange={(val) => !val && onClose()}>
+      <DrawerContent
+        side="right"
+        width="min(720px, 100vw)"
+        className="border-l border-border/80 bg-card"
+      >
+        {/* Drawer Header */}
+        <div className="px-4 sm:px-5 py-4 border-b border-border bg-muted/20 shrink-0 flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex items-center gap-2.5 flex-wrap">
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate">
@@ -377,10 +376,11 @@ export default function ClassDetailModal({
               </div>
             )}
           </div>
+          <DrawerClose />
         </div>
 
-        {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+        {/* Drawer Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 custom-scrollbar">
           {showLoading ? (
             <div className="flex items-center justify-center py-20 min-h-[400px]">
               <CatLoader />
@@ -683,7 +683,7 @@ export default function ClassDetailModal({
             }}
           />
         )}
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   );
 }

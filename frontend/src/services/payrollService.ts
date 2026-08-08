@@ -1,7 +1,6 @@
 "use client";
 
 import api from "./api";
-import { useAuthStore } from "../store/useAuthStore";
 import type {
   PayrollMonthlyRollup,
   PayrollPeriod,
@@ -28,14 +27,17 @@ interface ApiEnvelope<T> {
 }
 
 function getSessionId(): string | null {
+  // sessionId now lives in the httpOnly cookie. Returning null is safe —
+  // the server reads the cookie in `cookieAuth` middleware and ignores
+  // body values.
   if (typeof window === "undefined") return null;
-  return useAuthStore.getState().sessionId || null;
+  return null;
 }
 
 function getAuthHeader(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  const token = useAuthStore.getState().token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  // The cookie is sent automatically by the browser via withCredentials.
+  // No manual Authorization header is needed.
+  return {};
 }
 
 async function call<T>(

@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { classService } from "@/services/classService";
 import { authService } from "@/services/authService";
+import api from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
@@ -153,8 +154,8 @@ export default function DashboardLayout({
 }) {
   const {
     user,
-    token,
     isAuthenticated,
+    login,
     logout,
     classes: storedClasses,
     lastClassesFetch,
@@ -212,6 +213,38 @@ export default function DashboardLayout({
     }
   }, []);
 
+  /* ── Cookie-based session rehydration ──────────────────────── */
+  // After hydration, if the cookie is still valid but the FE store is
+  // missing the user (e.g. after a hard reload + tab restore), call
+  // /me to restore the user from the session record. This replaces the
+  // old `token` validation that depended on the localStorage token.
+  useEffect(() => {
+    if (!hasHydrated) return;
+    if (isAuthenticated && user?.id) return;
+
+    let isCancelled = false;
+    const probeSession = async () => {
+      try {
+        const res = await api.get("/me");
+        if (isCancelled) return;
+        if (res.data?.success && res.data.data?.user) {
+          login(res.data.data.user);
+        }
+      } catch (err: any) {
+        if (isCancelled) return;
+        // 401 — no session. Stay logged out; UI handles guest mode.
+        if (err?.response?.status !== 401) {
+          console.warn("Session probe failed:", err?.message || err);
+        }
+      }
+    };
+
+    probeSession();
+    return () => {
+      isCancelled = true;
+    };
+  }, [hasHydrated, isAuthenticated, user, login]);
+
   /* ── Auth guard: show login modal for guests on protected routes ── */
   useEffect(() => {
     if (hasHydrated && !isAuthenticated && isProtectedRoute(pathname)) {
@@ -219,56 +252,12 @@ export default function DashboardLayout({
     }
   }, [hasHydrated, isAuthenticated, pathname]);
 
-  /* ── Token validation ──────────────────────────────────────── */
-  useEffect(() => {
-    let isCancelled = false;
-    const validateSession = async () => {
-      if (hasHydrated && isAuthenticated && token && user?.id) {
-        try {
-          await authService.testToken(token, user.id);
-        } catch (error: any) {
-          if (isCancelled) return;
-          const status = error?.response?.status;
-          // 401 — JWT truly invalid/expired. Drop the session.
-          if (status === 401) {
-            toast.warning("Phiên đăng nhập đã hết hạn", {
-              description:
-                "Vui lòng đăng nhập lại để tiếp tục. Trang sẽ chuyển trong giây lát…",
-              duration: 4500,
-            });
-            logout();
-            router.push("/login?reason=session_expired");
-            return;
-          }
-          // 403 — server rejected (e.g. permission glitch or origin policy).
-          // Don't destroy the session; log so we can diagnose.
-          if (status === 403) {
-            console.warn(
-              "Session check returned 403 — keeping session.",
-              error?.response?.data,
-            );
-            return;
-          }
-          if (status === 503) {
-            // Network/service glitch — keep the user logged in.
-            return;
-          }
-          console.warn("Token validation failed:", error);
-        }
-      }
-    };
-    validateSession();
-    return () => {
-      isCancelled = true;
-    };
-  }, [hasHydrated, isAuthenticated, token, user, logout, router]);
-
   /* ── Sidebar classes cache ─────────────────────────────────── */
   useEffect(() => {
     let isCancelled = false;
     const fetchClasses = async () => {
       const isTE = user?.appRoles?.includes("TE" as any);
-      if ((!user?.teacherId && !isTE) || !token || !isAuthenticated) return;
+      if ((!user?.teacherId && !isTE) || !isAuthenticated) return;
 
       const CACHE_TIME = 5 * 60 * 1000;
       if (
@@ -283,7 +272,6 @@ export default function DashboardLayout({
 
       try {
         const data = await classService.getClasses(
-          token || "",
           user?.teacherId || "",
           user?.teacherCentres?.map((c: any) => c.id || c),
           user?.appRoles,
@@ -304,7 +292,7 @@ export default function DashboardLayout({
     return () => {
       isCancelled = true;
     };
-  }, [user, token, isAuthenticated, pathname]);
+  }, [user, isAuthenticated, pathname]);
 
   /* ── Command palette keyboard shortcut ───────────────────── */
   useEffect(() => {
@@ -339,12 +327,11 @@ export default function DashboardLayout({
   const activeToolKey = useActiveToolKey(pathname);
 
   const handleLogout = () => {
-    const sessionId = useAuthStore.getState().sessionId;
-    if (sessionId) {
-      authService.logout(sessionId).catch((err) => {
-        console.error("Backend logout failed:", err);
-      });
-    }
+    // The server reads the sessionId from the httpOnly cookie. No need to
+    // pass it from the FE anymore.
+    authService.logout().catch((err) => {
+      console.error("Backend logout failed:", err);
+    });
     logout();
     router.push("/login");
   };

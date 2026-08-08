@@ -353,7 +353,6 @@ function DashboardOverview() {
           }
         }
         const data = await classService.getClasses(
-          "",
           user?.teacherId || "",
           targetCentres,
           user?.appRoles,
@@ -427,7 +426,7 @@ function DashboardOverview() {
       setIsLoadingDetails(true);
       try {
         const classIds = activeClasses.map((c) => c.id);
-        const data = await classService.getClassesDetails("", classIds);
+        const data = await classService.getClassesDetails(classIds);
         if (isMounted) setDetailedClasses(data || []);
       } catch (err) {
         console.error("[Dashboard] Error fetching class details:", err);
@@ -562,7 +561,6 @@ function DashboardOverview() {
           }
         }
         const data = await classService.getClassesNotifications(
-          "",
           user?.teacherId || "",
           targetCentres,
           user?.appRoles,
@@ -594,7 +592,7 @@ function DashboardOverview() {
     if (!isAuthenticated || !isTE) return;
     setIsSendingEmails(true);
     try {
-      await classService.sendReminderEmailsNow("", user?.appRoles);
+      await classService.sendReminderEmailsNow(user?.appRoles);
       toast.success("Đã gửi email nhắc nhở");
       setRefreshNotifTrigger((prev) => prev + 1);
     } catch (err: any) {
@@ -612,7 +610,7 @@ function DashboardOverview() {
     if (!isAuthenticated || !isTE) return;
     setIsSyncing(true);
     try {
-      await classService.syncNotifications("", user?.appRoles);
+      await classService.syncNotifications(user?.appRoles);
       toast.success("Đồng bộ thông báo thành công");
       setRefreshNotifTrigger((prev) => prev + 1);
     } catch (err: any) {

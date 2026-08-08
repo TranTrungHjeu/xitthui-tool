@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, useDeferredValue, useRef, useCallback } f
 import { useAuthStore } from "@/store/useAuthStore";
 import { ClassData } from "@/types";
 import { classService } from "@/services/classService";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -16,26 +15,21 @@ import {
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
-import CatLoader from "@/components/CatLoader";
-import ClassDetailModal from "@/components/ClassDetailModal";
+import ClassDetailDrawer from "@/components/ClassDetailDrawer";
 import { useMinLoading } from "@/hooks/useMinLoading";
+import { DataPagination } from "@/components/ui/data-pagination";
+import { TopLoadingBar } from "@/components/ui/top-loading-bar";
+import { FilterChip } from "@/components/ui/filter-chip";
+import { TableStateView } from "@/components/ui/table-state-view";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import {
   Search,
   RotateCcw,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Loader2,
   Bot,
   Code2,
   Palette,
-  TableProperties,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { formatDate, formatTime } from "@/lib/date";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Select,
   SelectContent,
@@ -257,8 +251,7 @@ function getFrontCurrentSessionIndex(slots?: any[]): number {
 }
 
 export default function ClassesPage() {
-  const router = useRouter();
-  const { user, token } = useAuthStore();
+  const { user } = useAuthStore();
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [enrichedClasses, setEnrichedClasses] = useState<EnrichedClassData[]>(
@@ -271,6 +264,7 @@ export default function ClassesPage() {
     totalPages: number;
   }>({ total: 0, page: 1, limit: 10, totalPages: 1 });
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const showLoading = useMinLoading(isLoading, 1000);
   const [isPendingFilter, setIsPendingFilter] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -281,7 +275,7 @@ export default function ClassesPage() {
   const deferredCategory = useDeferredValue(categoryFilter);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 1000;
+  const ITEMS_PER_PAGE = 20;
 
   // Lấy danh sách các cơ sở từ profile user
   const availableCentres = useMemo(() => {
@@ -292,25 +286,23 @@ export default function ClassesPage() {
     }));
   }, [user?.teacherCentres]);
 
-  // Khởi tạo bộ lọc trung tâm mặc định
-  const [centreFilter, setCentreFilter] = useState("default_tdm");
-
-  useEffect(() => {
-    if (centreFilter === "default_tdm" && user) {
-      if (availableCentres.length > 0) {
-        const tdmCentre = availableCentres.find((c: any) =>
-          (c.name || "").toLowerCase().includes("thủ dầu một"),
-        );
-        if (tdmCentre) {
-          setCentreFilter(tdmCentre.id);
-        } else {
-          setCentreFilter("all");
-        }
-      } else {
-        setCentreFilter("all");
-      }
-    }
-  }, [user, availableCentres, centreFilter]);
+  /*
+   * Centre is locked to TDM for this page. We compute the resolved TDM
+   * centre id once, with a fallback to "all" if the user happens to not
+   * be assigned to TDM. The dropdown UI is intentionally removed so the
+   * user can never change it from this view.
+   *
+   * If TDM isn't found, the lock silently degrades to "all" so the page
+   * still works for users who only teach at other centres.
+   */
+  const lockedCentreId = useMemo(() => {
+    if (availableCentres.length === 0) return "all";
+    const tdmCentre = availableCentres.find((c: any) =>
+      (c.name || "").toLowerCase().includes("thủ dầu một"),
+    );
+    return tdmCentre ? tdmCentre.id : "all";
+  }, [availableCentres]);
+  const centreFilter = lockedCentreId;
 
   // Dùng setTimeout debounce cho search query để tránh gọi API liên tục khi gõ
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
@@ -352,7 +344,6 @@ export default function ClassesPage() {
       }
 
       const res = await classService.getClasses(
-        token || "",
         user.teacherId || "",
         targetCentres,
         user.appRoles,
@@ -420,15 +411,23 @@ export default function ClassesPage() {
       setClasses(data);
       setEnrichedClasses(enriched);
       setPaginationMeta(meta);
-    } catch (err) {
+      setError(null);
+    } catch (err: any) {
       console.error("Failed to fetch classes", err);
+      const msg =
+        err?.response?.data?.error ||
+        err?.message ||
+        "Không thể tải danh sách lớp học. Vui lòng thử lại.";
+      setError(msg);
+      setClasses([]);
+      setEnrichedClasses([]);
+      setPaginationMeta({ total: 0, page: 1, limit: ITEMS_PER_PAGE, totalPages: 1 });
     } finally {
       setIsLoading(false);
       setIsPendingFilter(false);
     }
   }, [
     user,
-    token,
     centreFilter,
     availableCentres,
     deferredStatus,
@@ -442,13 +441,11 @@ export default function ClassesPage() {
   ]);
 
   useEffect(() => {
-    if (centreFilter === "default_tdm") return;
-
     const isTE = user?.appRoles?.includes("TE" as any);
-    if ((user?.teacherId || isTE) && token) {
+    if (user?.teacherId || isTE) {
       fetchClasses();
     }
-  }, [fetchClasses, centreFilter, user, token]);
+  }, [fetchClasses, user]);
 
   // Server đã filter và phân trang, ta chỉ cần alias lại các biến để code cũ hoạt động
   const filteredClasses = enrichedClasses;
@@ -467,6 +464,7 @@ export default function ClassesPage() {
   // Reset về trang 1 khi thay đổi bộ lọc
   useEffect(() => {
     setCurrentPage(1);
+    setError(null);
   }, [
     debouncedSearchQuery,
     deferredWeekday,
@@ -482,59 +480,84 @@ export default function ClassesPage() {
     setStatusFilter("RUNNING");
     setRoleFilter("all");
     setCategoryFilter("all");
-    const tdmCentre = availableCentres.find((c) =>
-      c.name.toLowerCase().includes("thủ dầu một"),
-    );
-    setCentreFilter(tdmCentre ? tdmCentre.id : "all");
   };
 
-  return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto w-full flex flex-col h-full">
-      <PageHeader
-        icon={TableProperties}
-        title="Danh sách lớp học"
-        description="Quản lý và theo dõi các lớp học bạn đang giảng dạy"
-        actions={
-          <Button size="sm" className="h-8 text-xs font-semibold gap-1.5" onClick={() => fetchClasses(true)} disabled={showLoading}>
-            <RotateCcw className={`h-3.5 w-3.5 ${showLoading ? "animate-spin" : ""}`} />
-            <span>Làm mới</span>
-          </Button>
-        }
-      />
+  /*
+   * Display labels for each filter, used both in dropdowns and in the
+   * active-filter chips below the toolbar. Centralizing these keeps the
+   * Vietnamese copy in one place instead of scattered in <SelectItem>s.
+   */
+  const STATUS_LABELS: Record<string, string> = {
+    all: "Tất cả trạng thái",
+    RUNNING: "Đang diễn ra",
+    OPEN: "Đang mở",
+    PRE_OPEN: "Sắp khai giảng",
+    PREPARING: "Đang chuẩn bị",
+    NEW: "Mới",
+    FINISHED: "Đã kết thúc",
+    PENDING: "Chờ duyệt",
+    SUSPENDED: "Tạm dừng",
+    ABANDONED: "Đã hủy",
+    REJECTED: "Bị từ chối",
+  };
+  const CATEGORY_LABELS: Record<string, string> = {
+    all: "Tất cả bộ môn",
+    coding: "Lập trình",
+    robotics: "Robotics",
+    art: "Mỹ thuật",
+  };
+  const ROLE_LABELS: Record<string, string> = {
+    all: "Tất cả vai trò",
+    LEC: "Giảng viên (LEC)",
+    TA: "Trợ giảng (TA)",
+  };
+  const WEEKDAY_LABELS: Record<string, string> = {
+    all: "Tất cả các thứ",
+    "1": "Thứ 2",
+    "2": "Thứ 3",
+    "3": "Thứ 4",
+    "4": "Thứ 5",
+    "5": "Thứ 6",
+    "6": "Thứ 7",
+    "0": "Chủ nhật",
+  };
+  const isFiltersDefault =
+    searchQuery === "" &&
+    weekdayFilter === "all" &&
+    statusFilter === "RUNNING" &&
+    roleFilter === "all" &&
+    categoryFilter === "all";
 
-      {/* Main card view */}
-      <div className="flex-1 border border-border bg-card shadow-xs overflow-hidden relative flex flex-col rounded-xl">
+  return (
+    <div className="flex flex-col h-full w-full bg-gradient-to-br from-background via-background to-brand-60-soft/30">
+      {/*
+       * Two-row layout:
+       *   1. Toolbar (filters + refresh)
+       *   2. Table card
+       * No page header — the sidebar selection and toolbar are enough
+       * context. Keeps focus on the data.
+       */}
+      <div className="flex flex-col flex-1 min-h-0">
+        {/* Main card view — soft Stratos tint around the page, white
+            card for the table itself. The Stratos wash is subtle (~5%
+            alpha) so it never fights with the data. */}
+        <div className="flex-1 border border-brand-60/10 bg-card shadow-sm overflow-hidden relative flex flex-col rounded-xl">
+        {/* Top loading bar — animates across the very top edge of the card
+            whenever a refetch is in-flight. Uses brand-10 (Crimson) so it
+            reads as an action, not a passive indicator. */}
+        <TopLoadingBar loading={showLoading && enrichedClasses.length > 0} />
+
         {/* Filters Toolbar */}
-        <div className="p-1.5 bg-card border-b border-border flex flex-wrap items-center gap-1.5 shrink-0">
+        <div className="px-2.5 py-2 bg-card border-b border-border flex flex-wrap items-center gap-2 shrink-0">
           {/* Search Box */}
           <div className="relative flex-[2] min-w-[200px] sm:min-w-[280px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input
               placeholder="Tìm tên lớp, khóa học..."
-              className="pl-8 h-8 text-xs bg-card w-full border-border focus:ring-4 focus:ring-primary/10 focus:border-primary"
+              className="pl-8 h-8 text-xs bg-card w-full border-border focus-visible:ring-brand-10/30 focus-visible:border-brand-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-          </div>
-
-          {/* Select Centre */}
-          <div className="flex-1 min-w-[130px] sm:min-w-[160px]">
-            <Select
-              value={centreFilter === "default_tdm" ? "all" : centreFilter}
-              onValueChange={setCentreFilter}
-            >
-              <SelectTrigger className="h-8 text-xs font-semibold text-foreground">
-                <SelectValue placeholder="Cơ sở" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value="all">Tất cả cơ sở</SelectItem>
-                {availableCentres.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Category Filter */}
@@ -657,177 +680,276 @@ export default function ClassesPage() {
             </Select>
           </div>
 
-          {/* Reset Filters */}
-          {(centreFilter !== "all" ||
-            categoryFilter !== "all" ||
-            weekdayFilter !== "all" ||
-            statusFilter !== "all" ||
-            roleFilter !== "all" ||
-            searchQuery !== "") && (
+          {/* Reset Filters (only when something is active) */}
+          {!isFiltersDefault && (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="h-8 px-2 text-xs font-semibold gap-1 bg-card hover:bg-muted/30 active:scale-95 transition-all shrink-0 ml-auto"
+              className="h-8 px-2 text-xs font-medium gap-1 text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
               onClick={resetFilters}
             >
               <RotateCcw className="h-3 w-3" />
-              <span>Xóa bộ lọc</span>
+              <span>Đặt lại</span>
             </Button>
           )}
+
+          {/* Refresh — always visible. Lives in the toolbar instead of a
+              page header so the page header itself can stay hidden. */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => fetchClasses(true)}
+            disabled={showLoading}
+            className="h-8 px-2.5 text-xs font-semibold gap-1.5 shrink-0 border-brand-10/30 text-brand-10 hover:bg-brand-10-soft hover:text-brand-10 hover:border-brand-10/50 active:scale-95 transition-all"
+          >
+            <RotateCcw className={`h-3.5 w-3.5 ${showLoading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Làm mới</span>
+          </Button>
         </div>
 
+        {/*
+         * Active filter chips — second row showing the currently applied
+         * filters with a quick X to remove each one. The chips double as
+         * a status indicator: if the user sees RUNNING + Robotics chips,
+         * they know the list is scoped without having to re-open the
+         * dropdowns. Hidden when filters are at their defaults.
+         *
+         * Background uses a Stratos (brand-60) tint at very low alpha so
+         * the active-filter row reads as a "scope banner" — distinct from
+         * the toolbar above and the table below.
+         */}
+        {!isFiltersDefault && (
+          <div className="px-2.5 py-1.5 border-b border-brand-60/10 bg-brand-60-soft/60 flex flex-wrap items-center gap-1.5 shrink-0">
+            <span className="text-[11px] text-brand-60/70 font-semibold mr-1 uppercase tracking-wider">
+              Đang lọc:
+            </span>
+            {searchQuery && (
+              <FilterChip
+                label={`"${searchQuery}"`}
+                tone="muted"
+                onRemove={() => setSearchQuery("")}
+              />
+            )}
+            {statusFilter !== "all" && (
+              <FilterChip
+                label={STATUS_LABELS[statusFilter] || statusFilter}
+                tone={
+                  statusFilter === "RUNNING"
+                    ? "success"
+                    : statusFilter === "FINISHED" ||
+                      statusFilter === "ABANDONED" ||
+                      statusFilter === "REJECTED"
+                    ? "muted"
+                    : "info"
+                }
+                onRemove={() => setStatusFilter("all")}
+              />
+            )}
+            {categoryFilter !== "all" && (
+              <FilterChip
+                label={CATEGORY_LABELS[categoryFilter] || categoryFilter}
+                tone="default"
+                onRemove={() => setCategoryFilter("all")}
+              />
+            )}
+            {weekdayFilter !== "all" && (
+              <FilterChip
+                label={WEEKDAY_LABELS[weekdayFilter] || weekdayFilter}
+                tone="default"
+                onRemove={() => setWeekdayFilter("all")}
+              />
+            )}
+            {roleFilter !== "all" && (
+              <FilterChip
+                label={ROLE_LABELS[roleFilter] || roleFilter}
+                tone="default"
+                onRemove={() => setRoleFilter("all")}
+              />
+            )}
+          </div>
+        )}
+
         {/* Table Container */}
-        <div className="flex-1 overflow-auto custom-scrollbar relative">
-          {showLoading && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-card/60 dark:bg-card/80 backdrop-blur-[2px]">
-              <CatLoader />
+        <div className="flex-1 overflow-auto custom-scrollbar relative" aria-busy={isLoading}>
+          {/* Empty / Error state. Rendered above the table; the table
+              itself stays mounted so its column widths don't collapse
+              when the state changes. */}
+          {filteredClasses.length === 0 && !showLoading && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-card">
+              <TableStateView
+                error={error}
+                empty={!error}
+                onRetry={() => fetchClasses(true)}
+                emptyTitle="Không tìm thấy lớp học"
+                emptyDescription={
+                  isFiltersDefault
+                    ? "Bạn chưa có lớp học nào được phân công."
+                    : "Không có lớp học nào khớp với bộ lọc hiện tại. Hãy thử bỏ một số bộ lọc."
+                }
+              />
             </div>
           )}
 
-          <Table className="table-fixed min-w-[1000px]">
-            <TableHeader className="sticky top-0 bg-card z-10 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+          {/* Initial load skeleton — matches the table layout so the page
+              doesn't shift when real rows arrive. */}
+          {showLoading && enrichedClasses.length === 0 && (
+            <div className="p-0">
+              <div className="h-9 border-b bg-muted/40" />
+              <TableSkeleton rows={8} columns={8} />
+            </div>
+          )}
+
+          <Table
+            className={`table-fixed min-w-[1000px] ${
+              showLoading && enrichedClasses.length > 0 ? "opacity-60" : ""
+            }`}
+          >
+            <TableHeader className="sticky top-0 bg-card z-10 shadow-[0_1px_0_0_hsl(var(--brand-60)/0.08)]">
               <TableRow className="h-9">
-                <TableHead className="w-[200px] min-w-[200px] md:w-[250px] md:min-w-[250px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                <TableHead className="w-[200px] min-w-[200px] md:w-[250px] md:min-w-[250px] bg-card text-[11px] font-bold text-brand-60/70 uppercase tracking-wider">
                   Tên lớp
                 </TableHead>
-                <TableHead className="w-[90px] min-w-[90px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                <TableHead className="w-[90px] min-w-[90px] bg-card text-[11px] font-bold text-brand-60/70 uppercase tracking-wider">
                   Buổi
                 </TableHead>
-                <TableHead className="w-[120px] min-w-[120px] md:w-[150px] md:min-w-[150px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                <TableHead className="w-[120px] min-w-[120px] md:w-[150px] md:min-w-[150px] bg-card text-[11px] font-bold text-brand-60/70 uppercase tracking-wider">
                   Lịch dạy
                 </TableHead>
-                <TableHead className="w-[100px] min-w-[100px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                <TableHead className="w-[100px] min-w-[100px] bg-card text-[11px] font-bold text-brand-60/70 uppercase tracking-wider">
                   Bắt đầu
                 </TableHead>
-                <TableHead className="w-[100px] min-w-[100px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                <TableHead className="w-[100px] min-w-[100px] bg-card text-[11px] font-bold text-brand-60/70 uppercase tracking-wider">
                   Kết thúc
                 </TableHead>
-                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-card text-[11px] font-bold text-brand-60/70 uppercase tracking-wider">
                   LEC
                 </TableHead>
-                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                <TableHead className="w-[130px] min-w-[130px] md:w-[150px] md:min-w-[150px] bg-card text-[11px] font-bold text-brand-60/70 uppercase tracking-wider">
                   TA
                 </TableHead>
-                <TableHead className="w-[130px] min-w-[130px] bg-card text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                <TableHead className="w-[130px] min-w-[130px] bg-card text-[11px] font-bold text-brand-60/70 uppercase tracking-wider">
                   Trạng thái
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="[&_tr:last-child]:border-0">
-              {filteredClasses.length === 0 && !showLoading ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-64 text-center text-xs text-muted-foreground">
-                    Không tìm thấy lớp học nào.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredClasses.map((cls) => {
-                  const displayedLecName = cls.computed.lecName || "-";
-                  const displayedTaName = cls.computed.taName || "-";
+              {filteredClasses.map((cls) => {
+                const displayedLecName = cls.computed.lecName || "-";
+                const displayedTaName = cls.computed.taName || "-";
+                const category = cls.computed.category;
+                const CategoryIcon =
+                  category === "robotics"
+                    ? Bot
+                    : category === "art"
+                    ? Palette
+                    : category === "coding"
+                    ? Code2
+                    : null;
+                const categoryLabel =
+                  category === "robotics"
+                    ? "Robotics"
+                    : category === "art"
+                    ? "Mỹ thuật"
+                    : category === "coding"
+                    ? "Lập trình"
+                    : null;
 
-                  return (
-                    <TableRow
-                      key={cls.id}
-                      className={`group cursor-pointer border-b transition-all hover:bg-accent/60 hover:shadow-xs relative ${isPendingFilter ? "opacity-50" : ""}`}
-                      onClick={() => setSelectedClassId(cls.id)}
-                    >
-                      <TableCell className="font-medium relative max-w-[200px] min-w-[150px]">
-                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary scale-y-0 group-hover:scale-y-100 transition-transform duration-200 ease-in-out" />
-                        <div className="flex flex-col">
-                          <span className="group-hover:text-primary group-hover:translate-x-1 transition-all duration-200 inline-block text-xs font-bold truncate w-full">
+                return (
+                  <TableRow
+                    key={cls.id}
+                    className={`group cursor-pointer border-b border-brand-60/5 transition-colors hover:bg-brand-10-soft/50 relative ${
+                      isPendingFilter ? "opacity-50" : ""
+                    }`}
+                    onClick={() => setSelectedClassId(cls.id)}
+                  >
+                    <TableCell className="font-medium relative max-w-[200px] min-w-[150px]">
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-10 scale-y-0 group-hover:scale-y-100 transition-transform duration-200 ease-in-out origin-center" />
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          {CategoryIcon && (
+                            <Tooltip delayDuration={150}>
+                              <TooltipTrigger asChild>
+                                <CategoryIcon
+                                  className={`h-3 w-3 shrink-0 ${
+                                    category === "robotics"
+                                      ? "text-[#F97316]"
+                                      : category === "art"
+                                      ? "text-[#8B5CF6]"
+                                      : "text-[#2563EB]"
+                                  }`}
+                                  aria-label={categoryLabel || undefined}
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="top"
+                                className="bg-brand-60 text-white text-xs px-2 py-1 rounded shadow-md border-0"
+                              >
+                                {categoryLabel}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                          <span className="group-hover:text-brand-10 group-hover:translate-x-1 transition-all duration-200 inline-block text-xs font-bold truncate text-foreground">
                             {cls.name}
                           </span>
-                          <span className="text-[11px] text-muted-foreground truncate w-full">
-                            {cls.course?.shortName || "N/A"}
-                          </span>
                         </div>
-                      </TableCell>
-                      <TableCell className="text-xs font-semibold text-primary dark:text-indigo-400">
-                        Buổi {cls.computed.currentSessionIndex || 0}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-medium">
-                            {cls.computed.weekdays}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground">
-                            {cls.computed.timeRange}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs font-normal">{formatDate(cls.startDate)}</TableCell>
-                      <TableCell className="text-xs font-normal">{formatDate(cls.endDate)}</TableCell>
-                      <TableCell className="max-w-[150px] truncate text-xs relative">
-                        <div className="flex items-center h-6 gap-1">
-                          <span className="font-semibold text-primary truncate block">
-                            {displayedLecName}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-[150px] truncate text-xs">
-                        <div className="flex items-center h-6 gap-1">
-                          <span className="font-semibold text-primary truncate block">
-                            {displayedTaName}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="relative overflow-hidden pr-10 text-xs">
-                        <StatusBadge type="class" status={cls.status} />
-                        {cls.computed.category && cls.computed.category !== "unknown" && (
-                          <div className="absolute top-0 right-0 w-12 h-12">
-                          <Tooltip delayDuration={150}>
-                            <TooltipTrigger asChild>
-                              <div className="w-full h-full overflow-hidden pointer-events-auto cursor-pointer z-10 group/ribbon">
-                                <div
-                                  className={`absolute top-[-4px] right-[-24px] w-16 h-5 rotate-45 flex items-center justify-center shadow-sm transition-all duration-300 group-hover/ribbon:scale-110 group-hover/ribbon:brightness-110 ${
-                                    cls.computed.category === "robotics"
-                                      ? "bg-[#F97316]"
-                                      : cls.computed.category === "art"
-                                      ? "bg-[#8B5CF6]"
-                                      : "bg-[#2563EB]"
-                                  }`}
-                                >
-                                  {cls.computed.category === "robotics" && (
-                                    <Bot className="h-3 w-3 text-white -rotate-45" />
-                                  )}
-                                  {cls.computed.category === "art" && (
-                                    <Palette className="h-3 w-3 text-white -rotate-45" />
-                                  )}
-                                  {cls.computed.category === "coding" && (
-                                    <Code2 className="h-3 w-3 text-white -rotate-45" />
-                                  )}
-                                </div>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="bg-foreground/90 text-white text-xs px-2 py-1 rounded shadow-md border-0">
-                              {cls.computed.category === "robotics"
-                                ? "Robotics Class"
-                                : cls.computed.category === "art"
-                                ? "Art Class"
-                                : "Coding Class"}
-                            </TooltipContent>
-                          </Tooltip>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
+                        <span className="text-[11px] text-muted-foreground truncate">
+                          {cls.course?.shortName || "N/A"}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs font-semibold text-brand-10 dark:text-brand-10">
+                      Buổi {cls.computed.currentSessionIndex || 0}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-foreground">
+                          {cls.computed.weekdays}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {cls.computed.timeRange}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs font-normal text-foreground/90">{formatDate(cls.startDate)}</TableCell>
+                    <TableCell className="text-xs font-normal text-foreground/90">{formatDate(cls.endDate)}</TableCell>
+                    <TableCell className="max-w-[150px] truncate text-xs relative">
+                      <div className="flex items-center h-6 gap-1">
+                        <span className="font-semibold text-brand-60 truncate block">
+                          {displayedLecName}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="max-w-[150px] truncate text-xs">
+                      <div className="flex items-center h-6 gap-1">
+                        <span className="font-semibold text-brand-60 truncate block">
+                          {displayedTaName}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <StatusBadge type="class" status={cls.status} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
 
-        {/* Footer/Pagination summary */}
-        <div className="border-t shrink-0 flex items-center justify-between px-4 py-2.5 bg-muted/30">
-          <div className="text-[11px] text-muted-foreground">
-            Hiển thị tất cả <span className="font-semibold text-foreground">{paginationMeta.total}</span> lớp học.
-          </div>
+        {/* Footer / Pagination */}
+        <DataPagination
+          page={currentPage}
+          totalPages={totalPages}
+          total={paginationMeta.total}
+          limit={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+          className="border-t border-brand-60/10 bg-brand-60-soft/40"
+        />
         </div>
       </div>
 
-      {/* Class Detail Modal */}
-      <ClassDetailModal
+      {/* Class Detail Drawer */}
+      <ClassDetailDrawer
         classId={selectedClassId}
         open={!!selectedClassId}
         onClose={() => setSelectedClassId(null)}

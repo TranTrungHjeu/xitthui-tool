@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Maps a thrown error from `authService.login` / `devLogin` into the
+ * Maps a thrown error from `authService.login` into the
  * `AlertModal`-ready payload (title, message, optional CTA).
  *
  * Backend (`backend/src/controllers/authController.js`) now returns

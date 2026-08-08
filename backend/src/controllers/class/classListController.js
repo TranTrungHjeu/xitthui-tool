@@ -11,6 +11,7 @@ const {
   classHelpers,
 } = require("./_shared");
 const { isLmsAuthError } = require("../../utils/authError");
+const { withLmsAuthRefresh } = require("../../utils/lmsAuthRefresh");
 
 const { classDetailsCache } = caches;
 const {
@@ -21,13 +22,10 @@ const {
   getCurrentSessionIndex,
 } = classHelpers;
 
-exports.getClasses = async (req, res) => {
+exports.getClasses = withLmsAuthRefresh(async (req, res) => {
   log.info("[Controller] getClasses request body:", req.body);
   try {
-    let token = req.body.token;
-    if (!token && req.headers.authorization) {
-      token = req.headers.authorization.split(" ")[1];
-    }
+    const token = req.lmsToken;
     const {
       teacherId,
       centreIds,
@@ -46,7 +44,6 @@ exports.getClasses = async (req, res) => {
 
     const isTE = Array.isArray(roles) && roles.includes("TE");
 
-    if (!token) return res.status(400).json({ error: "Token is required" });
     if (!isTE && !teacherId)
       return res.status(400).json({ error: "Teacher ID is required" });
 
@@ -70,17 +67,12 @@ exports.getClasses = async (req, res) => {
       error: err.response?.data?.errors?.[0]?.message || err.message,
     });
   }
-};
+});
 
-exports.getClassById = async (req, res) => {
+exports.getClassById = withLmsAuthRefresh(async (req, res) => {
   try {
-    let token = req.body.token;
-    if (!token && req.headers.authorization) {
-      token = req.headers.authorization.split(" ")[1];
-    }
     const { classId, noCache } = req.body;
 
-    if (!token) return res.status(400).json({ error: "Token is required" });
     if (!classId) return res.status(400).json({ error: "Class ID is required" });
 
     if (!noCache) {
@@ -104,7 +96,7 @@ exports.getClassById = async (req, res) => {
       }
     }
 
-    const client = new LMSClient(token);
+    const client = new LMSClient(req.lmsToken);
     const data = await client.getClassById(classId);
 
     if (data && data.id) {
@@ -152,17 +144,12 @@ exports.getClassById = async (req, res) => {
       error: err.response?.data?.errors?.[0]?.message || err.message,
     });
   }
-};
+});
 
-exports.getClassesDetails = async (req, res) => {
+exports.getClassesDetails = withLmsAuthRefresh(async (req, res) => {
   try {
-    let token = req.body.token;
-    if (!token && req.headers.authorization) {
-      token = req.headers.authorization.split(" ")[1];
-    }
     const { classIds, noCache } = req.body;
 
-    if (!token) return res.status(400).json({ error: "Token is required" });
     if (!Array.isArray(classIds) || classIds.length === 0) {
       return res.status(400).json({ error: "classIds is required" });
     }
@@ -204,7 +191,7 @@ exports.getClassesDetails = async (req, res) => {
     }
 
     if (missingIds.length > 0) {
-      const client = new LMSClient(token);
+      const client = new LMSClient(req.lmsToken);
       const fetchedData = await client.getClassesDetails(missingIds);
       const { Class } = require("../../storage/mongoModels");
       const { getCourseCategory } = require("../../utils/courseConfig");
@@ -252,4 +239,4 @@ exports.getClassesDetails = async (req, res) => {
       error: err.response?.data?.errors?.[0]?.message || err.message,
     });
   }
-};
+});

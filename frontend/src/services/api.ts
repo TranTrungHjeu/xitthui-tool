@@ -38,42 +38,75 @@ function dispatchSessionExpired() {
 
 export { SESSION_EXPIRED_EVENT };
 
-const processQueue = (error: any, token: string | null = null) => {
+const processQueue = (error: any, _token: string | null = null) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
     } else {
-      prom.resolve(token);
+      // The refreshed token now lives in the rotated httpOnly cookie; the
+      // browser will send it automatically on the retried request. Nothing
+      // to inject into the body or the Authorization header anymore.
+      prom.resolve();
     }
   });
   failedQueue = [];
 };
 
-// Add a request interceptor to include the token
+// Add a request interceptor
+//
+// NOTE: the LMS token used to be injected into the request body here.
+// That was the root cause of the 400 "Token is required" errors on the
+// dashboard: the auth store's `token`/`sessionId` were hydrated from
+// localStorage asynchronously, so the first request after a reload
+// fired with `token: null` in the body.
+//
+// The token now travels in an httpOnly cookie set by the server. The
+// browser sends it automatically because `withCredentials: true`
+// (above) keeps the cookie attached to every request to the same
+// origin. We do NOT add an Authorization header here — the cookie is
+// the source of truth.
+//
+// We also used to abort every request when `isAuthenticated` was
+// false. That broke the login flow on a fresh tab (the user is
+// obviously not authenticated yet when they POST /login). The fix is
+// to only abort calls to authenticated endpoints.
+const AUTH_REQUIRED_PREFIXES = [
+  "/classes",
+  "/classes/notifications",
+  "/classes/notifications/send-emails-now",
+  "/classes/notifications/sync",
+  "/classes/detail",
+  "/classes/details",
+  "/classes/students",
+  "/classes/sync-students",
+  "/classes/download-attachment",
+  "/teachers",
+  "/spreadsheet",
+  "/trial-report",
+  "/payroll",
+  "/lms",
+  "/lesson",
+  "/me",
+  "/update-evaluation",
+  "/submissions",
+  "/course-version",
+  "/student-evaluation",
+];
+function requiresAuth(url: string | undefined): boolean {
+  if (!url) return false;
+  const path = url.split("?")[0];
+  return AUTH_REQUIRED_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
-      // Use the store directly to get the latest token
-      const token = useAuthStore.getState().token;
-      if (token) {
-        // Many MindX endpoints expect token in the body
-        if (config.method?.toLowerCase() === "post") {
-          // Only add token to body if it's a plain object
-          if (
-            config.data &&
-            typeof config.data === "object" &&
-            !(config.data instanceof FormData)
-          ) {
-            config.data = {
-              ...config.data,
-              token: token,
-            };
-          } else if (!config.data) {
-            config.data = { token };
-          }
-        }
-        // Also add to headers as standard practice
-        config.headers.Authorization = `Bearer ${token}`;
+      const { isAuthenticated } = useAuthStore.getState();
+      // Only block authenticated endpoints when the user is logged out.
+      // Public endpoints (/login, /refresh-token, /logout) must always
+      // reach the server.
+      if (!isAuthenticated && requiresAuth(config.url)) {
+        throw new axios.CanceledError("Not authenticated");
       }
     }
     return config;
@@ -87,78 +120,63 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // C. Retry 5xx + 429 with exponential backoff.
+    // LMS outages and Lighthouse rate-limits show up as transient 5xx/429.
+    // A bounded retry with exponential backoff often clears the issue
+    // without bothering the user. We cap at 3 retries to avoid long
+    // delays on truly broken endpoints.
+    if (
+      !originalRequest._retryCount &&
+      (error.response?.status === 429 ||
+        (error.response?.status >= 500 && error.response?.status < 600))
+    ) {
+      originalRequest._retryCount = 1;
+      const delay = 200 * 2 ** 0; // 200ms
+      await new Promise((r) => setTimeout(r, delay));
+      return api(originalRequest);
+    }
+    if (
+      originalRequest._retryCount &&
+      originalRequest._retryCount < 3 &&
+      (error.response?.status === 429 ||
+        (error.response?.status >= 500 && error.response?.status < 600))
+    ) {
+      originalRequest._retryCount += 1;
+      const delay = 200 * 2 ** (originalRequest._retryCount - 1); // 200, 400, 800ms
+      await new Promise((r) => setTimeout(r, delay));
+      return api(originalRequest);
+    }
+
     // Handle 401 Unauthorized (Token expired)
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
-          .then((token) => {
-            if (originalRequest.method?.toLowerCase() === "post") {
-              let data = originalRequest.data || {};
-              if (typeof data === "string") {
-                try {
-                  data = JSON.parse(data);
-                } catch (e) {
-                  /* not JSON */
-                }
-              }
-              if (typeof data === "object" && data !== null) {
-                data.token = token;
-                originalRequest.data = JSON.stringify(data);
-              }
-            }
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            return api(originalRequest);
-          })
+          .then(() => api(originalRequest))
           .catch((err) => Promise.reject(err));
       }
 
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const { sessionId, logout } = useAuthStore.getState();
-
-      if (!sessionId) {
-        logout(); // Log out if no session ID is available
-        dispatchSessionExpired();
-        isRefreshing = false;
-        processQueue(new Error("No session ID available"), null); // Reject pending requests
-        return Promise.reject(error);
-      }
+      const { logout } = useAuthStore.getState();
 
       try {
+        // Call /refresh-token. The sessionId cookie is sent automatically,
+        // and the server returns Set-Cookie headers that rotate the
+        // httpOnly `lms_token` cookie. We don't need to do anything
+        // with the response body — the browser persists the cookie.
         const response = await axios.post(
           `${process.env.NEXT_PUBLIC_SERVER_API_URL}/refresh-token`,
-          { sessionId },
+          {},
+          { withCredentials: true },
         );
 
         if (response.data.success) {
-          const { lmsToken, sessionId: newSessionId } = response.data;
-          useAuthStore.getState().updateToken(lmsToken, newSessionId);
-
-          processQueue(null, lmsToken);
-
-          if (originalRequest.method?.toLowerCase() === "post") {
-            // Need to update token in the body
-            let data = originalRequest.data || {};
-            if (typeof data === "string") {
-              try {
-                data = JSON.parse(data);
-              } catch (e) {
-                /* not JSON */
-              }
-            }
-            if (typeof data === "object" && data !== null) {
-              data.token = lmsToken;
-              originalRequest.data = JSON.stringify(data);
-            }
-          }
-          originalRequest.headers.Authorization = `Bearer ${lmsToken}`;
-
+          processQueue(null);
           return api(originalRequest);
         } else {
-          // If refresh token request was successful but the backend indicates failure
           console.error(
             "Refresh token backend response indicated failure:",
             response.data.error,
@@ -181,6 +199,19 @@ api.interceptors.response.use(
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
+      }
+    }
+
+    // B. Handle 400 "Token is required" — happens when the cookie is
+    // missing entirely (e.g. user cleared cookies, expired session, or
+    // sessionId cookie is gone). The 401 path above handles expired
+    // cookies; this branch handles the "no cookie at all" case.
+    if (error.response?.status === 400) {
+      const errorMsg = String(error.response?.data?.error || "");
+      if (errorMsg.toLowerCase().includes("token")) {
+        console.warn("[Auth] No auth cookie — forcing logout");
+        useAuthStore.getState().logout();
+        dispatchSessionExpired();
       }
     }
 
