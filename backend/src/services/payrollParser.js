@@ -50,6 +50,164 @@ const REQUIRED_HEADERS = [
   "Confirm Note (OH only)",
 ];
 
+// Friendly default per canonical field when the upload is missing a column.
+// Keeping these empty strings (not null/undefined) keeps sanitizeRow() happy
+// and lets downstream code render an empty cell instead of throwing.
+const FIELD_DEFAULTS = {
+  centreShortname: "",
+  classSiteCentre: "",
+  type: "",
+  className: "",
+  classSite: "",
+  course: "",
+  courseLine: "",
+  teacherName: "",
+  workEmail: "",
+  personalEmail: "",
+  username: "",
+  classRole: "",
+  status: "UNCHECKED",
+  slotTime: null,
+  slotDuration: 0,
+  effectiveDuration: 0,
+  studentCount: 0,
+  requestedBy: "",
+  note: "",
+  managerNote: "",
+  confirmStatus: "",
+  confirmNote: "",
+};
+
+// Aliases users actually paste in their spreadsheets, mapped to the
+// canonical HEADER_TO_FIELD keys below. Matching is case-insensitive
+// and whitespace/diacritic-insensitive (see normalizeHeaderKey()).
+const HEADER_ALIASES = {
+  centreShortname: [
+    "centre shortname",
+    "centre",
+    "center shortname",
+    "center",
+    "shortname",
+    "ma trung tam",
+    "ma trung tam ngan",
+  ],
+  classSiteCentre: [
+    "class site centre",
+    "site centre",
+    "site center",
+    "class site center",
+    "class site",
+    "class site name",
+  ],
+  type: ["type", "loai", "loai cong", "kieu"],
+  className: [
+    "class name",
+    "class",
+    "lop",
+    "ten lop",
+    "ten class",
+    "class id",
+    "class code",
+  ],
+  classSite: ["class site", "site", "co so"],
+  course: ["course", "khoa hoc", "ten khoa hoc"],
+  courseLine: ["course line", "line", "chuong trinh", "line khoa hoc"],
+  teacherName: [
+    "teacher name",
+    "teacher",
+    "gv",
+    "giao vien",
+    "ten giao vien",
+    "ho ten",
+    "full name",
+    "name",
+  ],
+  workEmail: [
+    "work email",
+    "email",
+    "email cong ty",
+    "email lam viec",
+    "work mail",
+  ],
+  personalEmail: [
+    "personal email",
+    "email ca nhan",
+    "private email",
+    "email rieng",
+  ],
+  username: ["username", "user", "ten dang nhap", "account"],
+  classRole: [
+    "class role/office hour type",
+    "class role",
+    "class role / office hour type",
+    "office hour type",
+    "oh type",
+    "role",
+    "vai tro",
+    "loai office hour",
+  ],
+  status: ["status", "trang thai", "tinh trang"],
+  slotTime: [
+    "slot time",
+    "slot datetime",
+    "time",
+    "thoi gian",
+    "gio",
+    "ngay gio",
+    "ngay",
+    "datetime",
+    "date time",
+    "date",
+  ],
+  slotDuration: [
+    "slot duration",
+    "duration",
+    "so slot",
+    "slot",
+    "slots",
+    "thoi luong slot",
+  ],
+  effectiveDuration: [
+    "effective duration",
+    "effective hours",
+    "effective hour",
+    "hours",
+    "gio hieu luc",
+    "hieu luc",
+    "thoi luong hieu luc",
+    "real duration",
+    "actual duration",
+  ],
+  studentCount: [
+    "student count",
+    "students",
+    "so hoc sinh",
+    "hoc sinh",
+    "sl hoc sinh",
+    "count",
+  ],
+  requestedBy: [
+    "requested by",
+    "requester",
+    "nguoi yeu cau",
+    "yeu cau boi",
+  ],
+  note: ["note", "ghi chu", "ghi chú"],
+  managerNote: ["manager note", "ghi chu quan ly", "manager comment"],
+  confirmStatus: [
+    "confirm status (oh only)",
+    "confirm status",
+    "oh confirm status",
+    "trang thai xac nhan",
+  ],
+  confirmNote: [
+    "confirm note (oh only)",
+    "confirm note",
+    "oh confirm note",
+    "ghi chu xac nhan",
+  ],
+};
+
 // Build a lookup so we can resolve "Centre shortname" → "centreShortname".
 const HEADER_TO_FIELD = {
   "Centre shortname": "centreShortname",
@@ -209,57 +367,188 @@ function buildPeriodId({ month, year, fileName }) {
 }
 
 /**
- * Sanitize a single row of the parsed workbook (object keyed by header
- * text) into a PayrollRecord document. Returns the sanitized record
+ * Sanitize a single parsed row (already projected to canonical field
+ * names) into a PayrollRecord document. Returns the sanitized record
  * or null when the row is structurally invalid (no className, etc.).
  */
 function sanitizeRow(rawRow, periodId, rowIndex) {
-  const get = (header) => {
-    const field = HEADER_TO_FIELD[header];
-    if (!field) return undefined;
-    return rawRow[header];
-  };
-
-  const className = truncate(get("Class name"), MAX_STRING_LEN);
-  const teacherName = truncate(get("Teacher name"), MAX_STRING_LEN);
+  const className = truncate(rawRow.className, MAX_STRING_LEN);
+  const teacherName = truncate(rawRow.teacherName, MAX_STRING_LEN);
   // Skip rows that are essentially empty (typical Google Sheet trailing
   // rows are completely blank).
   if (!className && !teacherName) return null;
 
-  const type = coerceType(get("Type"));
-  const status = coerceStatus(get("Status"));
+  const type = coerceType(rawRow.type);
+  const status = coerceStatus(rawRow.status);
 
   return {
     _id: `${periodId}:${rowIndex}`,
     periodId,
-    centreShortname: truncate(get("Centre shortname"), 100),
-    classSiteCentre: truncate(get("Class Site Centre"), 200),
+    centreShortname: truncate(rawRow.centreShortname, 100),
+    classSiteCentre: truncate(rawRow.classSiteCentre, 200),
     type,
     className,
-    classSite: truncate(get("Class Site"), 100),
-    course: truncate(get("Course"), 100),
-    courseLine: truncate(get("Course Line"), 100),
+    classSite: truncate(rawRow.classSite, 100),
+    course: truncate(rawRow.course, 100),
+    courseLine: truncate(rawRow.courseLine, 100),
     teacherName,
-    workEmail: truncate(get("Work email"), 200),
-    personalEmail: truncate(get("Personal email"), 200),
-    username: truncate(get("Username"), 100),
-    classRole: truncate(get("Class role/Office hour type"), 30).toUpperCase(),
+    workEmail: truncate(rawRow.workEmail, 200),
+    personalEmail: truncate(rawRow.personalEmail, 200),
+    username: truncate(rawRow.username, 100),
+    classRole: truncate(rawRow.classRole, 30).toUpperCase(),
     status,
-    slotTime: coerceDate(get("Slot time")),
-    slotDuration: coerceNumber(get("Slot duration")),
-    effectiveDuration: coerceNumber(get("Effective duration")),
-    studentCount: coerceNumber(get("Student count")),
-    requestedBy: truncate(get("Requested by"), 100),
-    note: truncate(get("Note"), MAX_NOTE_LEN),
-    managerNote: truncate(get("Manager Note"), MAX_NOTE_LEN),
-    confirmStatus: truncate(get("Confirm Status (OH only)"), 100),
-    confirmNote: truncate(get("Confirm Note (OH only)"), MAX_NOTE_LEN),
+    slotTime: coerceDate(rawRow.slotTime),
+    slotDuration: coerceNumber(rawRow.slotDuration),
+    effectiveDuration: coerceNumber(rawRow.effectiveDuration),
+    studentCount: coerceNumber(rawRow.studentCount),
+    requestedBy: truncate(rawRow.requestedBy, 100),
+    note: truncate(rawRow.note, MAX_NOTE_LEN),
+    managerNote: truncate(rawRow.managerNote, MAX_NOTE_LEN),
+    confirmStatus: truncate(rawRow.confirmStatus, 100),
+    confirmNote: truncate(rawRow.confirmNote, MAX_NOTE_LEN),
   };
 }
 
 function validateHeaders(headers) {
   const missing = REQUIRED_HEADERS.filter((h) => !headers.includes(h));
   return missing;
+}
+
+/**
+ * Normalize a header string so we can match aliases regardless of
+ * case, accents, whitespace, or punctuation differences.
+ *
+ *   "  Effective Duration " -> "effectiveduration"
+ *   "Giờ hiệu lực"          -> "giohieuluc"
+ *   "Slot time (VN)"         -> "slottimevn"
+ */
+function normalizeHeaderKey(value) {
+  if (value == null) return "";
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // strip diacritics
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, ""); // strip spaces, punctuation, slashes
+}
+
+/**
+ * Build a map of normalized-alias → canonical field name. Computed
+ * once at module load (HEADER_ALIASES is static).
+ */
+const NORMALIZED_ALIAS_TO_FIELD = (() => {
+  const map = new Map();
+  for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
+    for (const alias of aliases) {
+      map.set(normalizeHeaderKey(alias), field);
+    }
+  }
+  // Also support the canonical header text itself.
+  for (const header of REQUIRED_HEADERS) {
+    const field = HEADER_TO_FIELD[header];
+    if (field && !map.has(normalizeHeaderKey(header))) {
+      map.set(normalizeHeaderKey(header), field);
+    }
+  }
+  return map;
+})();
+
+/**
+ * Given the raw header row from the upload, return:
+ *   {
+ *     fieldOrder: ["centreShortname", "classSiteCentre", ...],
+ *     unmapped: ["Foo Bar"],          // headers we couldn't recognize
+ *     warnings: ["Mapped 'Foo Bar' → ... (best guess)", ...]
+ *   }
+ *
+ * The order is preserved (used to read cells back from each row) and
+ * unmapped headers are kept in fieldOrder under "__unmapped__" so the
+ * sanitizer can ignore them safely.
+ */
+function resolveHeaders(rawHeaders) {
+  const fieldOrder = [];
+  const unmapped = [];
+  const warnings = [];
+
+  // First, reserve slots in the same order as REQUIRED_HEADERS so
+  // downstream code can rely on a stable shape.
+  for (const header of REQUIRED_HEADERS) {
+    fieldOrder.push(HEADER_TO_FIELD[header]);
+  }
+
+  for (const rawHeader of rawHeaders) {
+    const key = normalizeHeaderKey(rawHeader);
+    if (!key) continue; // blank cell
+    const field = NORMALIZED_ALIAS_TO_FIELD.get(key);
+    if (field) {
+      // Already in fieldOrder; nothing to do.
+      if (!fieldOrder.includes(field)) fieldOrder.push(field);
+    } else {
+      unmapped.push(rawHeader);
+      warnings.push(`Unknown column "${rawHeader}" — ignored.`);
+    }
+  }
+
+  return { fieldOrder, unmapped, warnings };
+}
+
+/**
+ * Project a 2D row (array of cell strings) to an object keyed by
+ * canonical field name, using fieldOrder from resolveHeaders().
+ * Missing fields fall back to FIELD_DEFAULTS so downstream code can
+ * trust the shape.
+ */
+function projectRow(rowCells, fieldOrder, unmappedOriginalHeaders, rawHeaders) {
+  const out = {};
+  // Map raw header → its index, so unmapped columns don't push fields
+  // around. We assume rawHeaders.length === rowCells.length.
+  const rawFieldByIndex = new Array(rawHeaders.length).fill(null);
+  for (let i = 0; i < rawHeaders.length; i++) {
+    const key = normalizeHeaderKey(rawHeaders[i]);
+    const field = NORMALIZED_ALIAS_TO_FIELD.get(key);
+    if (field) rawFieldByIndex[i] = field;
+  }
+
+  // Apply each raw cell to its resolved field.
+  for (let i = 0; i < rawHeaders.length; i++) {
+    const field = rawFieldByIndex[i];
+    if (!field) continue;
+    out[field] = rowCells[i];
+  }
+
+  // Fill defaults for anything the upload didn't provide.
+  for (const [field, def] of Object.entries(FIELD_DEFAULTS)) {
+    if (!(field in out)) out[field] = def;
+  }
+
+  return out;
+}
+
+/**
+ * Detect which row in the upload is the real header row. Many users
+ * paste a title row above the column headers (e.g. "Công GV T8/2026").
+ * We look at the first ~5 rows and pick the one with the highest
+ * count of headers that match a known alias.
+ */
+function detectHeaderRowIndex(rows) {
+  const maxScan = Math.min(rows.length, 6);
+  let bestIndex = 0;
+  let bestScore = -1;
+
+  for (let i = 0; i < maxScan; i++) {
+    const row = rows[i] || [];
+    let score = 0;
+    for (const cell of row) {
+      const key = normalizeHeaderKey(cell);
+      if (key && NORMALIZED_ALIAS_TO_FIELD.has(key)) score++;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = i;
+    }
+  }
+
+  // Fallback: if nothing matched anywhere, assume row 0.
+  return bestScore > 0 ? bestIndex : 0;
 }
 
 /**
@@ -307,12 +596,13 @@ function parsePayrollWorkbook(buffer, fileName) {
     throw new Error("Workbook is empty");
   }
 
-  const headers = rows[0].map((h) => String(h || "").trim());
-  const missing = validateHeaders(headers);
-  if (missing.length > 0) {
-    throw new Error(
-      `Workbook is missing required columns: ${missing.join(", ")}`
-    );
+  const headerRowIndex = detectHeaderRowIndex(rows);
+  const headers = (rows[headerRowIndex] || []).map((h) => String(h || "").trim());
+
+  // Auto-detect + alias-map headers instead of failing.
+  const { warnings: headerWarnings } = resolveHeaders(headers);
+  if (headerWarnings.length) {
+    headerWarnings.forEach((w) => log?.warn?.(w));
   }
 
   const inferred = inferPeriodFromFilename(fileName) || {};
@@ -324,15 +614,13 @@ function parsePayrollWorkbook(buffer, fileName) {
   const records = [];
   const warnings = [];
   let recordIndex = 0;
-  for (let r = 1; r < rows.length; r += 1) {
+  // Skip rows at and before the detected header row.
+  for (let r = headerRowIndex + 1; r < rows.length; r += 1) {
     const rowArr = rows[r];
     if (!rowArr || rowArr.every((c) => c === "" || c == null)) continue;
-    const rawRow = {};
-    headers.forEach((h, i) => {
-      rawRow[h] = rowArr[i];
-    });
+    const projected = projectRow(rowArr, null, null, headers);
     try {
-      const sanitized = sanitizeRow(rawRow, periodId, recordIndex);
+      const sanitized = sanitizeRow(projected, periodId, recordIndex);
       if (sanitized) {
         records.push(sanitized);
         recordIndex += 1;
@@ -347,7 +635,7 @@ function parsePayrollWorkbook(buffer, fileName) {
   }
 
   log.info(
-    `[PayrollParser] Parsed file=${fileName} periodId=${periodId} records=${records.length} warnings=${warnings.length}`
+    `[PayrollParser] Parsed file=${fileName} periodId=${periodId} records=${records.length} warnings=${warnings.length} unmappedHeaders=${headerWarnings.length}`
   );
 
   return {
@@ -359,7 +647,7 @@ function parsePayrollWorkbook(buffer, fileName) {
       originalFileName: fileName || "",
     },
     records,
-    warnings,
+    warnings: [...warnings, ...headerWarnings.map((w) => ({ row: 0, reason: w }))],
   };
 }
 
@@ -369,6 +657,10 @@ module.exports = {
   deriveLabel,
   buildPeriodId,
   validateHeaders,
+  resolveHeaders,
+  detectHeaderRowIndex,
+  normalizeHeaderKey,
   REQUIRED_HEADERS,
   HEADER_TO_FIELD,
+  HEADER_ALIASES,
 };
