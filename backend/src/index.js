@@ -207,6 +207,20 @@ app.use((err, req, res, next) => {
       code: "EPAYLOADTOOLARGE",
     });
   }
+  // Mirror the CORS headers on error responses so the browser doesn't
+  // surface a confusing "No Access-Control-Allow-Origin" message when the
+  // real failure was something else (multer, body-parser, controller).
+  // Without this, requests that throw before any handler runs return a
+  // 5xx with no CORS headers and the browser hides the real error
+  // behind a generic CORS error in DevTools.
+  if (allowedOrigins && req.headers.origin) {
+    const origin = req.headers.origin;
+    if (allowedOrigins.split(",").indexOf(origin) !== -1) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+    }
+  }
   log.error("Unhandled Error:", err);
   res.status(500).json({
     success: false,
