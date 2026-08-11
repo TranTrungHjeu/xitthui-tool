@@ -6,7 +6,36 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const Select = SelectPrimitive.Root
+const Select = React.forwardRef<
+  React.ElementRef<typeof SelectPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger> & {
+    value?: string;
+    onValueChange?: (value: string) => void;
+    placeholder?: string;
+  }
+>(({ className, children, value, onValueChange, placeholder, ...props }, ref) => (
+  <SelectPrimitive.Root value={value} onValueChange={onValueChange}>
+    <SelectPrimitive.Trigger
+      ref={ref}
+      className={cn(
+        "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background transition-colors",
+        "placeholder:text-muted-foreground",
+        "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        "[&>span]:line-clamp-1",
+        "data-[placeholder]:text-muted-foreground",
+        className,
+      )}
+      {...props}
+    >
+      {children || <SelectPrimitive.Value placeholder={placeholder} />}
+      <SelectPrimitive.Icon asChild>
+        <ChevronDown className="h-4 w-4 opacity-50" />
+      </SelectPrimitive.Icon>
+    </SelectPrimitive.Trigger>
+  </SelectPrimitive.Root>
+))
+Select.displayName = "Select"
 const SelectGroup = SelectPrimitive.Group
 const SelectValue = SelectPrimitive.Value
 

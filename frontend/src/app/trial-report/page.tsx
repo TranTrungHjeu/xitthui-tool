@@ -343,7 +343,6 @@ export default function TrialReportPage() {
                     <Select
                       value={filterReportType}
                       onValueChange={setFilterReportType}
-                      placeholder="Loại"
                       className="w-[130px]"
                     >
                       <SelectContent>
