@@ -5,9 +5,7 @@ import {
   ExternalLink,
   Loader2,
   Trash2,
-  Filter,
   Inbox,
-  Search,
 } from "lucide-react";
 import {
   Table,
@@ -18,22 +16,23 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { toast } from "@/components/ui/toast";
 import { trialReportService } from "@/services/trialReportService";
-import { deleteFile as driveDeleteFile } from "@/services/googleDriveService";
 import type { ReportType, TrialReport } from "@/types/trialReport";
+import { PasswordConfirmDialog } from "./PasswordConfirmDialog";
 
 interface AllFilesListProps {
   onError: (msg: string | null) => void;
+  canDelete?: boolean;
+  viewMode?: "table" | "cards";
+  from?: string;
+  to?: string;
+  teacherCode?: string;
+  studentName?: string;
+  reportType?: string;
+  filterTrigger?: number;
 }
 
 function formatDate(value?: string | null): string {
@@ -63,17 +62,61 @@ const REPORT_TYPE_STYLES: Record<string, string> = {
   "pdf-upload": "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 
-export function AllFilesList({ onError }: AllFilesListProps) {
+// Mongo `fileName` is normally stored as the clean original name (the
+// controller writes `uploaded.name`, not the R2 key), but legacy rows
+// may still carry the `{ulid}__` prefix. Only strip when present so we
+// don't double-trim already-clean names.
+function displayFileName(rawName: string): string {
+  if (!rawName) return rawName;
+  const idx = rawName.indexOf("__");
+  return idx >= 0 ? rawName.slice(idx + 2) : rawName;
+}
+
+export function AllFilesList({ onError, canDelete = false, viewMode = "table", from, to, teacherCode, studentName, reportType, filterTrigger }: AllFilesListProps) {
   const [reports, setReports] = useState<TrialReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [teacherCode, setTeacherCode] = useState("");
-  const [studentName, setStudentName] = useState("");
-  const [reportType, setReportType] = useState<string>("");
   const [deleting, setDeleting] = useState<TrialReport | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // P2.3 bulk-selection state. `selectedIds` is a Set so add/remove
+  // stays O(1) regardless of how many rows the search returned. The
+  // bulk dialog + sticky bar both derive their visibility from
+  // `size > 0`. We never persist this — switching folders/filters
+  // should always start with a clean slate.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState("");
+
+  // Header checkbox derived state. `allSelected` covers the
+  // fully-checked case, `someSelected` covers the indeterminate
+  // state when only a subset of the loaded rows are checked.
+  const allSelected = reports.length > 0 && selectedIds.size === reports.length;
+  const someSelected = selectedIds.size > 0 && !allSelected;
+
+  const toggleRow = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    setSelectedIds((prev) => {
+      if (prev.size > 0) return new Set();
+      return new Set(reports.map((r) => r._id));
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
 
   const load = async () => {
     setIsLoading(true);
@@ -106,28 +149,22 @@ export function AllFilesList({ onError }: AllFilesListProps) {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [filterTrigger, from, to, teacherCode, studentName, reportType]);
 
-  const handleDelete = async () => {
+  const handleDelete = async (password: string) => {
     if (!deleting) return;
     setIsDeleting(true);
     onError(null);
     try {
-      // Trash the file in Drive first via the user's OAuth token (browser
-      // path; backend no longer touches Drive because of service-account
-      // storage quota). Then ask the backend to soft-delete the Mongo row.
-      try {
-        await driveDeleteFile(deleting._id);
-      } catch (driveErr: any) {
-        // Even if Drive trash fails (token expired / file in another
-        // account), continue — the Mongo row will still be hidden from
-        // the UI, and an admin can clean the Drive file up later.
-        console.warn("Drive trash failed (continuing to Mongo delete):", driveErr);
-      }
-      const res = await trialReportService.executeDelete(deleting._id);
+      // executeDirectDelete verifies the shared password server-side
+      // (constant-time compare against TRIAL_REPORT_DELETE_PASSWORD).
+      const res = await trialReportService.executeDirectDelete(deleting._id, {
+        password,
+      });
       if (res.success) {
         setDeleting(null);
         await load();
+        toast.success("Đã xóa thành công.");
       } else {
         onError(res.error || "Không thể xóa phiếu.");
       }
@@ -140,90 +177,46 @@ export function AllFilesList({ onError }: AllFilesListProps) {
     }
   };
 
+  // P2.3 bulk hard-delete. Fans out across every selected row,
+  // calls `executeDirectDelete` for each (same shared password for
+  // every row). Counts success and fail so we can show a toast.
+  const submitBulkDelete = async (password: string) => {
+    if (selectedIds.size === 0) return;
+    setBulkSubmitting(true);
+    onError(null);
+    setBulkProgress("");
+    const ids = Array.from(selectedIds);
+    const total = ids.length;
+    let success = 0;
+    let fail = 0;
+    for (let i = 0; i < total; i++) {
+      const id = ids[i];
+      setBulkProgress(`Đang xóa ${i + 1}/${total}...`);
+      try {
+        const res = await trialReportService.executeDirectDelete(id, {
+          password,
+        });
+        if (res.success) {
+          success += 1;
+        } else {
+          fail += 1;
+        }
+      } catch (err) {
+        fail += 1;
+      }
+    }
+    setBulkProgress("");
+    setBulkSubmitting(false);
+    setBulkOpen(false);
+    toast.success(
+      `Đã xóa ${success} phiếu${fail ? ` (${fail} thất bại)` : ""}.`,
+    );
+    clearSelection();
+    await load();
+  };
+
   return (
     <div className="p-4 sm:p-6 space-y-4">
-      {/* Filter Card */}
-      <div className="border border-slate-200/70 rounded-xl bg-gradient-to-br from-card to-muted/20 shadow-sm shadow-black/[0.02] overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-          <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Filter className="h-3.5 w-3.5 text-primary" />
-          </div>
-          <h3 className="text-sm font-semibold text-slate-800">Bộ lọc</h3>
-        </div>
-        <div className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="from" className="text-xs font-medium text-slate-600">Từ ngày</Label>
-              <Input
-                id="from"
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="to" className="text-xs font-medium text-slate-600">Đến ngày</Label>
-              <Input
-                id="to"
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="teacherCodeFilter" className="text-xs font-medium text-slate-600">Mã GV</Label>
-              <Input
-                id="teacherCodeFilter"
-                value={teacherCode}
-                onChange={(e) => setTeacherCode(e.target.value)}
-                placeholder="I3470"
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="studentNameFilter" className="text-xs font-medium text-slate-600">Tên học viên</Label>
-              <Input
-                id="studentNameFilter"
-                value={studentName}
-                onChange={(e) => setStudentName(e.target.value)}
-                placeholder="Nguyễn Văn A"
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="reportTypeFilter" className="text-xs font-medium text-slate-600">Loại</Label>
-              <select
-                id="reportTypeFilter"
-                value={reportType}
-                onChange={(e) => setReportType(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="">Tất cả</option>
-                {REPORT_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="flex justify-end mt-4">
-            <Button onClick={load} disabled={isLoading} size="sm" className="h-9 shadow-sm shadow-primary/20">
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <Search className="h-3.5 w-3.5 mr-1.5" />
-                  Lọc
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
-
       {/* Results */}
       {isLoading || (isInitialLoad && reports.length === 0) ? (
         <div className="flex items-center justify-center py-16 text-sm text-slate-400">
@@ -248,6 +241,15 @@ export function AllFilesList({ onError }: AllFilesListProps) {
           <Table>
             <TableHeader>
               <TableRow className="bg-slate-50/70 hover:bg-slate-50/70">
+                <TableHead className="w-[40px] pl-4 pr-0">
+                  <Checkbox
+                    checked={
+                      allSelected ? true : someSelected ? "indeterminate" : false
+                    }
+                    onCheckedChange={toggleAll}
+                    aria-label="Chọn tất cả"
+                  />
+                </TableHead>
                 <TableHead className="font-semibold text-slate-600">Tên file</TableHead>
                 <TableHead className="font-semibold text-slate-600">Loại</TableHead>
                 <TableHead className="font-semibold text-slate-600">Học viên</TableHead>
@@ -259,8 +261,15 @@ export function AllFilesList({ onError }: AllFilesListProps) {
             <TableBody>
               {reports.map((r) => (
                 <TableRow key={r._id} className="hover:bg-slate-50/50">
+                  <TableCell className="pl-4 pr-0">
+                    <Checkbox
+                      checked={selectedIds.has(r._id)}
+                      onCheckedChange={() => toggleRow(r._id)}
+                      aria-label={`Chọn ${displayFileName(r.fileName)}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium max-w-[260px] truncate text-slate-800">
-                    {r.fileName}
+                    {displayFileName(r.fileName)}
                   </TableCell>
                   <TableCell>
                     <span
@@ -289,20 +298,22 @@ export function AllFilesList({ onError }: AllFilesListProps) {
                           variant="ghost"
                           className="h-8 w-8 p-0 text-slate-500 hover:text-primary"
                         >
-                          <a href={r.webViewLink} target="_blank" rel="noreferrer" title="Mở trong Drive">
+                          <a href={r.webViewLink} target="_blank" rel="noreferrer" title="Mở file">
                             <ExternalLink className="h-3.5 w-3.5" />
                           </a>
                         </Button>
                       )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                        onClick={() => setDeleting(r)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                        Xóa
-                      </Button>
+                      {canDelete && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                          onClick={() => setDeleting(r)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                          Xóa
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -312,48 +323,59 @@ export function AllFilesList({ onError }: AllFilesListProps) {
         </div>
       )}
 
-      <Dialog
+      {/* P2.3 sticky bottom bar — renders only when at least one row
+          is selected. Stays pinned to the bottom of the AllFilesList
+          container so it follows the user as they scroll through the
+          search results. */}
+      {selectedIds.size > 0 && (
+        <div className="sticky bottom-0 left-0 right-0 z-10 mx-4 mb-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-lg shadow-black/5">
+          <span className="text-sm font-medium text-slate-700">
+            Đã chọn {selectedIds.size} phiếu
+          </span>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={clearSelection}>
+              Bỏ chọn
+            </Button>
+            {canDelete && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setBulkOpen(true)}
+              >
+                Xóa tất cả
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Bulk delete — password-gated. One password applies to every
+          selected row. Backend verifies the password once per request
+          (via `executeDirectDelete`). */}
+      <PasswordConfirmDialog
+        open={bulkOpen}
+        onOpenChange={(open) => {
+          if (!bulkSubmitting) setBulkOpen(open);
+        }}
+        title={`Xóa ${selectedIds.size} phiếu đã chọn?`}
+        description="Hành động không thể hoàn tác."
+        busy={bulkSubmitting}
+        progress={bulkProgress}
+        confirmLabel={`Xóa ${selectedIds.size} phiếu`}
+        onConfirm={submitBulkDelete}
+      />
+
+      {/* Single-row delete — password-gated. */}
+      <PasswordConfirmDialog
         open={!!deleting}
         onOpenChange={(open) => {
           if (!open) setDeleting(null);
         }}
-      >
-        <DialogContent className="border-slate-200/70">
-          <DialogHeader>
-            <div className="h-10 w-10 rounded-xl bg-destructive/10 flex items-center justify-center mb-2">
-              <Trash2 className="h-5 w-5 text-destructive" />
-            </div>
-            <DialogTitle>Xác nhận xóa phiếu</DialogTitle>
-            <DialogDescription>
-              File sẽ được chuyển vào thùng rác trên Drive và soft-delete trong
-              MongoDB. Hành động này sẽ được ghi log.
-            </DialogDescription>
-          </DialogHeader>
-          <p className="text-sm">
-            File: <span className="font-medium text-foreground">{deleting?.fileName}</span>
-          </p>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleting(null)}
-              disabled={isDeleting}
-            >
-              Hủy
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Xóa"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title="Xác nhận xóa phiếu"
+        busy={isDeleting}
+        confirmLabel="Xóa"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

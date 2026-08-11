@@ -1,8 +1,8 @@
 /**
- * Types cho feature "Quản lý lớp học trải nghiệm".
+ * Types for feature "Quản lý lớp học trải nghiệm".
  *
- * Backend đứng giữa frontend và Google Drive API. Frontend chỉ thao tác với
- * các DTO bên dưới, không bao giờ gọi trực tiếp Drive API.
+ * Backend uses Cloudflare R2 for storage; frontend only consumes the
+ * DTOs below and never talks to R2 directly.
  */
 
 export type ReportType =
@@ -28,26 +28,6 @@ export type TemplateFieldKey =
   | "medium"
   | "techniques";
 
-export interface DriveFolder {
-  id: string;
-  name: string;
-  mimeType: string;
-  createdTime?: string | null;
-  modifiedTime?: string | null;
-}
-
-export interface DriveFile {
-  id: string;
-  name: string;
-  mimeType: string;
-  createdTime?: string | null;
-  modifiedTime?: string | null;
-  size?: number | null;
-  webViewLink?: string | null;
-  webContentLink?: string | null;
-  parents?: string[];
-}
-
 export interface TrialReport {
   _id: string;
   fileId: string;
@@ -57,6 +37,8 @@ export interface TrialReport {
   webViewLink?: string;
   webContentLink?: string;
   parentFolderId: string;
+  // R2 object key — present for new uploads; empty for legacy Drive rows.
+  r2Key?: string;
   reportType: ReportType;
   classDate?: string | null;
   teacherCode?: string;
@@ -74,8 +56,7 @@ export type TrialReportLogAction =
   | "upload"
   | "delete"
   | "restore"
-  | "create-folder"
-  | "delete-request";
+  | "create-folder";
 
 export interface TrialReportLog {
   _id: string;
@@ -91,41 +72,45 @@ export interface TrialReportLog {
   createdAt?: string;
 }
 
-export type DeleteRequestStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "completed";
+// NOTE: `DeleteRequest` / `DeleteRequestStatus` / `DeleteRequestsQuery`
+// were removed when the 2-step request/review workflow was retired.
+// Deletes are now password-gated and immediate
+// (`POST /trial-report/reports/:id/direct-delete`).
 
-export interface DeleteRequest {
+export type ReportAuditAction =
+  | "upload"
+  | "delete"
+  | "restore";
+
+export interface ReportAuditEvent {
   _id: string;
   reportId: string;
-  fileName: string;
-  requestedBy?: string | null;
-  requestedByName?: string;
-  reason: string;
-  status: DeleteRequestStatus;
-  reviewedBy?: string | null;
-  reviewedByName?: string;
-  reviewedAt?: string | null;
-  completedAt?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
+  actorId?: string | null;
+  actorName?: string;
+  action: ReportAuditAction;
+  meta?: Record<string, unknown>;
+  at?: string;
 }
 
 /**
- * Canonical payload for the new browser-OAuth upload flow. The PDF has
- * already been pushed to Drive by the browser; we just send back the
- * resulting file metadata so the backend can upsert it into Mongo.
+ * Payload for the password-gated direct delete endpoint.
+ * Replaces the old `RequestDeletePayload` / `ReviewDeleteRequestPayload`.
+ */
+export interface DirectDeletePayload {
+  password: string;
+}
+
+/**
+ * Canonical payload for the new R2 upload flow. The PDF has already been
+ * pushed to R2 via the backend's multipart endpoint; we send back the
+ * resulting object key so the backend can upsert it into Mongo.
  */
 export interface RegisterReportPayload {
-  driveFileId: string;
+  r2Key: string; // R2 object key (canonical for new uploads)
   fileName: string;
   mimeType?: string;
   size?: number | null;
-  webViewLink?: string | null;
-  webContentLink?: string | null;
-  parentFolderId?: string | null;
+  webViewLink?: string | null; // presigned R2 download URL
   reportType?: ReportType;
   classDate?: string | null;
   teacherCode?: string;
@@ -141,7 +126,6 @@ export interface RegisterReportPayload {
  * compatible by delegating to `registerReport`.
  */
 export interface CreateReportPayload {
-  driveFileId?: string;
   folderId?: string | null;
   reportType: ReportType;
   classDate?: string | null;
@@ -161,31 +145,12 @@ export interface UploadPdfPayload extends CreateReportPayload {}
 
 export type LegacyCreateReportPayload = CreateReportPayload | UploadPdfPayload;
 
-export interface RequestDeletePayload {
-  reportId: string;
-  reason: string;
-  sessionId?: string | null;
-}
-
-export interface ReviewDeleteRequestPayload {
-  action: "approve" | "reject";
-  note?: string;
-  sessionId?: string | null;
-}
-
 export interface AllReportsQuery {
   from?: string;
   to?: string;
   teacherCode?: string;
   studentName?: string;
   reportType?: ReportType;
-  page?: number;
-  pageSize?: number;
-  sessionId?: string | null;
-}
-
-export interface DeleteRequestsQuery {
-  status?: DeleteRequestStatus | "all";
   page?: number;
   pageSize?: number;
   sessionId?: string | null;

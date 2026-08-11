@@ -1,7 +1,6 @@
-const { ZaloTemplate, Class } = require("../storage/mongoModels");
+const { ZaloTemplate, Class, Lesson, LessonContent } = require("../storage/mongoModels");
 const { childLogger } = require("../utils/logger");
 const log = childLogger("ZaloController");
-const lessonLoader = require("../services/lessonContentLoader");
 
 /**
  * GET /zalo/template
@@ -47,12 +46,19 @@ module.exports = { getTemplate, saveTemplate, getRunningClasses, getLessonMeta, 
 
 /**
  * GET /zalo/lesson-meta
- * Trả về danh sách subjects + levels (filter).
+ * Trả về danh sách subjects + levels (filter) từ MongoDB.
  */
-function getLessonMeta(req, res) {
+async function getLessonMeta(req, res) {
   try {
-    const meta = lessonLoader.getMeta();
-    return res.json({ success: true, data: meta });
+    const subjects = await Lesson.distinct("subject");
+    const levels = await Lesson.distinct("courseCode");
+    return res.json({
+      success: true,
+      data: {
+        subjects: subjects.map(s => ({ id: s.toLowerCase(), name: s })),
+        levels: levels.filter(Boolean).map(c => ({ id: c, name: c }))
+      }
+    });
   } catch (err) {
     log.error("[/zalo/lesson-meta] Error:", err.message);
     return res.status(500).json({ success: false, error: "Lỗi khi tải meta" });
@@ -63,61 +69,71 @@ function getLessonMeta(req, res) {
  * GET /zalo/lessons?subject=<id>&level=<id>
  * Hoặc GET /zalo/lessons?classId=<id>&session=<n>
  *
- * Lấy danh sách bài học theo subject+level, hoặc tự động theo lớp + số buổi.
+ * Lấy danh sách bài học từ MongoDB.
  */
-function getLessonList(req, res) {
+async function getLessonList(req, res) {
   try {
-    let { subject, level, classId, session } = req.query;
+    const { subject, level, classId, session } = req.query;
 
-    let lessons = [];
-    let meta = {
-      subjectId: null,
-      levelId: null,
-      subjectName: null,
-      levelName: null,
-      selectedLesson: null,
-    };
-
+    // If classId provided, delegate to getLessonForClass logic
     if (classId) {
-      // Auto-load theo classId từ MongoDB
-      Class.findById(classId)
+      const cls = await Class.findById(classId)
         .select({ _id: 1, name: 1, course: 1, "computed.currentSessionIndex": 1 })
-        .lean()
-        .then((cls) => {
-          if (!cls) {
-            return res.json({ success: true, data: { ...meta, lessons: [] } });
-          }
-          const sessionIndex =
-            session !== undefined
-              ? parseInt(session, 10)
-              : cls?.computed?.currentSessionIndex || 0;
-          const result = lessonLoader.getLessonsForClass(cls, sessionIndex);
-          return res.json({ success: true, data: result });
-        })
-        .catch((err) => {
-          log.error("[/zalo/lessons classId] Error:", err.message);
-          return res.status(500).json({
-            success: false,
-            error: "Lỗi khi tải bài học theo lớp",
-          });
-        });
-      return;
+        .lean();
+
+      if (!cls) {
+        return res.json({ success: true, data: { subjectId: null, levelId: null, subjectName: null, levelName: null, lessons: [], selectedLesson: null } });
+      }
+
+      const sessionIndex = session !== undefined
+        ? parseInt(session, 10)
+        : cls?.computed?.currentSessionIndex || 0;
+
+      const subjectName = detectSubjectFromClass(cls);
+
+      const lessons = await Lesson.find({ subject: subjectName })
+        .select({ _id: 1, lessonCode: 1, title: 1, description: 1, lessonNumber: 1, courseCode: 1 })
+        .sort({ lessonNumber: 1 })
+        .lean();
+
+      const selectedLesson = sessionIndex > 0
+        ? lessons.find(l => l.lessonNumber === sessionIndex) || null
+        : null;
+
+      return res.json({
+        success: true,
+        data: {
+          subjectId: subjectName.toLowerCase(),
+          levelId: null,
+          subjectName,
+          levelName: null,
+          lessons,
+          selectedLesson,
+        }
+      });
     }
 
-    if (subject && level) {
-      const result = lessonLoader.getLessons(subject, level);
-      const metaAll = lessonLoader.getMeta();
-      meta = {
-        subjectId: subject,
-        levelId: level,
-        subjectName: metaAll.subjects.find((s) => s.id === subject)?.name || subject,
-        levelName: metaAll.levels.find((l) => l.id === level)?.name || level,
+    // Filter by subject + level
+    const filter = {};
+    if (subject) filter.subject = subject.charAt(0).toUpperCase() + subject.slice(1).toLowerCase();
+    if (level) filter.courseCode = level;
+
+    const lessons = await Lesson.find(filter)
+      .select({ _id: 1, lessonCode: 1, title: 1, description: 1, lessonNumber: 1, courseCode: 1 })
+      .sort({ lessonNumber: 1 })
+      .lean();
+
+    return res.json({
+      success: true,
+      data: {
+        subjectId: subject || null,
+        levelId: level || null,
+        subjectName: subject || null,
+        levelName: level || null,
+        lessons,
         selectedLesson: null,
-      };
-      lessons = result;
-    }
-
-    return res.json({ success: true, data: { ...meta, lessons } });
+      }
+    });
   } catch (err) {
     log.error("[/zalo/lessons] Error:", err.message);
     return res.status(500).json({ success: false, error: "Lỗi khi tải bài học" });
@@ -125,35 +141,122 @@ function getLessonList(req, res) {
 }
 
 /**
+ * Map course code to subject name (matches lessonLoader logic)
+ */
+const COURSE_CODE_TO_SUBJECT = {
+  SB: "Coding", SA: "Coding", SI: "Coding",
+  GB: "Coding", GA: "Coding", GI: "Coding",
+  PTB: "Coding", PTA: "Coding", PTI: "Coding",
+  JSB: "Coding", JSA: "Coding", JSI: "Coding",
+  CSB: "Coding", CSA: "Coding", CSI: "Coding",
+  KIROB: "Robotics", PREB: "Robotics", PREA: "Robotics", PREI: "Robotics",
+  ARMB: "Robotics", ARMA: "Robotics", ARMI: "Robotics",
+  SEMIB: "Robotics", SEMIA: "Robotics", SEMII: "Robotics",
+  AUTOA: "Robotics",
+  XART: "Art", VCI: "Art", VAI: "Art", VAA: "Art",
+};
+
+function detectSubjectFromClass(cls) {
+  const code = cls.course?.shortName || cls.course?.code || cls.name || "";
+  const upper = String(code).toUpperCase();
+  
+  // Find longest matching code
+  const sortedCodes = Object.keys(COURSE_CODE_TO_SUBJECT).sort((a, b) => b.length - a.length);
+  for (const c of sortedCodes) {
+    if (upper.includes(c)) {
+      return COURSE_CODE_TO_SUBJECT[c];
+    }
+  }
+  
+  // Fallback: check class name
+  const name = cls.name?.toLowerCase() || "";
+  if (name.includes("art") || name.includes("vci") || name.includes("vai") || name.includes("xart")) return "Art";
+  if (name.includes("robotic") || name.includes("pre") || name.includes("semi") || name.includes("arm")) return "Robotics";
+  return "Coding"; // default
+}
+
+/**
  * GET /zalo/lesson-for-class?classId=<id>&session=<n>
  * Auto-load bài học theo lớp + số buổi (1-based).
- * Trả về lesson đã chọn sẵn.
+ * Trả về lesson đã chọn sẵn từ MongoDB.
  */
-function getLessonForClass(req, res) {
+async function getLessonForClass(req, res) {
   try {
     const { classId, session } = req.query;
     if (!classId) {
       return res.status(400).json({ success: false, error: "classId is required" });
     }
 
-    Class.findById(classId)
+    const cls = await Class.findById(classId)
       .select({ _id: 1, name: 1, course: 1, "computed.currentSessionIndex": 1 })
-      .lean()
-      .then((cls) => {
-        if (!cls) {
-          return res.status(404).json({ success: false, error: "Class not found" });
-        }
-        const sessionIndex =
-          session !== undefined
-            ? parseInt(session, 10)
-            : cls?.computed?.currentSessionIndex || 0;
-        const result = lessonLoader.getLessonsForClass(cls, sessionIndex);
-        return res.json({ success: true, data: result });
-      })
-      .catch((err) => {
-        log.error("[/zalo/lesson-for-class] Error:", err.message);
-        return res.status(500).json({ success: false, error: "Lỗi" });
+      .lean();
+
+    if (!cls) {
+      return res.status(404).json({ success: false, error: "Class not found" });
+    }
+
+    const sessionIndex = session !== undefined
+      ? parseInt(session, 10)
+      : cls?.computed?.currentSessionIndex || 0;
+
+    const subject = detectSubjectFromClass(cls);
+    
+    // Query lessons from MongoDB
+    const lessons = await Lesson.find({
+      subject: subject,
+      lessonNumber: sessionIndex > 0 ? sessionIndex : { $gte: 1 }
+    })
+      .select({ _id: 1, lessonCode: 1, title: 1, description: 1, lessonNumber: 1, courseCode: 1 })
+      .sort({ lessonNumber: 1 })
+      .lean();
+
+    // Get lesson contents
+    const lessonIds = lessons.map(l => l._id);
+    const contents = await LessonContent.find({ lessonId: { $in: lessonIds } })
+      .sort({ lessonId: 1, blockIndex: 1 })
+      .lean();
+
+    // Merge lessons with their contents
+    const contentByLesson = {};
+    for (const c of contents) {
+      if (!contentByLesson[c.lessonId]) {
+        contentByLesson[c.lessonId] = [];
+      }
+      contentByLesson[c.lessonId].push({
+        id: c._id,
+        blockType: c.blockType,
+        title: c.title,
+        content: c.content,
       });
+    }
+
+    const lessonsWithContent = lessons.map(l => ({
+      id: l._id,
+      lessonCode: l.lessonCode,
+      title: l.title,
+      description: l.description,
+      lessonNumber: l.lessonNumber,
+      courseCode: l.courseCode,
+      content: (contentByLesson[l._id] || []).map(c => c.content).join("\n\n"),
+      blocks: contentByLesson[l._id] || [],
+    }));
+
+    // Auto-select the lesson matching sessionIndex
+    const selectedLesson = sessionIndex > 0
+      ? lessonsWithContent.find(l => l.lessonNumber === sessionIndex) || null
+      : (lessonsWithContent[0] || null);
+
+    return res.json({
+      success: true,
+      data: {
+        subjectId: subject.toLowerCase(),
+        levelId: null,
+        subjectName: subject,
+        levelName: null,
+        lessons: lessonsWithContent,
+        selectedLesson,
+      }
+    });
   } catch (err) {
     log.error("[/zalo/lesson-for-class] Error:", err.message);
     return res.status(500).json({ success: false, error: "Lỗi" });

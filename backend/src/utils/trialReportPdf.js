@@ -8,7 +8,7 @@
  * working while a designer templates the four subjects.
  *
  * The file is intentionally hand-crafted to avoid new dependencies.
- * The output is a real PDF (not a TXT renamed to .pdf), so Drive's
+ * The output is a real PDF (not a TXT renamed to .pdf), so R2's
  * preview and webViewLink work.
  */
 

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,7 @@ interface DatePickerProps {
   required?: boolean;
   disabled?: boolean;
   placeholder?: string;
+  className?: string;
 }
 
 const MONTH_NAMES_VI = [
@@ -39,8 +41,11 @@ export function DatePicker({
   required,
   disabled,
   placeholder = "Chọn ngày",
+  className,
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false);
+  const [position, setPosition] = React.useState<{ top: number; left: number } | null>(null);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
   const [viewYear, setViewYear] = React.useState(() => {
     if (value) {
       const [y] = value.split("-").map(Number);
@@ -132,7 +137,7 @@ export function DatePicker({
   };
 
   return (
-    <div className="space-y-1.5">
+    <div className={cn("space-y-1.5", className)}>
       {label && (
         <label
           htmlFor={id}
@@ -145,10 +150,17 @@ export function DatePicker({
 
       <div className="relative">
         <button
+          ref={buttonRef}
           id={id}
           type="button"
           disabled={disabled}
-          onClick={() => !disabled && setOpen(o => !o)}
+          onClick={() => {
+            if (!disabled) {
+              const rect = buttonRef.current?.getBoundingClientRect();
+              setPosition(rect ? { top: rect.top, left: rect.left } : null);
+              setOpen(true);
+            }
+          }}
           className={cn(
             "w-full h-9 px-3 rounded-md border border-input bg-background text-sm",
             "flex items-center gap-2 transition-colors",
@@ -164,13 +176,15 @@ export function DatePicker({
           </span>
         </button>
 
-        {open && (
-          <>
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setOpen(false)}
-            />
-            <div className="absolute top-full left-0 z-50 mt-1.5 bg-popover border border-border rounded-xl shadow-lg shadow-black/[0.08] w-[292px] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        {open && createPortal((
+          <div
+            className="fixed z-[9999] bg-popover border border-border rounded-xl shadow-lg shadow-black/[0.08] w-[292px] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            style={{
+              top: position ? `${position.top + 40}px` : "-9999px",
+              left: position ? `${position.left}px` : "-9999px",
+              opacity: position ? 1 : 0,
+            }}
+          >
               {/* Header */}
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-gradient-to-b from-white to-slate-50/50">
                 <button
@@ -247,8 +261,7 @@ export function DatePicker({
                 </button>
               </div>
             </div>
-          </>
-        )}
+        ), document.body)}
       </div>
     </div>
   );

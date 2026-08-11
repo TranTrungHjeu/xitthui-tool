@@ -83,18 +83,36 @@ const AUTH_REQUIRED_PREFIXES = [
   "/teachers",
   "/spreadsheet",
   "/trial-report",
-  "/payroll",
-  "/lms",
-  "/lesson",
   "/me",
   "/update-evaluation",
   "/submissions",
   "/course-version",
   "/student-evaluation",
 ];
+// Per-endpoint allowlist of paths that don't require an authenticated
+// session. These keep working even when `useAuthStore.isAuthenticated`
+// is false.
+const PUBLIC_PATH_EXACT = new Set<string>([
+  // LMS tool is listed in PUBLIC_TOOLS and should be accessible without auth
+  // (covered by /lms prefix below)
+]);
+
+// Public paths where any sub-path under the prefix is also public.
+// (e.g. /trial-report/reports/* all skip auth — they are protected
+// by the shared delete password instead.)
+const PUBLIC_PATH_PREFIXES = [
+  "/trial-report/reports",
+  "/lms",
+  "/payroll",
+  "/zalo",
+  "/lesson",
+];
+
 function requiresAuth(url: string | undefined): boolean {
   if (!url) return false;
   const path = url.split("?")[0];
+  if (PUBLIC_PATH_EXACT.has(path)) return false;
+  if (PUBLIC_PATH_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`))) return false;
   return AUTH_REQUIRED_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
 }
 
@@ -118,7 +136,14 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // `error.config` is undefined when the request never left the client
+    // (e.g. axios is cancelled, network failure before send, or our
+    // own auth interceptor threw `CanceledError`). Skip the retry
+    // logic and let the caller's `catch` handle it.
     const originalRequest = error.config;
+    if (!originalRequest) {
+      return Promise.reject(error);
+    }
 
     // C. Retry 5xx + 429 with exponential backoff.
     // LMS outages and Lighthouse rate-limits show up as transient 5xx/429.

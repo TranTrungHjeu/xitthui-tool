@@ -3,14 +3,20 @@
 import api from "./api";
 import type {
   AllReportsQuery,
-  DeleteRequestsQuery,
-  DeleteRequest,
   RegisterReportPayload,
-  RequestDeletePayload,
-  ReviewDeleteRequestPayload,
+  ReportAuditEvent,
   TrialReport,
   LegacyCreateReportPayload,
 } from "../types/trialReport";
+
+export interface DirectDeletePayload {
+  password: string;
+}
+
+export interface DirectDeleteResult {
+  id: string;
+  deletedAt: string;
+}
 
 interface ApiEnvelope<T> {
   success?: boolean;
@@ -45,11 +51,9 @@ async function call<T>(
 
 export const trialReportService = {
   /**
-   * Canonical upload path (post browser-OAuth migration).
-   *
-   * The browser uploads the PDF directly to Drive via the user's OAuth
-   * token (using `googleDriveService.uploadPDFFile`), then calls this
-   * endpoint so the resulting file shows up in Mongo with metadata.
+   * Canonical upload path — file is uploaded to R2 first (multipart),
+   * then this endpoint registers the metadata in Mongo using the R2
+   * object key as the unique id.
    *
    * Backend endpoint: POST /trial-report/reports/register
    */
@@ -73,7 +77,17 @@ export const trialReportService = {
    * recommended upload path; the browser now drives the upload.
    */
 
+  /**
+   * Legacy alias — old backend-driven upload path (service-account).
+   * Browser now drives uploads to R2, then calls `registerReport`.
+   * This route exists only for any external caller that hasn't migrated
+   * to the new flow. @deprecated since R2 migration — prefer
+   * `registerReport` with the R2 object key.
+   */
   createReport: async (payload: LegacyCreateReportPayload) => {
+    if (typeof console !== "undefined") {
+      console.warn("[trialReportService] createReport is deprecated. Use registerReport + /r2/upload instead.");
+    }
     return call<TrialReport & { webViewLink?: string }>(
       "post",
       "/trial-report/reports",
@@ -81,7 +95,14 @@ export const trialReportService = {
     );
   },
 
+  /**
+   * Legacy alias for `createReport`. Same deprecation as above.
+   * @deprecated since R2 migration — prefer `registerReport`.
+   */
   uploadPdf: async (payload: LegacyCreateReportPayload) => {
+    if (typeof console !== "undefined") {
+      console.warn("[trialReportService] uploadPdf is deprecated. Use registerReport + /r2/upload instead.");
+    }
     return call<TrialReport & { webViewLink?: string }>(
       "post",
       "/trial-report/upload",
@@ -89,28 +110,36 @@ export const trialReportService = {
     );
   },
 
-  requestDelete: async (payload: RequestDeletePayload) => {
-    return call<DeleteRequest>("post", "/trial-report/delete-request", {
-      ...payload,
-      sessionId: payload.sessionId ?? getSessionId(),
-    });
-  },
-
-  reviewDeleteRequest: async (
-    id: string,
-    payload: Omit<ReviewDeleteRequestPayload, "sessionId">,
-  ) => {
-    return call<DeleteRequest>(
+  /**
+   * Password-gated direct delete. Replaces the old 2-step
+   * request/review workflow — the caller passes the shared delete
+   * password configured in `TRIAL_REPORT_DELETE_PASSWORD`, and the
+   * server deletes immediately (soft-delete Mongo + hard-delete R2).
+   *
+   * Backend endpoint: POST /trial-report/reports/:id/direct-delete
+   * Body: { password }
+   */
+  executeDirectDelete: async (id: string, payload: DirectDeletePayload) => {
+    // Pass `id` as query param so the R2 object key (which may
+    // contain slashes) doesn't break URL parsing on the server.
+    return call<DirectDeleteResult>(
       "post",
-      `/trial-report/delete-request/${id}/review`,
-      { ...payload, sessionId: getSessionId() },
+      `/trial-report/reports/direct-delete`,
+      { password: payload.password, id },
     );
   },
 
+  /**
+   * Legacy hard-delete that bypasses the password gate. The FE does
+   * not call this — it stays around as an internal escape hatch.
+   * @deprecated since direct-delete migration — use
+   * `executeDirectDelete(id, { password })`.
+   */
   executeDelete: async (id: string) => {
-    return call<TrialReport>("post", `/trial-report/reports/${id}/delete`, {
-      sessionId: getSessionId(),
-    });
+    if (typeof console !== "undefined") {
+      console.warn("[trialReportService] executeDelete is deprecated. Use executeDirectDelete with a password.");
+    }
+    return call<TrialReport>("post", `/trial-report/reports/${id}/delete`, {});
   },
 
   getAllReports: async (query: AllReportsQuery = {}) => {
@@ -122,12 +151,15 @@ export const trialReportService = {
     );
   },
 
-  getDeleteRequests: async (query: DeleteRequestsQuery = {}) => {
-    const { sessionId, ...rest } = query;
-    return call<DeleteRequest[]>(
+  /**
+   * Fetch the audit log for a single report. Returns the last 50
+   * events by default. Backend enforces auth (owner or TE/Admin).
+   */
+  getReportAudit: async (reportId: string, limit = 50) => {
+    return call<ReportAuditEvent[]>(
       "get",
-      "/trial-report/delete-requests",
-      { ...rest, sessionId: sessionId ?? getSessionId() } as Record<string, unknown>,
+      `/trial-report/reports/${encodeURIComponent(reportId)}/audit`,
+      { limit, sessionId: getSessionId() } as Record<string, unknown>,
     );
   },
 };

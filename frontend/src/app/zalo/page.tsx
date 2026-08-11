@@ -415,7 +415,6 @@ export default function ZaloPage() {
     setLatestSessionIndex(idx);
     // Auto-load lesson content theo lớp + số buổi
     loadLessonContent(cls.id, idx);
-    showToast("success", `Đã áp dụng lớp "${cls.name}" - Buổi ${idx}/${total}`);
   };
 
   const handleSelectLesson = (lessonId: string) => {

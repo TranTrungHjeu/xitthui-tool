@@ -27,10 +27,17 @@ interface Kiro4PlusFormProps {
   onSubmit: (data: Kiro4PlusReportData) => void;
   loading?: boolean;
   initialData?: Partial<Kiro4PlusReportData>;
+  /**
+   * Optional ISO `YYYY-MM-DD` value coming from the parent wizard.
+   * When supplied it pre-seeds the internal `selectedDate` state so
+   * the DatePicker stays in sync with what the user picked in
+   * Step 1. Without it the form falls back to today (Vietnam time).
+   */
+  initialClassDate?: string;
   onDateChange?: (date: string) => void;
 }
 
-export function Kiro4PlusForm({ onSubmit, loading, initialData, onDateChange }: Kiro4PlusFormProps) {
+export function Kiro4PlusForm({ onSubmit, loading, initialData, initialClassDate, onDateChange }: Kiro4PlusFormProps) {
   const [studentName, setStudentName] = useState(initialData?.studentName || "");
   const [ageGrade, setAgeGrade] = useState(initialData?.age_grade || "");
   const [subject, setSubject] = useState(initialData?.subject || "Kiro 4+");
@@ -42,7 +49,7 @@ export function Kiro4PlusForm({ onSubmit, loading, initialData, onDateChange }: 
   const [communication, setCommunication] = useState<Kiro4PlusScore | undefined>(initialData?.communication?.score);
   const [teacherComment, setTeacherComment] = useState(initialData?.teacherComment || "");
   const [recommendation, setRecommendation] = useState(initialData?.recommendation || "");
-  const [selectedDate, setSelectedDate] = useState<string>(getTodayVietnam());
+  const [selectedDate, setSelectedDate] = useState<string>(initialClassDate || getTodayVietnam());
 
   const calculateAverage = () => {
     const scores = [recognition, assembly, programming, communication].filter(s => s !== undefined) as number[];

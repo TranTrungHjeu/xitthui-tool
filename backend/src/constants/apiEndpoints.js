@@ -53,17 +53,16 @@ const ENDPOINTS = {
   BOOKINGS_UNASSIGN: "/spreadsheet/bookings/unassign",
   GK_ASSIGNMENTS: "/spreadsheet/gk-assignments",
 
-  // Trial report (Google Drive)
-  TRIAL_REPORT_FOLDERS: "/trial-report/folders",
-  TRIAL_REPORT_FILES: "/trial-report/files",
+  // Trial report (R2)
   TRIAL_REPORT_REPORT: (id) => `/trial-report/reports/${id}`,
   TRIAL_REPORT_REPORTS: "/trial-report/reports",
   TRIAL_REPORT_UPLOAD: "/trial-report/upload",
-  TRIAL_REPORT_DELETE_REQUEST: "/trial-report/delete-request",
-  TRIAL_REPORT_DELETE_REQUEST_REVIEW: (id) => `/trial-report/delete-request/${id}/review`,
+  TRIAL_REPORT_DIRECT_DELETE: (id) => `/trial-report/reports/${id}/direct-delete`,
   TRIAL_REPORT_DELETE: (id) => `/trial-report/reports/${id}/delete`,
   TRIAL_REPORT_ALL_REPORTS: "/trial-report/all-reports",
-  TRIAL_REPORT_DELETE_REQUESTS: "/trial-report/delete-requests",
+  // NOTE: TRIAL_REPORT_DELETE_REQUEST / _REVIEW / _DELETE_REQUESTS
+  // were removed when the 2-step request/review workflow was replaced
+  // by the password-gated direct delete (TRIAL_REPORT_DIRECT_DELETE).
 
   // Lessons (public route — no auth required)
   LESSONS: "/lesson",

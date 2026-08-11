@@ -361,17 +361,20 @@ const TeacherSchema = new mongoose.Schema(
   { timestamps: { createdAt: false, updatedAt: true } }
 );
 
-// 13. Trial Report Schema (PDFs uploaded to Google Drive)
+// 13. Trial Report Schema (PDFs stored in Cloudflare R2)
 const TrialReportSchema = new mongoose.Schema(
   {
-    _id: { type: String, required: true }, // fileId from Google Drive
+    _id: { type: String, required: true }, // R2 object key (uuidv4-style id)
     fileId: { type: String, required: true },
     fileName: { type: String, default: "" },
     mimeType: { type: String, default: "application/pdf" },
     size: { type: Number, default: null },
-    webViewLink: { type: String, default: "" },
+    webViewLink: { type: String, default: "" }, // presigned R2 download URL (refreshed on demand)
     webContentLink: { type: String, default: "" },
-    parentFolderId: { type: String, default: "" },
+    // R2 object key for the canonical storage layer.
+    // Added when the upload went through R2; null/empty for legacy Drive rows.
+    r2Key: { type: String, default: "" },
+    parentFolderId: { type: String, default: "" }, // kept for legacy compat only
     reportType: {
       type: String,
       enum: ["Kiro4+", "Robotics", "Coding", "Art", "pdf-upload"],
@@ -385,13 +388,34 @@ const TrialReportSchema = new mongoose.Schema(
     uploadedBy: { type: String, default: null },
     uploadedByName: { type: String, default: "" },
     uploadedByEmail: { type: String, default: "" },
-    deletedAt: { type: Date, default: null, index: true }
+    deletedAt: { type: Date, default: null, index: true },
+    // === Versioning (correction re-uploads) ===
+    // Each re-upload with the same studentName + teacherName + classDate
+    // bumps `version` and links to the previous row via `previousReportId`.
+    // `reportGroupId` is a stable id shared across all versions of the same
+    // phiếu so a future "timeline" view can fetch the whole lineage in one
+    // query.
+    version: { type: Number, default: 1, index: true },
+    previousReportId: {
+      type: String,
+      default: null,
+    },
+    reportGroupId: { type: String, default: "", index: true },
   },
   { timestamps: true }
 );
 
 TrialReportSchema.index({ classDate: 1, teacherCode: 1, deletedAt: 1 });
 TrialReportSchema.index({ reportType: 1, createdAt: -1 });
+// Composite index used by the version-bump lookup in the upload flow:
+// "find the latest non-deleted row for this studentName/teacherName/classDate".
+TrialReportSchema.index({
+  studentName: 1,
+  teacherName: 1,
+  classDate: 1,
+  deletedAt: 1,
+  version: -1,
+});
 
 // 14. Trial Report Log Schema (audit trail — auto-deleted after 90 days)
 const TrialReportLogSchema = new mongoose.Schema(
@@ -414,30 +438,9 @@ const TrialReportLogSchema = new mongoose.Schema(
   { timestamps: { createdAt: true, updatedAt: false } }
 );
 
-// 15. Trial Report Delete Request Schema
-const TrialReportDeleteRequestSchema = new mongoose.Schema(
-  {
-    _id: { type: String, required: true }, // downloadId (random uuid)
-    reportId: { type: String, required: true },
-    fileName: { type: String, default: "" },
-    requestedBy: { type: String, default: null },
-    requestedByName: { type: String, default: "" },
-    reason: { type: String, default: "" },
-    status: {
-      type: String,
-      enum: ["pending", "approved", "rejected", "completed"],
-      default: "pending",
-    },
-    reviewedBy: { type: String, default: null },
-    reviewedByName: { type: String, default: "" },
-    reviewedAt: { type: Date, default: null },
-    completedAt: { type: Date, default: null }
-  },
-  { timestamps: true }
-);
-
-TrialReportDeleteRequestSchema.index({ status: 1, createdAt: -1 });
-TrialReportDeleteRequestSchema.index({ reportId: 1, status: 1 });
+// NOTE: `TrialReportDeleteRequest` schema was removed when the 2-step
+// request/review workflow was retired. The delete-password gate on
+// `POST /trial-report/reports/:id/direct-delete` replaced it.
 
 // 16. Lesson Schema (curriculum content for MindX subjects)
 const LessonSchema = new mongoose.Schema(
@@ -728,10 +731,6 @@ module.exports = {
   Teacher: mongoose.model("Teacher", TeacherSchema),
   TrialReport: mongoose.model("TrialReport", TrialReportSchema),
   TrialReportLog: mongoose.model("TrialReportLog", TrialReportLogSchema),
-  TrialReportDeleteRequest: mongoose.model(
-    "TrialReportDeleteRequest",
-    TrialReportDeleteRequestSchema
-  ),
   Lesson: mongoose.model("Lesson", LessonSchema),
   LessonContent: mongoose.model("LessonContent", LessonContentSchema),
   LMSCriteria: mongoose.model("LMSCriteria", LMSCriteriaSchema),

@@ -1,27 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import { trialReportService } from "@/services/trialReportService";
-import { getTodayVietnam } from "@/lib/utils";
 import {
-  uploadPDFFile as driveUploadPDFFile,
-  getGoogleUserInfo,
-} from "@/services/googleDriveService";
+  uploadPDFFile as r2UploadPDFFile,
+} from "@/services/r2Service";
 import {
-  REPORT_TEMPLATES,
   type ReportType,
   type Kiro4PlusReportData,
   type RoboticsReportData,
@@ -42,14 +29,19 @@ interface CreateReportFormProps {
   onError: (msg: string | null) => void;
   onClose: () => void;
   onRefresh: () => void;
+  /**
+   * Controlled values coming from the parent wizard's Step 1.
+   * `onClassDateChange` is optional because the Robotics / Coding /
+   * Art sub-forms don't surface their own DatePicker back to the
+   * parent — only `Kiro4PlusForm` does. The parent still receives
+   * the latest date via these props.
+   */
+  initialReportType: ReportType;
+  initialClassDate: string;
+  initialTeacherName: string;
+  initialStudentName: string;
+  onClassDateChange?: (date: string) => void;
 }
-
-const TEMPLATE_OPTIONS: { type: ReportType; icon: string; label: string }[] = [
-  { type: "Kiro4+", icon: "🤸", label: "Robotics 4+" },
-  { type: "Robotics", icon: "🤖", label: "Robotics" },
-  { type: "Coding", icon: "💻", label: "Coding" },
-  { type: "Art", icon: "🎨", label: "Art" },
-];
 
 function safeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9-_\.]/g, "_").slice(0, 200);
@@ -66,21 +58,14 @@ function formatDateParts(classDate: string): {
     const y = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
-    return { year: String(y), month: mm, day: `${dd}/${mm}/${y}` };
+    return { year: String(y), month: mm, day: `${dd}-${mm}-${y}` };
   }
   const [, y, mm, dd] = m;
-  return { year: y, month: mm, day: `${dd}/${mm}/${y}` };
+  return { year: y, month: mm, day: `${dd}-${mm}-${y}` };
 }
 
 function blobToFile(blob: Blob, filename: string): File {
   return new File([blob], filename, { type: blob.type || "application/pdf" });
-}
-
-function formatDateForPdf(date: Date): string {
-  const dd = String(date.getDate()).padStart(2, "0");
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const yyyy = String(date.getFullYear());
-  return `${dd}/${mm}/${yyyy}`;
 }
 
 export function formatDateForPdfShortYear(date: Date): string {
@@ -91,9 +76,10 @@ export function formatDateForPdfShortYear(date: Date): string {
 }
 
 /**
- * Push a generated PDF blob to Drive via the user's OAuth token, then
- * register the resulting file with the backend. Mirrors the sub-project
- * `UploadForm` pattern (browser-direct upload → backend metadata upsert).
+ * Push a generated PDF blob to R2 via the backend's multipart endpoint,
+ * then register the resulting file with the backend. Mirrors the
+ * sub-project `UploadForm` pattern (browser-direct upload → backend
+ * metadata upsert).
  */
 async function uploadAndRegister(
   pdfBlob: Blob,
@@ -109,7 +95,7 @@ async function uploadAndRegister(
   const { year, month, day } = formatDateParts(meta.classDate);
   const file = blobToFile(pdfBlob, fileName);
 
-  const uploaded = await driveUploadPDFFile({
+  const uploaded = await r2UploadPDFFile({
     year,
     month,
     day,
@@ -118,21 +104,17 @@ async function uploadAndRegister(
     file,
   });
 
-  const userInfo = await getGoogleUserInfo().catch(() => null);
-
   return trialReportService.registerReport({
-    driveFileId: uploaded.id,
+    r2Key: uploaded.id,
     fileName: uploaded.name,
     mimeType: uploaded.mimeType,
     size: uploaded.size,
     webViewLink: uploaded.webViewLink,
-    webContentLink: uploaded.webContentLink,
-    parentFolderId: uploaded.parents?.[0] || meta.folderId || null,
     reportType: meta.reportType,
     classDate: meta.classDate,
     teacherName: meta.teacherName,
     studentName: meta.studentName,
-    uploadedByEmail: userInfo?.email || null,
+    uploadedByEmail: null,
   });
 }
 
@@ -141,13 +123,24 @@ export function CreateReportForm({
   onError,
   onClose,
   onRefresh,
+  initialReportType,
+  initialClassDate,
+  initialTeacherName,
+  initialStudentName,
+  onClassDateChange,
 }: CreateReportFormProps) {
-  const [reportType, setReportType] = useState<ReportType>("Kiro4+");
-  const [classDate, setClassDate] = useState<string>(getTodayVietnam());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // The parent wizard owns these values. We just consume them so
+  // the sub-forms can pre-fill and the PDF/R2 metadata stays in
+  // sync with what the user entered in Step 1.
+  const reportType = initialReportType;
+  const classDate = initialClassDate;
+  const teacherName = initialTeacherName;
+  const studentName = initialStudentName;
+
   const handleDateChange = (date: string) => {
-    setClassDate(date);
+    onClassDateChange?.(date);
   };
 
   const handleSubmitKiro4Plus = async (data: Kiro4PlusReportData) => {
@@ -272,29 +265,6 @@ export function CreateReportForm({
 
   return (
     <div className="space-y-4">
-      <div className="p-4 bg-muted/50 rounded-lg border">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-sm font-medium">Chọn template phiếu:</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {TEMPLATE_OPTIONS.map((opt) => (
-            <button
-              key={opt.type}
-              type="button"
-              onClick={() => setReportType(opt.type)}
-              className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
-                reportType === opt.type
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background border-border hover:bg-muted"
-              }`}
-            >
-              <span className="mr-1.5">{opt.icon}</span>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       <Separator />
 
       <div className="border-t pt-4">
@@ -302,7 +272,12 @@ export function CreateReportForm({
           <Kiro4PlusForm
             onSubmit={handleSubmitKiro4Plus}
             loading={isSubmitting}
-            initialData={{ date: formatDateForPdfShortYear(new Date(classDate)) }}
+            initialData={{
+              studentName,
+              teacher: teacherName,
+              date: formatDateForPdfShortYear(new Date(classDate)),
+            }}
+            initialClassDate={classDate}
             onDateChange={handleDateChange}
           />
         )}
@@ -311,7 +286,11 @@ export function CreateReportForm({
           <RoboticsForm
             onSubmit={handleSubmitRobotics}
             loading={isSubmitting}
-            initialData={{ date: formatDateForPdfShortYear(new Date(classDate)) }}
+            initialData={{
+              studentName,
+              teacher: teacherName,
+              date: formatDateForPdfShortYear(new Date(classDate)),
+            }}
           />
         )}
 
@@ -319,7 +298,11 @@ export function CreateReportForm({
           <CodingForm
             onSubmit={handleSubmitCoding}
             loading={isSubmitting}
-            initialData={{ date: formatDateForPdfShortYear(new Date(classDate)) }}
+            initialData={{
+              studentName,
+              teacher: teacherName,
+              date: formatDateForPdfShortYear(new Date(classDate)),
+            }}
           />
         )}
 
@@ -327,7 +310,11 @@ export function CreateReportForm({
           <ArtForm
             onSubmit={handleSubmitArt}
             loading={isSubmitting}
-            initialData={{ date: formatDateForPdfShortYear(new Date(classDate)) }}
+            initialData={{
+              studentName,
+              teacher: teacherName,
+              date: formatDateForPdfShortYear(new Date(classDate)),
+            }}
           />
         )}
       </div>

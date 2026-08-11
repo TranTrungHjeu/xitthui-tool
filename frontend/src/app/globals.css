@@ -137,34 +137,21 @@
   --sidebar-accent-foreground: hsl(358 78% 45%);
   --sidebar-border: hsl(240 15% 92%);
   --sidebar-ring: hsl(358 78% 51%);
-
-  /* ============================================================
-     BRAND COLOR ROLES — 60:30:10
-       60% Neutral (Stratos #000056)  — text + background surfaces
-       30% Accent  (Sunglow #FFD62D) — pending/highlight/decorative
-       10% Action  (Alizarin #E31F26) — CTA, alerts, primary actions
-     ============================================================ */
   --brand-60: hsl(240 100% 17%); /* Stratos Navy #000056 */
   --brand-60-soft: hsl(240 30% 96%); /* Navy tinted surface */
   --brand-30: hsl(48 100% 59%); /* Sunglow Gold #FFD62D */
   --brand-30-soft: hsl(48 100% 94%); /* Sunglow tinted surface */
   --brand-10: hsl(358 78% 51%); /* Alizarin Crimson #E31F26 */
   --brand-10-soft: hsl(358 78% 95%); /* Crimson tinted surface */
-
-  /* Toast variants — sourced from the Toast Component UI Design
-     (Community) Figma file. These are intentionally distinct from
-     the brand palette so toast colors read as "system feedback"
-     rather than "MindX marketing" (brand-10 etc.). Used by
-     <Toast /> (frontend/src/components/ui/toast.tsx). */
-  --toast-info: hsl(217 89% 59%);     /* #4B85F5 — Figma Accent/Info */
+  --toast-info: hsl(217 89% 59%); /* #4B85F5 — Figma Accent/Info */
   --toast-info-tint: hsl(217 89% 95%);
-  --toast-success: hsl(151 99% 45%);  /* #01E17B — Figma Accent/Success */
+  --toast-success: hsl(151 99% 45%); /* #01E17B — Figma Accent/Success */
   --toast-success-tint: hsl(151 99% 95%);
-  --toast-error: hsl(358 88% 61%);    /* #F04349 — Figma Accent/Error */
+  --toast-error: hsl(358 88% 61%); /* #F04349 — Figma Accent/Error */
   --toast-error-tint: hsl(358 88% 96%);
-  --toast-warning: hsl(49 98% 52%);   /* #FDCD0F — Figma Accent/Warning */
+  --toast-warning: hsl(49 98% 52%); /* #FDCD0F — Figma Accent/Warning */
   --toast-warning-tint: hsl(49 98% 95%);
-  --toast-neutral: hsl(220 13% 19%);  /* #2D3438 — Figma Black */
+  --toast-neutral: hsl(220 13% 19%); /* #2D3438 — Figma Black */
 
   /* MindX Chart Palette */
   --chart-1: hsl(358 78% 51%); /* Alizarin Crimson */
@@ -176,10 +163,6 @@
   /* Shape & elevation */
   --radius: 0.625rem;
 }
-
-/* ============================================================
-   DARK THEME — Deep Stratos Navy (#03031d), Premium MindX Glow
-   ============================================================ */
 .dark {
   --primary: hsl(358 85% 58%); /* Vibrant Crimson in dark */
   --primary-foreground: hsl(0 0% 100%);
@@ -232,9 +215,6 @@
   --chart-3: hsl(217 91% 65%);
   --chart-4: hsl(142 71% 48%);
   --chart-5: hsl(280 80% 65%);
-
-  /* Toast variants — same Figma-derived values, kept identical across
-     light/dark so toasts read consistently as system feedback. */
   --toast-info: hsl(217 89% 65%);
   --toast-info-tint: hsl(217 60% 18%);
   --toast-success: hsl(151 99% 50%);
@@ -246,9 +226,6 @@
   --toast-neutral: hsl(220 13% 90%);
 }
 
-/* ============================================================
-   BASE LAYER
-   ============================================================ */
 @layer base {
   * {
     @apply border-border;
@@ -274,8 +251,6 @@
     line-height: 1.55;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
-
-  /* Heading scale — geometric, tight, modern */
   h1,
   h2,
   h3,
@@ -295,24 +270,21 @@
     font-family: var(--font-mono), ui-monospace, "JetBrains Mono", monospace;
     font-feature-settings: "ss01", "ss02";
   }
-
-  /* Modern focus ring */
   :focus-visible {
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
     border-radius: calc(var(--radius) - 4px);
   }
-
-  /* Better selection */
-  ::selection {
-    background-color: hsl(var(--primary) / 0.18);
-    color: hsl(var(--foreground));
-  }
+}
+::selection {
+  background-color: hsl(358 78% 55% / 0.75);
+  color: hsl(0 0% 100%);
 }
 
-/* ============================================================
-   SCROLLBAR — slim, premium, theme-aware
-   ============================================================ */
+.dark ::selection {
+  background-color: hsl(358 85% 60% / 0.7);
+  color: hsl(0 0% 100%);
+}
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--muted-foreground) / 0.25) transparent;
@@ -360,8 +332,6 @@
 .custom-scrollbar.no-vertical-scrollbar::-webkit-scrollbar {
   width: 0px !important;
 }
-
-/* Default global scrollbar — hide vertical scrollbars globally, show horizontal scrollbars */
 ::-webkit-scrollbar {
   width: 0px !important; /* Hide vertical scrollbar globally */
   height: 6px; /* Show horizontal scrollbar globally */
@@ -383,11 +353,6 @@ html,
 body {
   -ms-overflow-style: none;
 }
-
-/* ============================================================
-   GLOBAL: force text selection + copy/cut/selectstart
-   (NOT inside @layer base — keeps higher specificity than Tailwind utilities)
-   ============================================================ */
 html,
 body,
 input,
@@ -397,6 +362,12 @@ textarea,
   -moz-user-select: text !important;
   -ms-user-select: text !important;
   user-select: text !important;
+}
+
+input,
+textarea {
+  overflow-x: auto !important;
+  scroll-padding-inline: 4px;
 }
 
 *,
@@ -883,7 +854,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 0.6;
   filter: saturate(0.5) brightness(0.8);
-  transition: opacity 0.15s, filter 0.15s;
+  transition:
+    opacity 0.15s,
+    filter 0.15s;
 }
 input[type="date"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;

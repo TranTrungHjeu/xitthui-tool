@@ -36,6 +36,7 @@ const lmsRoutes = require("./routes/lmsRoutes");
 const zaloRoutes = require("./routes/zaloRoutes");
 const lessonRoutes = require("./routes/lessonRoutes");
 const payrollRoutes = require("./routes/payrollRoutes");
+const r2Routes = require("./routes/r2Routes");
 const NotificationScheduler = require("./services/notificationScheduler");
 const StudentScheduler = require("./services/studentScheduler");
 const StudentCommentsScheduler = require("./services/studentCommentsScheduler");
@@ -183,6 +184,7 @@ app.use(express.urlencoded({ extended: true, limit: "200kb" }));
 app.use(cookieParser); // populates req.cookies from the Cookie header
 app.use(cookieAuth); // copies req.cookies.lms_token/session_id into req.lmsToken/req.sessionId
 app.use("/", healthRoutes);
+app.use("/r2", r2Routes);
 app.use("/", authRoutes);
 app.use("/", classRoutes);
 app.use("/", sessionRoutes);

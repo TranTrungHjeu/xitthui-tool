@@ -1,30 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle, LogOut, LogIn, FileText, Folder, List, Upload, RefreshCw, ChevronRight, Loader2 } from "lucide-react";
+import { CheckCircle, FileText, Folder, LayoutList, LayoutGrid, Upload, RefreshCw, ChevronRight, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { Select, SelectItem, SelectContent } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import { useAuthStore } from "@/store/useAuthStore";
-import { isTE } from "@/lib/utils";
+import { hasPermission } from "@/lib/utils";
 import { FileList } from "./components/FileList";
 import { UploadDialog } from "./components/UploadDialog";
 import { AllFilesList } from "./components/AllFilesList";
+// DeleteRequestBell was removed when the request/review flow was
+// replaced by the password-gated direct delete.
 import { trialReportService } from "@/services/trialReportService";
 import {
-  initializeGoogleDrive,
-  setAuthStatusListener,
-  setTokenExpiredListener,
-  signInToGoogle,
-  signOutFromGoogle,
-  getGoogleUserInfo,
-  getTokenInfo,
-  isUserSignedIn,
   listFoldersInFolder,
   listFilesInFolder,
-  deleteFile as driveDeleteFile,
-} from "@/services/googleDriveService";
-import { getRootFolderId as getDriveRootFolderId } from "@/services/googleDriveService";
-import type { DriveFolder, DriveFile } from "@/types/trialReport";
+  checkHealth,
+} from "@/services/r2Service";
+import type { StorageFolder, StorageItem } from "@/services/r2Service";
 
 interface Crumb {
   id: string | null;
@@ -41,42 +37,34 @@ export default function TrialReportPage() {
     setIsHydrated(true);
   }, []);
 
-  const [view, setView] = useState<"browser" | "all">("browser");
+  const [viewMode, setViewMode] = useState<"tree" | "list">("tree");
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [currentFolderName, setCurrentFolderName] = useState<string>("Tất cả phiếu");
-  const [folders, setFolders] = useState<DriveFolder[]>([]);
-  const [files, setFiles] = useState<DriveFile[]>([]);
+  const [folders, setFolders] = useState<StorageFolder[]>([]);
+  const [files, setFiles] = useState<StorageItem[]>([]);
   const [crumbs, setCrumbs] = useState<Crumb[]>([ROOT_CRUMB]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(true);
   const [isLoadingFiles, setIsLoadingFiles] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [isDriveSignedIn, setIsDriveSignedIn] = useState(false);
-  const [driveUserEmail, setDriveUserEmail] = useState<string | null>(null);
-  const [driveRemainingMinutes, setDriveRemainingMinutes] = useState<number>(0);
-  const [isSigningOut, setIsSigningOut] = useState(false);
-  // Used both by the header CTA ("Đăng nhập Google" → "Thêm phiếu"
-  // once sign-in completes) and to keep the actual upload flow from
-  // silently opening before sign-in lands.
-  const [isSigningIn, setIsSigningIn] = useState(false);
-
-  // Persistent banner shown when the Google access token expires.
-  // Distinct from `toast.error` because the auto re-auth flow needs
-  // the message to stay visible until the user successfully signs back
-  // in (toasts auto-dismiss and would leave the page looking stale).
-  const [errorTitle, setErrorTitle] = useState<string | null>(null);
+  const [r2Healthy, setR2Healthy] = useState<boolean | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const clearError = () => {
-    setErrorTitle(null);
-    setErrorMsg(null);
-  };
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
+  const [filterTeacherCode, setFilterTeacherCode] = useState("");
+  const [filterStudentName, setFilterStudentName] = useState("");
+  const [filterReportType, setFilterReportType] = useState("");
+  const [filterTrigger, setFilterTrigger] = useState(0);
 
-  const showError = (msg: string | null) => {
+  const showError = useCallback((msg: string | null) => {
     if (msg) toast.error(msg);
-  };
+  }, []);
 
-  const isAdmin = isTE(user);
+  const isAdmin = hasPermission(user, "canViewAll");
+  const canDelete = hasPermission(user, "canDelete");
+  const canUpload = hasPermission(user, "canUpload");
+  const canApprove = hasPermission(user, "canApprove");
 
   const loadFolders = useCallback(async (folderId: string | null, skipInitialLoadReset = false) => {
     if (!skipInitialLoadReset) {
@@ -84,323 +72,65 @@ export default function TrialReportPage() {
       setIsLoadingFiles(true);
     }
     try {
-      // Make sure gapi / GIS libraries are loaded before we hit Drive.
-      // The `useEffect` that kicks off `initializeGoogleDrive()` may not
-      // have resolved yet by the time this callback fires (it runs on
-      // mount and on `view`/`currentFolderId` changes), so calling
-      // `listFoldersInFolder` now would throw `gapi is not defined`.
-      try {
-        await initializeGoogleDrive();
-      } catch (initErr: any) {
-        // Init failed (missing env, no network, etc.) — surface the
-        // message and stop, instead of crashing on `gapi is not defined`.
-        setFolders([]);
-        setFiles([]);
-        showError(initErr?.message || "Không thể khởi tạo Google Drive");
-        setIsLoadingFolders(false);
-        setIsLoadingFiles(false);
-        setIsInitialLoad(false);
-        return;
-      }
-
-      // No token yet (first visit, or user just signed out). Don't hit
-      // the Drive API — `assertTokenValid` would throw and trigger the
-      // auto re-auth popup, which the browser blocks when not in a user
-      // gesture. The header CTA ("Đăng nhập Google" with a small badge)
-      // is the only entry point; clicking it opens the OAuth popup
-      // legitimately inside a user-gesture handler.
-      if (!isUserSignedIn()) {
-        setFolders([]);
-        setFiles([]);
-        setIsLoadingFolders(false);
-        setIsLoadingFiles(false);
-        setIsInitialLoad(false);
-        return;
-      }
-
-      // Browser-direct Drive listings (was: trialReportService.getFolders / getFiles).
-      // The backend proxy no longer exists because service-account Drive
-      // listing/uploading hits `storageQuotaExceeded` for personal folders.
-      const target = folderId || getDriveRootFolderId() || null;
+      const target = folderId || null;
       const [foldersRes, filesRes] = await Promise.all([
-        listFoldersInFolder(target || undefined).then(
-          (items) => ({ success: true, data: items as DriveFolder[] }),
-          (e) => ({ success: false, error: e?.message || "Drive folders failed", data: [] }),
+        listFoldersInFolder(target).then(
+          (items) => ({ success: true, data: items }),
+          (e) => ({ success: false, error: e?.message || "Tải thư mục thất bại", data: [] as StorageFolder[] }),
         ),
-        listFilesInFolder(target || undefined).then(
-          (items) => ({ success: true, data: items as DriveFile[] }),
-          (e) => ({ success: false, error: e?.message || "Drive files failed", data: [] }),
+        listFilesInFolder(target).then(
+          (items) => ({ success: true, data: items }),
+          (e) => ({ success: false, error: e?.message || "Tải file thất bại", data: [] as StorageItem[] }),
         ),
       ]);
       if (foldersRes.success) {
-        setFolders(foldersRes.data as DriveFolder[]);
+        setFolders(foldersRes.data);
       } else {
         setFolders([]);
       }
       if (filesRes.success) {
-        setFiles(filesRes.data as DriveFile[]);
+        setFiles(filesRes.data);
       } else {
         setFiles([]);
       }
       if (!foldersRes.success || !filesRes.success) {
-        showError(
-          (foldersRes as any).error || (filesRes as any).error || "Không thể tải dữ liệu Drive",
-        );
+        showError((foldersRes as any).error || (filesRes as any).error);
       }
     } catch (err: any) {
-      // When the token has just expired, the service fires the global
-      // re-auth flow and throws a friendly message. We only need to
-      // surface generic errors here.
-      const message = err?.message || "Không thể tải dữ liệu Drive";
-      showError(message);
-      console.error("loadFolders failed:", err);
+      showError(err?.message || "Không thể tải dữ liệu");
     } finally {
       setIsLoadingFolders(false);
       setIsLoadingFiles(false);
       setIsInitialLoad(false);
     }
+  }, [showError]);
+
+  // Load storage health on mount
+  useEffect(() => {
+    checkHealth().then(setR2Healthy).catch(() => setR2Healthy(false));
   }, []);
 
   useEffect(() => {
-    if (view === "browser") {
-      loadFolders(currentFolderId);
-    }
+    loadFolders(currentFolderId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, currentFolderId]);
-
-  // Initialize the Drive service + subscribe to auth-status changes.
-  // We also force-sync the page state from `localStorage` synchronously
-  // before the service resolves, because background-tab suspension can
-  // leave `isUserSignedIn()` returning false even though a valid token
-  // is still persisted. Reading localStorage directly avoids the F5.
-  useEffect(() => {
-    const syncFromLocalStorage = () => {
-      try {
-        const saved = localStorage.getItem("google_drive_token");
-        if (!saved) return false;
-        const data = JSON.parse(saved);
-        if (data.expiry > Date.now() && data.access_token) {
-          setIsDriveSignedIn(true);
-          setDriveRemainingMinutes(
-            Math.max(0, Math.floor((data.expiry - Date.now()) / 60000))
-          );
-          getGoogleUserInfo().then((info) => {
-            if (info) setDriveUserEmail(info.email);
-          });
-          return true;
-        }
-        return false;
-      } catch {
-        return false;
-      }
-    };
-
-    // Sync from persisted token first — this makes the UI correct on
-    // mount without waiting for `initializeGoogleDrive` to resolve.
-    syncFromLocalStorage();
-
-    const unsubscribe = setAuthStatusListener((status) => {
-      setIsDriveSignedIn(status.isSignedIn);
-      if (status.isSignedIn) {
-        // Successful re-auth (e.g. after the token-expired banner was
-        // shown) — clear the persistent banner so the user can see
-        // the recovered state.
-        clearError();
-        setDriveUserEmail(null);
-        setDriveRemainingMinutes(getTokenInfo().remainingMinutes);
-        getGoogleUserInfo().then((info) => {
-          if (info) setDriveUserEmail(info.email);
-        });
-      } else {
-        setDriveUserEmail(null);
-        setDriveRemainingMinutes(0);
-      }
-    });
-
-    initializeGoogleDrive().catch((error) => {
-      console.error("Failed to initialize Google Drive:", error);
-    });
-
-    // After init resolves, re-check the localStorage source — covers the
-    // case where the authStatusListener fired before we mounted.
-    initializeGoogleDrive()
-      .then(() => {
-        if (isUserSignedIn()) {
-          setIsDriveSignedIn(true);
-          setDriveRemainingMinutes(getTokenInfo().remainingMinutes);
-          getGoogleUserInfo().then((info) => {
-            if (info) setDriveUserEmail(info.email);
-          });
-        } else {
-          // service lost the token — try to restore from localStorage
-          syncFromLocalStorage();
-        }
-      })
-      .catch(() => {
-        /* already logged above */
-      });
-
-    return () => {
-      unsubscribe();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /**
-   * Proactive re-auth: when the access token expires (either caught by
-   * the refresh monitor or by a 401 from a Drive API call), the
-   * `googleDriveService` will invoke this callback. We immediately
-   * reopen the Google consent flow so the user is sent back to the
-   * sign-in screen rather than left looking at a stale page that no
-   * longer works. We also show a banner explaining what happened.
-   */
-  useEffect(() => {
-    setTokenExpiredListener(async () => {
-      setErrorTitle("Phiên Google đã hết hạn");
-      setErrorMsg("Đang mở lại màn hình đăng nhập...");
-      try {
-        await signInToGoogle();
-      } catch (err) {
-        console.error("Auto re-auth failed:", err);
-        setErrorMsg(
-          "Phiên Google đã hết hạn. Vui lòng bấm \"Đăng nhập Google\" để tiếp tục."
-        );
-      }
-    });
-  }, []);
-
-  // Re-sync the page-level Drive sign-in state when the tab becomes
-  // visible again. Background tabs can have their JS engines suspended,
-  // which leaves the module-level `accessToken` and `isUserSignedIn()`
-  // out of sync with the persisted token in localStorage. Without this
-  // re-check, the user sees the "Chỉ xem" UI even though they are
-  // already signed in, and has to F5 to recover.
-  useEffect(() => {
-    const refreshDriveState = async () => {
-      if (document.visibilityState !== "visible") return;
-      try {
-        const savedToken = localStorage.getItem("google_drive_token");
-        if (savedToken) {
-          const tokenData = JSON.parse(savedToken);
-          if (tokenData.expiry > Date.now() && tokenData.access_token) {
-            // Restore the module-level accessToken before reading
-            // token info, so `getTokenInfo()` reflects reality.
-            try {
-              const { setStoredAccessToken } = await import(
-                "@/services/googleDriveService"
-              );
-              setStoredAccessToken(tokenData.access_token);
-            } catch (err) {
-              console.error("Failed to restore Drive token on visibility:", err);
-            }
-            setIsDriveSignedIn(true);
-            setDriveRemainingMinutes(getTokenInfo().remainingMinutes);
-            getGoogleUserInfo().then((info) => {
-              if (info) setDriveUserEmail(info.email);
-            });
-            // We came back to the tab and now have a token — cancel
-            // any pending "sign-in in progress" so the header CTA
-            // doesn't stay stuck on the loading state.
-            setIsSigningIn(false);
-            return;
-          }
-        }
-        setIsDriveSignedIn(false);
-        setDriveUserEmail(null);
-        setDriveRemainingMinutes(0);
-        // If the user closed the OAuth popup without completing the
-        // flow, GIS should fire its callback with `popup_closed`, but
-        // in some edge cases (popup dismissed before the handler is
-        // wired) it never fires. Detect that condition here so the
-        // "Đăng nhập" button doesn't stay disabled forever.
-        setIsSigningIn((prev) => {
-          if (prev) {
-            showError(
-              "Đăng nhập Google đã bị huỷ hoặc không phản hồi. Vui lòng thử lại.",
-            );
-          }
-          return false;
-        });
-      } catch (err) {
-        console.error("Failed to refresh Drive sign-in state:", err);
-      }
-    };
-
-    document.addEventListener("visibilitychange", refreshDriveState);
-    window.addEventListener("focus", refreshDriveState);
-    return () => {
-      document.removeEventListener("visibilitychange", refreshDriveState);
-      window.removeEventListener("focus", refreshDriveState);
-    };
-  }, []);
-
-  const handleOpenUpload = async () => {
-    // Re-check the persisted token before opening OAuth. If the page
-    // thinks we're signed out (e.g. module-level accessToken was
-    // cleared during a long background-tab period) but a valid token
-    // still exists in localStorage, restore it first so the UI updates
-    // to "Đã kết nối" instead of triggering an unnecessary OAuth pop-up.
-    if (!isDriveSignedIn) {
-      try {
-        const saved = localStorage.getItem("google_drive_token");
-        if (saved) {
-          const data = JSON.parse(saved);
-          if (data.expiry > Date.now() && data.access_token) {
-            const { setStoredAccessToken } = await import(
-              "@/services/googleDriveService"
-            );
-            setStoredAccessToken(data.access_token);
-            setIsDriveSignedIn(true);
-            setDriveRemainingMinutes(
-              Math.max(0, Math.floor((data.expiry - Date.now()) / 60000))
-            );
-            getGoogleUserInfo().then((info) => {
-              if (info) setDriveUserEmail(info.email);
-            });
-            setUploadOpen(true);
-            return;
-          }
-        }
-      } catch (err) {
-        console.error("Failed to restore Drive token before upload:", err);
-      }
-      try {
-        await signInToGoogle();
-      } catch (err) {
-        console.error("Google sign-in failed:", err);
-      }
-      return;
-    }
-    setUploadOpen(true);
-  };
-
-  const handleSignOut = async () => {
-    setIsSigningOut(true);
-    try {
-      await signOutFromGoogle();
-      setIsDriveSignedIn(false);
-      setDriveUserEmail(null);
-      setDriveRemainingMinutes(0);
-    } catch (err) {
-      console.error("Google sign-out failed:", err);
-    } finally {
-      setIsSigningOut(false);
-    }
-  };
+  }, [currentFolderId]);
 
   const handleFolderSelect = useCallback((folderId: string | null, folderName: string) => {
     setCurrentFolderId(folderId);
     setCurrentFolderName(folderName);
   }, []);
 
-  const handleEnterFolder = (folder: DriveFolder) => {
+  const handleEnterFolder = (folder: StorageFolder) => {
     const next = [...crumbs];
     const last = next[next.length - 1];
-    if (last?.id !== folder.id) {
-      next.push({ id: folder.id, name: folder.name });
+    // Use folder.path (relative) for navigation — folder.id is the full
+    // S3 key used only for React keys / internal tracking.
+    const folderPath = (folder as any).path ?? folder.id;
+    if (last?.id !== folderPath) {
+      next.push({ id: folderPath, name: folder.name });
       setCrumbs(next);
     }
-    handleFolderSelect(folder.id, folder.name);
+    handleFolderSelect(folderPath, folder.name);
   };
 
   const handleCrumbClick = (idx: number) => {
@@ -426,196 +156,239 @@ export default function TrialReportPage() {
     );
   }
 
-  const mainContent = (
-    <>
-      {/* ===== Alerts (rendered as a modal below) ===== */}
+  return (
+    <main className="space-y-4 mx-auto px-4 sm:px-6 py-5">
+      {/* Error banner */}
+      {errorMsg && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900 shadow-sm"
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
+            <RefreshCw className="h-4 w-4 text-red-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold leading-tight">Lỗi</p>
+            <p className="text-xs text-red-800/90 mt-0.5">{errorMsg}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMsg(null)}
+            className="shrink-0 rounded-md p-1 text-red-700/70 hover:bg-red-100 hover:text-red-900 transition-colors"
+            aria-label="Đóng thông báo"
+          >
+            <span className="text-xs font-semibold">Đóng</span>
+          </button>
+        </div>
+      )}
 
-      {/* ===== Main Content ===== */}
+      {/* R2 health indicator */}
+      {r2Healthy === false && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 shadow-sm"
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100">
+            <RefreshCw className="h-4 w-4 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold leading-tight">Lưu trữ cloud chưa sẵn sàng</p>
+            <p className="text-xs text-amber-800/90 mt-0.5">
+              R2 không khả dụng. Kiểm tra cấu hình R2 trong .env.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
       <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm shadow-black/[0.02] overflow-hidden">
-        <div className="flex h-[calc(100vh-340px)] min-h-[500px]">
-          {/* Sidebar */}
-          {view === "browser" && (
-            <aside className="w-64 shrink-0 bg-gradient-to-b from-slate-50/50 to-white border-r border-slate-200/70 flex flex-col overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Folder className="h-4 w-4 text-amber-500" />
-                  <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                    Thư mục
-                  </span>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0 text-slate-400 hover:text-foreground"
-                  onClick={() => loadFolders(currentFolderId)}
-                  title="Tải lại"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isLoadingFolders ? "animate-spin" : ""}`} />
-                </Button>
+        <div className="flex h-[calc(100vh-180px)] min-h-[700px]">
+          {/* Sidebar - only show in tree view */}
+          {viewMode === "tree" && (
+          <aside className="w-64 shrink-0 bg-gradient-to-b from-slate-50/50 to-white border-r border-slate-200/70 flex flex-col overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Folder className="h-4 w-4 text-amber-500" />
+                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                  Thư mục
+                </span>
               </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 w-7 p-0 text-slate-400 hover:text-foreground"
+                onClick={() => loadFolders(currentFolderId)}
+                title="Tải lại"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isLoadingFolders ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
 
-              <div className="flex-1 overflow-y-auto p-2">
-                {isLoadingFolders || (isInitialLoad && folders.length === 0 && files.length === 0) ? (
-                  <div className="flex items-center justify-center py-8 text-sm text-slate-400">
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Đang tải...
-                  </div>
-                ) : folders.length === 0 && files.length === 0 ? (
-                  <p className="text-xs text-slate-400 py-4 text-center">Thư mục trống</p>
-                ) : (
-                  <>
-                    {folders.length > 0 && (
-                      <div className="mb-3">
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase px-2 mb-1.5">Thư mục</p>
-                        <ul className="space-y-0.5">
-                          {folders.map((folder) => (
-                            <li key={folder.id}>
-                              <button
-                                type="button"
-                                onClick={() => handleEnterFolder(folder)}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-amber-50 transition-colors text-left"
-                              >
-                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-100">
-                                  <Folder className="h-4 w-4 text-amber-600" />
-                                </span>
-                                <span className="truncate font-medium text-foreground">{folder.name}</span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {files.length > 0 && (
-                      <div>
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase px-2 mb-1.5">Files</p>
-                        <ul className="space-y-0.5">
-                          {files.map((file) => (
-                            <li key={file.id}>
-                              <a
-                                href={file.webViewLink ?? undefined}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-primary/5 hover:text-primary transition-colors text-left"
-                              >
-                                <FileText className="h-4 w-4 ml-1.5 text-blue-500 shrink-0" />
-                                <span className="truncate text-muted-foreground">{file.name}</span>
-                              </a>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </aside>
+            <div className="flex-1 overflow-y-auto p-2">
+              {isLoadingFolders || (isInitialLoad && folders.length === 0 && files.length === 0) ? (
+                <div className="flex items-center justify-center py-8 text-sm text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Đang tải...
+                </div>
+              ) : folders.length === 0 && files.length === 0 ? (
+                <p className="text-xs text-slate-400 py-4 text-center">Thư mục trống</p>
+              ) : (
+                <>
+                  {folders.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase px-2 mb-1.5">Thư mục</p>
+                      <ul className="space-y-0.5">
+                        {folders.map((folder) => (
+                          <li key={folder.id}>
+                            <button
+                              type="button"
+                              onClick={() => handleEnterFolder(folder)}
+                              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-amber-50 transition-colors text-left"
+                            >
+                              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-100">
+                                <Folder className="h-4 w-4 text-amber-600" />
+                              </span>
+                              <span className="truncate font-medium text-foreground">{folder.name}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {files.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase px-2 mb-1.5">Files</p>
+                      <ul className="space-y-0.5">
+                        {files.map((file) => (
+                          <li key={file.id}>
+                            <a
+                              href={file.webViewLink ?? undefined}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-primary/5 hover:text-primary transition-colors text-left"
+                            >
+                              <FileText className="h-4 w-4 ml-1.5 text-blue-500 shrink-0" />
+                              <span className="truncate text-muted-foreground">{file.name}</span>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </aside>
           )}
 
           {/* Content Area */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Toolbar */}
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2 bg-white">
-              <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-100/70">
-                <Button
-                  size="sm"
-                  variant={view === "browser" ? "default" : "ghost"}
-                  className="h-8 shadow-sm"
-                  onClick={() => setView("browser")}
-                >
-                  <Folder className="h-3.5 w-3.5 mr-1.5" />
-                  Trình duyệt
-                </Button>
-                {isAdmin && (
-                  <Button
-                    size="sm"
-                    variant={view === "all" ? "default" : "ghost"}
-                    className="h-8 shadow-sm"
-                    onClick={() => setView("all")}
+            <div className="px-4 py-3 border-b border-slate-100 bg-white overflow-x-auto sticky top-0 z-20 isolate">
+              <div className="flex items-center gap-3">
+                {/* Left group */}
+                <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+                  <div
+                    className="flex items-center gap-0.5 rounded-lg bg-slate-100/70 p-0.5 shrink-0"
+                    role="group"
+                    aria-label="Chế độ hiển thị"
                   >
-                    <List className="h-3.5 w-3.5 mr-1.5" />
-                    Tất cả
-                  </Button>
-                )}
-              </div>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant={viewMode === "list" ? "default" : "ghost"}
+                      className="shadow-sm"
+                      onClick={() => setViewMode("list")}
+                      aria-label="Chế độ danh sách"
+                      title="Chế độ danh sách"
+                      disabled={!isAdmin}
+                    >
+                      <LayoutList className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant={viewMode === "tree" ? "default" : "ghost"}
+                      className="shadow-sm"
+                      onClick={() => setViewMode("tree")}
+                      aria-label="Chế độ cây"
+                      title="Chế độ cây"
+                      disabled={!isAdmin}
+                    >
+                      <LayoutGrid className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  {/* Filter controls */}
+                  <div className="flex items-center gap-1.5 flex-wrap border-l border-slate-200 pl-2">
+                    <DateRangePicker
+                      fromValue={filterFrom}
+                      toValue={filterTo}
+                      onFromChange={setFilterFrom}
+                      onToChange={setFilterTo}
+                      placeholder="Khoảng ngày"
+                      className="w-[200px]"
+                    />
+                    <Input
+                      value={filterTeacherCode}
+                      onChange={(e) => setFilterTeacherCode(e.target.value)}
+                      placeholder="Mã GV"
+                      className="w-[130px] h-8 text-xs"
+                    />
+                    <Input
+                      value={filterStudentName}
+                      onChange={(e) => setFilterStudentName(e.target.value)}
+                      placeholder="Tên học viên"
+                      className="w-[150px] h-8 text-xs"
+                    />
+                    <Select
+                      value={filterReportType}
+                      onValueChange={setFilterReportType}
+                      placeholder="Loại"
+                      className="w-[130px]"
+                    >
+                      <SelectContent>
+                        <SelectItem value="">Loại</SelectItem>
+                        <SelectItem value="Kiro4+">Kiro4+</SelectItem>
+                        <SelectItem value="Robotics">Robotics</SelectItem>
+                        <SelectItem value="Coding">Coding</SelectItem>
+                        <SelectItem value="Art">Art</SelectItem>
+                        <SelectItem value="pdf-upload">pdf-upload</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="h-8 text-xs shadow-sm shadow-primary/20"
+                      onClick={() => setFilterTrigger((n) => n + 1)}
+                    >
+                      <Search className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
 
-              <div className="flex items-center gap-2">
-                {isDriveSignedIn && (
-                  <div className="flex items-center gap-2">
+                {/* Right group */}
+                <div className="flex items-center gap-2 shrink-0 border-l border-slate-200 pl-3">
+                  {r2Healthy !== false && (
                     <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-md text-xs font-medium">
                       <CheckCircle className="h-3.5 w-3.5 shrink-0" />
-                      <span className="max-w-[160px] truncate">{driveUserEmail || "Đã kết nối"}</span>
-                      {driveRemainingMinutes > 0 && (
-                        <span className="text-emerald-500/70 shrink-0">· còn {driveRemainingMinutes}p</span>
-                      )}
+                      <span>Cloud lưu trữ sẵn sàng</span>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleSignOut}
-                      disabled={isSigningOut}
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                      title="Đăng xuất Google"
-                    >
-                      {isSigningOut ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <LogOut className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                  </div>
-                )}
-                {!isDriveSignedIn ? (
-                  // Not signed in → CTA is to start the OAuth flow.
-                  // Click happens inside a user-gesture handler so the
-                  // popup is allowed (the previous version auto-triggered
-                  // the popup on first load and the browser blocked it).
-                  <div className="relative">
+                  )}
+                  {canUpload && (
                     <Button
                       size="sm"
-                      variant="outline"
-                      className="h-9 border-slate-300 text-slate-700 hover:bg-slate-50"
-                      onClick={async () => {
-                        setIsSigningIn(true);
-                        clearError();
-                        try {
-                          await signInToGoogle();
-                        } catch (err: any) {
-                          console.error("Google sign-in failed:", err);
-                          showError(err?.message || "Đăng nhập Google thất bại");
-                        } finally {
-                          setIsSigningIn(false);
-                        }
-                      }}
-                      disabled={isSigningIn}
-                      title="Đăng nhập Google để có thể tải lên file"
+                      className="h-9 shadow-sm shadow-primary/20"
+                      onClick={() => setUploadOpen(true)}
+                      title="Thêm phiếu mới"
                     >
-                      {isSigningIn ? (
-                        <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                      ) : (
-                        <LogIn className="h-3.5 w-3.5 mr-1.5" />
-                      )}
-                      Đăng nhập Google
+                      <Upload className="h-3.5 w-3.5 mr-1.5" />
+                      Thêm phiếu
                     </Button>
-                    <span className="absolute -top-1.5 -right-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white shadow-sm ring-2 ring-white">
-                      !
-                    </span>
-                  </div>
-                ) : (
-                  <Button
-                    size="sm"
-                    className="h-9 shadow-sm shadow-primary/20"
-                    onClick={handleOpenUpload}
-                    title="Thêm phiếu mới"
-                  >
-                    <Upload className="h-3.5 w-3.5 mr-1.5" />
-                    Thêm phiếu
-                  </Button>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* Breadcrumb */}
-            {view === "browser" && (
+              {/* Breadcrumb */}
               <div className="px-4 py-2.5 bg-gradient-to-r from-slate-50/50 to-white border-b border-slate-100">
                 <nav className="flex items-center text-xs">
                   <Folder className="h-3.5 w-3.5 text-amber-500 mr-1.5 shrink-0" />
@@ -638,19 +411,32 @@ export default function TrialReportPage() {
                   ))}
                 </nav>
               </div>
-            )}
+            </div>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto">
-              {view === "browser" ? (
+              {viewMode === "tree" ? (
                 <FileList
                   key={`${currentFolderId ?? "root"}-${refreshKey}`}
                   folderId={currentFolderId}
                   folderName={currentFolderName}
+                  viewMode="table"
                   onError={showError}
+                  onRefresh={handleRefresh}
                 />
               ) : (
-                <AllFilesList onError={showError} />
+                <AllFilesList
+                  key={`all-files-${refreshKey}-${filterTrigger}`}
+                  onError={showError}
+                  canDelete={canDelete}
+                  viewMode="table"
+                  from={filterFrom}
+                  to={filterTo}
+                  teacherCode={filterTeacherCode}
+                  studentName={filterStudentName}
+                  reportType={filterReportType}
+                  filterTrigger={filterTrigger}
+                />
               )}
             </div>
           </div>
@@ -664,41 +450,6 @@ export default function TrialReportPage() {
         onError={showError}
         onRefresh={handleRefresh}
       />
-    </>
-  );
-
-  return (
-    <main className="space-y-4 mx-auto px-4 sm:px-6 py-5">
-      {/* Persistent banner for token-expired / re-auth flow. Renders
-          above main content so it stays visible until the user signs
-          back in. Hidden when there's no error to show. */}
-      {(errorTitle || errorMsg) && (
-        <div
-          role="alert"
-          className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 shadow-sm"
-        >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100">
-            <RefreshCw className="h-4 w-4 text-amber-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            {errorTitle && (
-              <p className="text-sm font-semibold leading-tight">{errorTitle}</p>
-            )}
-            {errorMsg && (
-              <p className="text-xs text-amber-800/90 mt-0.5">{errorMsg}</p>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={clearError}
-            className="shrink-0 rounded-md p-1 text-amber-700/70 hover:bg-amber-100 hover:text-amber-900 transition-colors"
-            aria-label="Đóng thông báo"
-          >
-            <span className="text-xs font-semibold">Đóng</span>
-          </button>
-        </div>
-      )}
-      {mainContent}
     </main>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Loader2, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, Loader2, Upload } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,9 +26,8 @@ import { toast } from "@/components/ui/toast";
 import { trialReportService } from "@/services/trialReportService";
 import { getTodayVietnam } from "@/lib/utils";
 import {
-  uploadPDFFile as driveUploadPDFFile,
-  getGoogleUserInfo,
-} from "@/services/googleDriveService";
+  uploadPDFFile as r2UploadPDFFile,
+} from "@/services/r2Service";
 import { CreateReportForm } from "./CreateReportForm";
 import type { ReportType } from "@/types/trialReport";
 
@@ -49,11 +48,23 @@ const REPORT_TYPE_OPTIONS: ReportType[] = [
 ];
 
 /**
- * Build the date hierarchy parts the Drive uploader needs (same as the
- * Vite sub-project):
+ * Templates available for the "Tạo phiếu mới" wizard. Excludes
+ * `pdf-upload` (which only applies to the upload tab). Mirrors the
+ * picker previously embedded inside `CreateReportForm`.
+ */
+const CREATE_TEMPLATE_OPTIONS: { type: ReportType; icon: string; label: string }[] = [
+  { type: "Kiro4+", icon: "🤸", label: "Robotics 4+" },
+  { type: "Robotics", icon: "🤖", label: "Robotics" },
+  { type: "Coding", icon: "💻", label: "Coding" },
+  { type: "Art", icon: "🎨", label: "Art" },
+];
+
+/**
+ * Build the date hierarchy parts the R2 uploader needs:
  *   year  = YYYY
  *   month = MM
- *   day   = DD/MM/YYYY (Vietnamese format used by the original)
+ *   day   = DD/MM/YYYY (Vietnamese format kept for parity with the
+ *           folder layout used before migration)
  */
 function formatDateParts(classDate: string): {
   year: string;
@@ -67,10 +78,10 @@ function formatDateParts(classDate: string): {
     const y = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
-    return { year: String(y), month: mm, day: `${dd}/${mm}/${y}` };
+    return { year: String(y), month: mm, day: `${dd}-${mm}-${y}` };
   }
   const [, y, mm, dd] = m;
-  return { year: y, month: mm, day: `${dd}/${mm}/${y}` };
+  return { year: y, month: mm, day: `${dd}-${mm}-${y}` };
 }
 
 export function UploadDialog({
@@ -86,6 +97,11 @@ export function UploadDialog({
   const [teacherName, setTeacherName] = useState("");
   const [studentName, setStudentName] = useState("");
   const [reportType, setReportType] = useState<ReportType>("pdf-upload");
+  // Wizard state for the "Tạo phiếu mới" tab. `createReportType` is
+  // intentionally separate from `reportType` (which is used by the
+  // upload tab and defaults to "pdf-upload").
+  const [createReportType, setCreateReportType] = useState<ReportType>("Kiro4+");
+  const [createStep, setCreateStep] = useState<1 | 2>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const reset = () => {
@@ -94,6 +110,8 @@ export function UploadDialog({
     setTeacherName("");
     setStudentName("");
     setReportType("pdf-upload");
+    setCreateReportType("Kiro4+");
+    setCreateStep(1);
     setIsSubmitting(false);
   };
 
@@ -104,13 +122,14 @@ export function UploadDialog({
 
   /**
    * Two-step upload:
-   *   1. push the PDF to Drive via the user's OAuth token
-   *      (auto-creates Year > Month > Day > Teacher folder tree)
+   *   1. push the PDF to R2 via the backend's multipart endpoint
+   *      (which mirrors the previous Year > Month > Day > Teacher
+   *      folder tree)
    *   2. POST the resulting file metadata to /trial-report/reports/register
    *      so Mongo learns about the new file
    *
    * Order matters: if step 1 succeeds but step 2 fails, the file still
-   * lives in Drive and the user can retry by resubmitting the form.
+   * lives in R2 and the user can retry by resubmitting the form.
    */
   const handleUploadPdf = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,7 +147,7 @@ export function UploadDialog({
       return;
     }
     if (!teacherName.trim()) {
-      onError("Vui lòng nhập tên giáo viên (cần thiết để tạo thư mục trên Drive).");
+      onError("Vui lòng nhập tên giáo viên (cần thiết để tạo thư mục trên R2).");
       return;
     }
 
@@ -137,7 +156,7 @@ export function UploadDialog({
       const { year, month, day } = formatDateParts(classDate);
       const teacher = teacherName.trim();
 
-      const uploaded = await driveUploadPDFFile({
+      const uploaded = await r2UploadPDFFile({
         year,
         month,
         day,
@@ -146,21 +165,17 @@ export function UploadDialog({
         file: pickedFile,
       });
 
-      const userInfo = await getGoogleUserInfo().catch(() => null);
-
       const res = await trialReportService.registerReport({
-        driveFileId: uploaded.id,
+        r2Key: uploaded.id, // R2 object key is the unique storage id
         fileName: uploaded.name,
         mimeType: uploaded.mimeType,
         size: uploaded.size,
         webViewLink: uploaded.webViewLink,
-        webContentLink: uploaded.webContentLink,
-        parentFolderId: uploaded.parents?.[0] || folderId || null,
         reportType,
         classDate,
         teacherName: teacher,
         studentName: studentName.trim(),
-        uploadedByEmail: userInfo?.email || null,
+        uploadedByEmail: null,
       });
 
       if (res.success) {
@@ -170,7 +185,7 @@ export function UploadDialog({
       } else {
         onError(
           res.error ||
-            "Upload lên Drive thành công nhưng backend không ghi nhận được. File đã nằm trong Drive của bạn — có thể cần dọn thủ công.",
+            "Upload lên R2 thành công nhưng backend không ghi nhận được.",
         );
       }
     } catch (err: any) {
@@ -184,7 +199,7 @@ export function UploadDialog({
 
   return (
     <Drawer open={open} onOpenChange={handleOpenChange}>
-      <DrawerContent side="right" width={1000}>
+      <DrawerContent side="right" width={720}>
         <DrawerClose />
         <DrawerHeader>
           <DrawerTitle>Thêm phiếu trải nghiệm</DrawerTitle>
@@ -320,16 +335,261 @@ export function UploadDialog({
           </TabsContent>
 
           <TabsContent value="create" className="mt-3">
-            <CreateReportForm
-              folderId={folderId}
-              onError={onError}
-              onClose={() => handleOpenChange(false)}
-              onRefresh={onRefresh}
-            />
+            {createStep === 1 ? (
+              <CreateWizardStep1
+                reportType={createReportType}
+                onReportTypeChange={setCreateReportType}
+                classDate={classDate}
+                onClassDateChange={setClassDate}
+                teacherName={teacherName}
+                onTeacherNameChange={setTeacherName}
+                studentName={studentName}
+                onStudentNameChange={setStudentName}
+                onCancel={() => handleOpenChange(false)}
+                onContinue={() => setCreateStep(2)}
+              />
+            ) : (
+              <CreateWizardStep2
+                summary={{
+                  reportType: createReportType,
+                  classDate,
+                  teacherName,
+                  studentName,
+                }}
+                onBack={() => setCreateStep(1)}
+                folderId={folderId}
+                onError={onError}
+                onClose={() => handleOpenChange(false)}
+                onRefresh={onRefresh}
+                onClassDateChange={setClassDate}
+              />
+            )}
           </TabsContent>
         </Tabs>
         </div>
       </DrawerContent>
     </Drawer>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Wizard sub-components                                                */
+/* ------------------------------------------------------------------ */
+
+interface CreateWizardStep1Props {
+  reportType: ReportType;
+  onReportTypeChange: (type: ReportType) => void;
+  classDate: string;
+  onClassDateChange: (date: string) => void;
+  teacherName: string;
+  onTeacherNameChange: (name: string) => void;
+  studentName: string;
+  onStudentNameChange: (name: string) => void;
+  onCancel: () => void;
+  onContinue: () => void;
+}
+
+/**
+ * Step 1 of the "Tạo phiếu mới" wizard. Picks the template and the
+ * three metadata fields (date / teacher / student) that are shared
+ * across every form template. Validation only requires student +
+ * teacher before advancing; everything else is collected in Step 2.
+ */
+function CreateWizardStep1({
+  reportType,
+  onReportTypeChange,
+  classDate,
+  onClassDateChange,
+  teacherName,
+  onTeacherNameChange,
+  studentName,
+  onStudentNameChange,
+  onCancel,
+  onContinue,
+}: CreateWizardStep1Props) {
+  const canContinue =
+    studentName.trim().length > 0 && teacherName.trim().length > 0;
+
+  return (
+    <div className="space-y-5">
+      {/* Step indicator */}
+      <ol className="flex items-center gap-2 text-xs text-muted-foreground">
+        <li className="flex items-center gap-2">
+          <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground inline-flex items-center justify-center text-[11px] font-semibold">
+            1
+          </span>
+          <span className="font-medium text-foreground">Thông tin chung</span>
+        </li>
+        <li className="h-px flex-1 bg-border" aria-hidden />
+        <li className="flex items-center gap-2">
+          <span className="h-5 w-5 rounded-full border bg-background text-muted-foreground inline-flex items-center justify-center text-[11px] font-semibold">
+            2
+          </span>
+          <span>Chi tiết phiếu</span>
+        </li>
+      </ol>
+
+      <div className="p-4 bg-muted/50 rounded-lg border">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-sm font-medium">Chọn template phiếu:</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {CREATE_TEMPLATE_OPTIONS.map((opt) => (
+            <button
+              key={opt.type}
+              type="button"
+              onClick={() => onReportTypeChange(opt.type)}
+              className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
+                reportType === opt.type
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background border-border hover:bg-muted"
+              }`}
+            >
+              <span className="mr-1.5">{opt.icon}</span>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="createClassDate">Ngày buổi học *</Label>
+          <DatePicker
+            id="createClassDate"
+            value={classDate}
+            onChange={onClassDateChange}
+            required
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="createStudentName">Tên học viên *</Label>
+          <Input
+            id="createStudentName"
+            value={studentName}
+            onChange={(e) => onStudentNameChange(e.target.value)}
+            placeholder="Nhập họ và tên"
+            required
+          />
+        </div>
+
+        <div className="space-y-1.5 md:col-span-2">
+          <Label htmlFor="createTeacherName">Tên giáo viên *</Label>
+          <Input
+            id="createTeacherName"
+            value={teacherName}
+            onChange={(e) => onTeacherNameChange(e.target.value)}
+            placeholder="VD: Nguyễn Quốc Dũng"
+            required
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 pt-4 border-t">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Hủy
+        </Button>
+        <Button type="button" onClick={onContinue} disabled={!canContinue}>
+          Tiếp tục
+          <ChevronRight className="h-4 w-4 ml-1" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface CreateWizardStep2Props {
+  summary: {
+    reportType: ReportType;
+    classDate: string;
+    teacherName: string;
+    studentName: string;
+  };
+  onBack: () => void;
+  folderId: string | null;
+  onError: (msg: string | null) => void;
+  onClose: () => void;
+  onRefresh: () => void;
+  /**
+   * Forwarded to `CreateReportForm` so any DatePicker change in the
+   * sub-forms bubbles back up to the parent (which owns the
+   * canonical `classDate` state).
+   */
+  onClassDateChange: (date: string) => void;
+}
+
+/**
+ * Step 2 renders the existing `CreateReportForm` and shows a small
+ * summary header (template + date + student) so the user can confirm
+ * the metadata they entered in Step 1. "Quay lại" returns to Step 1;
+ * the sub-form keeps `initialData` in sync via the props passed in.
+ */
+function CreateWizardStep2({
+  summary,
+  onBack,
+  folderId,
+  onError,
+  onClose,
+  onRefresh,
+  onClassDateChange,
+}: CreateWizardStep2Props) {
+  const template = CREATE_TEMPLATE_OPTIONS.find(
+    (o) => o.type === summary.reportType,
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Step indicator (step 2 active) */}
+      <ol className="flex items-center gap-2 text-xs text-muted-foreground">
+        <li className="flex items-center gap-2">
+          <span className="h-5 w-5 rounded-full border bg-background text-muted-foreground inline-flex items-center justify-center text-[11px] font-semibold">
+            1
+          </span>
+          <span>Thông tin chung</span>
+        </li>
+        <li className="h-px flex-1 bg-primary" aria-hidden />
+        <li className="flex items-center gap-2">
+          <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground inline-flex items-center justify-center text-[11px] font-semibold">
+            2
+          </span>
+          <span className="font-medium text-foreground">Chi tiết phiếu</span>
+        </li>
+      </ol>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-muted/40 rounded-lg border text-sm">
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Quay lại
+          </button>
+          <span className="text-muted-foreground/60">|</span>
+          <span className="truncate">
+            <span className="mr-1">{template?.icon}</span>
+            {template?.label}
+            <span className="text-muted-foreground/60"> · </span>
+            {summary.studentName || "(chưa nhập tên)"}
+            <span className="text-muted-foreground/60"> · </span>
+            {summary.classDate}
+          </span>
+        </div>
+      </div>
+
+      <CreateReportForm
+        folderId={folderId}
+        onError={onError}
+        onClose={onClose}
+        onRefresh={onRefresh}
+        initialReportType={summary.reportType}
+        initialClassDate={summary.classDate}
+        initialTeacherName={summary.teacherName}
+        initialStudentName={summary.studentName}
+        onClassDateChange={onClassDateChange}
+      />
+    </div>
   );
 }

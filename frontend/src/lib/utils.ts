@@ -38,6 +38,60 @@ export function isElevatedRole(user: any): boolean {
   return isTE(user) || isTeacher(user);
 }
 
+/**
+ * Permission flags for the trial-report module.
+ *
+ * These are additive — the TE role gets all flags; other roles only get
+ * `canUpload` by default until a finer cơ sở-aware mapping is wired in.
+ */
+export type Permission =
+  | "canViewAll"
+  | "canApprove"
+  | "canDelete"
+  | "canUpload"
+  | "canManageTeachers";
+
+/**
+ * User-like object accepted by permission helpers.
+ *
+ * Loosely typed — accepts the full `User` DTO, partial user shapes, or
+ * `null`. Internal helpers only read `appRoles` / `roles` defensively.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type UserLike = any;
+
+/**
+ * Returns all permission flags for a given user.
+ *
+ * Stepping-stone mapping (TE → all true; everyone else → only `canUpload`).
+ */
+export function getUserPermissions(
+  user: UserLike | null | undefined,
+): Record<Permission, boolean> {
+  const isTe = isTE(user);
+  return {
+    canViewAll: isTe,
+    canApprove: isTe,
+    canDelete: isTe,
+    canUpload: true,
+    canManageTeachers: isTe,
+  };
+}
+
+/**
+ * Check whether a user holds a given permission flag.
+ *
+ * Accepts the full `User` DTO (or anything that has the relevant fields)
+ * — note: this is the RBAC helper for the trial-report module, distinct
+ * from the app-level `appPermissions` DTO populated by the backend.
+ */
+export function hasPermission(
+  user: UserLike | null | undefined,
+  perm: Permission,
+): boolean {
+  return getUserPermissions(user)[perm];
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
