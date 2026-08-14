@@ -72,6 +72,7 @@ function LoginPageInner() {
           : res;
 
       const mindxUser = data.mindxUser || data.user;
+      const lmsToken = data.lmsToken || res.lmsToken;
 
       if (!mindxUser || !mindxUser.id) {
         console.error("Login response missing user info:", res);
@@ -80,10 +81,10 @@ function LoginPageInner() {
         );
       }
 
-      // The LMS token now lives in an httpOnly cookie set by the server.
-      // We intentionally drop `lmsToken` / `sessionId` from the store so
-      // they never reach localStorage / sessionStorage (XSS-safe).
-      login(mindxUser);
+      // Store the LMS token in localStorage as an iOS ITP fallback.
+      // On iOS, cookies may be blocked after login; the Authorization
+      // header sent by api.ts reads this token to keep the session alive.
+      login(mindxUser, lmsToken);
       router.push("/dashboard");
       return true;
     }

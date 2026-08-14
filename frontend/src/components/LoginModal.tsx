@@ -51,6 +51,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
           : res;
 
       const mindxUser = data.mindxUser || data.user;
+      const lmsToken = data.lmsToken || res.lmsToken;
 
       if (!mindxUser || !mindxUser.id) {
         throw new Error(
@@ -58,10 +59,10 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
         );
       }
 
-      // Auth tokens now live in httpOnly cookies set by the server.
-      // We intentionally drop them from the FE store to avoid XSS
-      // exposure.
-      login(mindxUser);
+      // Store the LMS token in localStorage as an iOS ITP fallback.
+      // On iOS, cookies may be blocked after login; the Authorization
+      // header sent by api.ts reads this token to keep the session alive.
+      login(mindxUser, lmsToken);
       onOpenChange(false);
       return true;
     }

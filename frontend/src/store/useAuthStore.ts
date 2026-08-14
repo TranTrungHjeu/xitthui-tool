@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { User } from "@/types";
+import { tokenStorage } from "@/services/api";
 
 interface AuthState {
   user: User | null;
@@ -9,7 +10,7 @@ interface AuthState {
   lastClassesFetch: number | null;
   classDetailsById: Record<string, any>;
   lastClassDetailsFetch: Record<string, number>;
-  login: (user: User) => void;
+  login: (user: User, lmsToken?: string) => void;
   logout: () => void;
   setTeacherId: (teacherId: string) => void;
   setClasses: (classes: any[]) => void;
@@ -67,12 +68,14 @@ export const useAuthStore = create<AuthState>()(
       lastClassesFetch: null,
       classDetailsById: {},
       lastClassDetailsFetch: {},
-      login: (user) =>
-        set({
-          user,
-          isAuthenticated: true,
-        }),
-      logout: () =>
+      login: (user, lmsToken) => {
+        // Store in localStorage as an iOS ITP fallback — the sessionStorage
+        // persist layer does NOT hold the token; tokenStorage is independent.
+        if (lmsToken) tokenStorage.set(lmsToken);
+        set({ user, isAuthenticated: true });
+      },
+      logout: () => {
+        tokenStorage.clear();
         set({
           user: null,
           isAuthenticated: false,
@@ -80,7 +83,8 @@ export const useAuthStore = create<AuthState>()(
           lastClassesFetch: null,
           classDetailsById: {},
           lastClassDetailsFetch: {},
-        }),
+        });
+      },
       setTeacherId: (teacherId) =>
         set((state) => ({
           user: state.user ? { ...state.user, teacherId } : null,

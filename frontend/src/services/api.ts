@@ -1,6 +1,38 @@
 import axios from "axios";
 import { useAuthStore } from "../store/useAuthStore";
 
+// ─── iOS ITP fix: token lives in localStorage so it survives even when
+//     cross-site cookies are blocked by Intelligent Tracking Prevention.
+//     The header is sent alongside the cookie (withCredentials: true) so
+//     the backend can fall back to it on iOS while still using the cookie
+//     everywhere else. ────────────────────────────────────────────────────────
+
+const LOCAL_STORAGE_TOKEN_KEY = "lms_auth_token";
+
+export const tokenStorage = {
+  get(): string | null {
+    try {
+      return localStorage.getItem(LOCAL_STORAGE_TOKEN_KEY);
+    } catch {
+      return null;
+    }
+  },
+  set(token: string): void {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, token);
+    } catch {
+      // Quota exceeded or private browsing — fail silently.
+    }
+  },
+  clear(): void {
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_TOKEN_KEY);
+    } catch {
+      // Already unavailable.
+    }
+  },
+};
+
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_SERVER_API_URL,
   headers: {
@@ -9,7 +41,17 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Variable to prevent multiple refresh calls
+// Inject the localStorage token as a fallback Authorization header so iOS
+// (ITP) clients that cannot receive cookies still authenticate correctly.
+api.interceptors.request.use((config) => {
+  const storedToken = tokenStorage.get();
+  if (storedToken) {
+    config.headers.set("Authorization", `Bearer ${storedToken}`);
+  }
+  return config;
+});
+
+
 let isRefreshing = false;
 let failedQueue: any[] = [];
 
