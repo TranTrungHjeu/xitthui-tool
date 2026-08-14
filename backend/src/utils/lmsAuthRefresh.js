@@ -56,13 +56,21 @@ async function refreshLmsTokenForSession(sessionId) {
   const promise = (async () => {
     try {
       const session = await FirestoreSession.getSession(sessionId);
+      log.info(`[LmsAuthRefresh] Session lookup for ${sessionId}:`, {
+        exists: !!session,
+        isValid: session?.isValid,
+        hasRefreshToken: !!session?.lmsRefreshToken,
+        refreshTokenLength: session?.lmsRefreshToken?.length || 0,
+      });
       if (!session || !session.isValid) return null;
       if (!session.lmsRefreshToken) {
-        log.warn(`[LmsAuthRefresh] Session ${sessionId} has no refresh token`);
+        log.warn(`[LmsAuthRefresh] Session ${sessionId} has no refresh token - cannot refresh`);
         return null;
       }
 
+      log.info(`[LmsAuthRefresh] Attempting to refresh token for session ${sessionId}`);
       const refreshed = await lmsAuth.refreshLmsToken(session.lmsRefreshToken);
+      log.info(`[LmsAuthRefresh] Token refreshed successfully for ${sessionId}`);
       await FirestoreSession.updateSession(sessionId, {
         lmsRefreshToken: refreshed.refreshToken,
       });
